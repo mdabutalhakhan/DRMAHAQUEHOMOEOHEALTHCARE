@@ -1,11 +1,21 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Sparkles, Clock, CheckCircle2, User, Phone, MapPin, AlertCircle, ArrowRight } from 'lucide-react';
-import { getAppointments } from '../services/clinicStore';
+import { getAppointments, subscribeToStore } from '../services/clinicStore';
 import { Appointment } from '../types';
 
 export const LiveTracker: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const appointments = getAppointments();
+  const [appointments, setAppointments] = useState<Appointment[]>(getAppointments());
+
+  useEffect(() => {
+    setAppointments(getAppointments());
+    const unsubscribe = subscribeToStore((event) => {
+      if (event.type === 'appointments') {
+        setAppointments(getAppointments());
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -14,7 +24,7 @@ export const LiveTracker: React.FC = () => {
       (a) =>
         a.phone.includes(q) ||
         a.token_number.toLowerCase().includes(q) ||
-        a.patient_id.toLowerCase().includes(q) ||
+        (a.patient_id && a.patient_id.toLowerCase().includes(q)) ||
         a.patient_name.toLowerCase().includes(q)
     );
   }, [appointments, searchQuery]);

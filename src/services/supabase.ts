@@ -1,5 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+// Project Supabase default credentials fallback
+export const HARDCODED_SUPABASE_URL = 'https://yqrmrgwrqipqpqwvykgk.supabase.co';
+export const HARDCODED_SUPABASE_ANON_KEY = 'sb_publishable_UKe7-UTQQcgENw29F1QrMg_N_SGo536';
+
 // Safe getter for Supabase client
 let supabaseInstance: SupabaseClient | null = null;
 let lastUsedUrl = '';
@@ -13,6 +17,11 @@ export function sanitizeSupabaseUrl(rawUrl: string | null | undefined): string |
   // Add https:// protocol if missing
   if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
     clean = `https://${clean}`;
+  }
+
+  // Correct known project hostname spelling typo if present so DNS lookup always succeeds
+  if (clean.includes('yqrmrgwrqipqpwvykgk.supabase.co')) {
+    clean = clean.replace('yqrmrgwrqipqpwvykgk.supabase.co', 'yqrmrgwrqipqpqwvykgk.supabase.co');
   }
 
   try {
@@ -34,19 +43,19 @@ export function sanitizeSupabaseKey(rawKey: string | null | undefined): string {
   return rawKey.trim().replace(/^["']|["']$/g, '');
 }
 
-export function getSupabase(): SupabaseClient | null {
-  const rawUrl = (typeof window !== 'undefined' && localStorage.getItem('hhc_supabase_url')) || import.meta.env.VITE_SUPABASE_URL;
-  const rawKey = (typeof window !== 'undefined' && localStorage.getItem('hhc_supabase_key')) || import.meta.env.VITE_SUPABASE_ANON_KEY;
+export function getSupabase(): SupabaseClient {
+  const rawUrl = 
+    (typeof window !== 'undefined' && localStorage.getItem('hhc_supabase_url')) ||
+    import.meta.env.VITE_SUPABASE_URL ||
+    HARDCODED_SUPABASE_URL;
 
-  const url = sanitizeSupabaseUrl(rawUrl);
-  const key = sanitizeSupabaseKey(rawKey);
+  const rawKey = 
+    (typeof window !== 'undefined' && localStorage.getItem('hhc_supabase_key')) ||
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    HARDCODED_SUPABASE_ANON_KEY;
 
-  if (!url || !key) {
-    supabaseInstance = null;
-    lastUsedUrl = '';
-    lastUsedKey = '';
-    return null;
-  }
+  const url = sanitizeSupabaseUrl(rawUrl) || HARDCODED_SUPABASE_URL;
+  const key = sanitizeSupabaseKey(rawKey) || HARDCODED_SUPABASE_ANON_KEY;
 
   // Reuse instance if credentials have not changed
   if (supabaseInstance && lastUsedUrl === url && lastUsedKey === key) {
@@ -65,11 +74,11 @@ export function getSupabase(): SupabaseClient | null {
     lastUsedKey = key;
     return supabaseInstance;
   } catch (e) {
-    console.warn('Could not initialize Supabase client:', e);
-    supabaseInstance = null;
-    lastUsedUrl = '';
-    lastUsedKey = '';
-    return null;
+    console.warn('Could not initialize Supabase client, falling back to default:', e);
+    supabaseInstance = createClient(HARDCODED_SUPABASE_URL, HARDCODED_SUPABASE_ANON_KEY);
+    lastUsedUrl = HARDCODED_SUPABASE_URL;
+    lastUsedKey = HARDCODED_SUPABASE_ANON_KEY;
+    return supabaseInstance;
   }
 }
 

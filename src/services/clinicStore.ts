@@ -9,16 +9,18 @@ import {
   StockLog, 
   UserProfile 
 } from '../types';
-import { INITIAL_APPOINTMENTS, INITIAL_INVENTORY, INITIAL_PROFILES } from './seedData';
+import { INITIAL_INVENTORY, INITIAL_PROFILES } from './seedData';
 import { getSupabase } from './supabase';
 
-const APPOINTMENTS_KEY = 'hhc_appointments_v1';
 const INVENTORY_KEY = 'hhc_inventory_v1';
 const PRESCRIPTIONS_KEY = 'hhc_prescriptions_v1';
-const INVOICES_KEY = 'hhc_invoices_v1';
 const STOCK_LOGS_KEY = 'hhc_stock_logs_v1';
 const PROFILES_KEY = 'hhc_profiles_v1';
 const CURRENT_USER_KEY = 'hhc_current_user_v1';
+
+// In-Memory Live Stores for direct Supabase state (Zero localStorage usage for Appointments & Invoices)
+let inMemoryAppointments: Appointment[] = [];
+let inMemoryInvoices: Invoice[] = [];
 
 // BroadcastChannel for instant multi-tab & multi-window synchronization
 let channel: BroadcastChannel | null = null;
@@ -28,17 +30,6 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
   } catch (e) {
     console.warn('BroadcastChannel not available', e);
   }
-}
-
-function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
 }
 
 function notifySubscribers(type: string, data?: any) {
@@ -75,50 +66,105 @@ export function subscribeToStore(callback: (event: { type: string; data?: any })
   };
 }
 
+/**
+ * Directly fetches appointments from Supabase table ordered by created_at ascending.
+ */
+export async function fetchAppointmentsFromSupabase(): Promise<Appointment[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Failed to fetch appointments from Supabase:', error);
+    throw new Error(`Supabase query failed: ${error.message}`);
+  }
+
+  const list: Appointment[] = (data || []).map((row: any) => ({
+    id: row.id,
+    token_number: row.token_number,
+    patient_id: row.patient_id || `PAT-${(row.phone || '1000').slice(-4)}`,
+    patient_name: row.patient_name,
+    age: row.age ? Number(row.age) : undefined,
+    phone: row.phone,
+    address: row.address,
+    booking_date: row.booking_date,
+    shift: row.shift,
+    queue_position: row.queue_position || row.queue_number || 1,
+    status: row.status,
+    symptoms: row.symptoms,
+    symptoms_summary: row.symptoms || row.symptoms_summary,
+    doctor_notes: row.doctor_notes || row.consultation_notes,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+
+  inMemoryAppointments = list;
+  notifySubscribers('appointments', inMemoryAppointments);
+  return list;
+}
+
+/**
+ * Directly fetches invoices from Supabase table ordered by created_at descending.
+ */
+export async function fetchInvoicesFromSupabase(): Promise<Invoice[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to fetch invoices from Supabase:', error);
+    throw new Error(`Supabase invoices query failed: ${error.message}`);
+  }
+
+  const list: Invoice[] = (data || []).map((row: any) => ({
+    id: row.id,
+    invoice_number: row.invoice_number,
+    patient_id: row.patient_uid || row.patient_id || 'PAT-1001',
+    patient_name: row.patient_name,
+    phone: row.phone || '',
+    consultation_fee: Number(row.consultation_fee) || 200,
+    subtotal: Number(row.total_amount) + Number(row.discount || 0),
+    discount: Number(row.discount) || 0,
+    tax: 0,
+    total_amount: Number(row.total_amount),
+    payment_mode: (row.payment_mode || 'cash').toLowerCase() as any,
+    payment_status: 'paid',
+    items: Array.isArray(row.items) ? row.items : [],
+    created_at: row.created_at,
+  }));
+
+  inMemoryInvoices = list;
+  notifySubscribers('invoices', inMemoryInvoices);
+  return list;
+}
+
+/**
+ * Initializes global Supabase Realtime synchronization across all tabs and devices.
+ */
 export function initSupabaseSync(): () => void {
   const supabase = getSupabase();
-  if (!supabase) return () => {};
 
-  // Fetch live appointments from Supabase and merge
-  const fetchLiveAppointments = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (!error && Array.isArray(data)) {
-        const local = getAppointments();
-        const map = new Map<string, Appointment>();
-        // Add Supabase records
-        for (const item of data) {
-          if (item && item.id) map.set(item.id, item as Appointment);
-        }
-        // Add any pending local-only records
-        for (const item of local) {
-          if (item && item.id && !map.has(item.id)) {
-            map.set(item.id, item);
-          }
-        }
-        const sorted = Array.from(map.values()).sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-        saveAppointments(sorted);
-      }
-    } catch (err) {
-      console.warn('Could not fetch Supabase appointments:', err);
-    }
-  };
+  // Initial fetch from live Supabase tables
+  fetchAppointmentsFromSupabase().catch((err) => {
+    console.warn('[Supabase Sync] Initial appointments fetch notice:', err.message);
+  });
+  fetchInvoicesFromSupabase().catch((err) => {
+    console.warn('[Supabase Sync] Initial invoices fetch notice:', err.message);
+  });
 
-  fetchLiveAppointments();
-
-  // Cross-device window focus check
+  // Refetch on window focus
   const handleFocus = () => {
-    fetchLiveAppointments();
+    fetchAppointmentsFromSupabase().catch(() => {});
+    fetchInvoicesFromSupabase().catch(() => {});
   };
   window.addEventListener('focus', handleFocus);
   window.addEventListener('visibilitychange', handleFocus);
 
-  // Cross-device Realtime channel subscription via postgres_changes
+  // Cross-device Realtime channel subscription via postgres_changes on appointments
   let realtimeChannel: any = null;
   try {
     realtimeChannel = supabase
@@ -127,35 +173,51 @@ export function initSupabaseSync(): () => void {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'appointments' },
         (payload) => {
-          console.log('[Realtime] Supabase appointment event received:', payload);
+          console.log('[Realtime] Supabase appointments change:', payload.eventType, payload.new);
           if (payload.eventType === 'INSERT' && payload.new) {
-            const newApt = payload.new as Appointment;
-            const current = getAppointments();
-            if (!current.some((a) => a.id === newApt.id || a.token_number === newApt.token_number)) {
-              const updated = [newApt, ...current];
-              localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(updated));
-              notifySubscribers('appointments', updated);
+            const row = payload.new as any;
+            const newApt: Appointment = {
+              id: row.id,
+              token_number: row.token_number,
+              patient_id: row.patient_id || `PAT-${(row.phone || '1000').slice(-4)}`,
+              patient_name: row.patient_name,
+              age: row.age ? Number(row.age) : undefined,
+              phone: row.phone,
+              address: row.address,
+              booking_date: row.booking_date,
+              shift: row.shift,
+              queue_position: row.queue_position || row.queue_number || 1,
+              status: row.status,
+              symptoms: row.symptoms,
+              symptoms_summary: row.symptoms || row.symptoms_summary,
+              doctor_notes: row.doctor_notes,
+              created_at: row.created_at,
+              updated_at: row.updated_at,
+            };
+            if (!inMemoryAppointments.some((a) => a.id === newApt.id || a.token_number === newApt.token_number)) {
+              inMemoryAppointments = [...inMemoryAppointments, newApt];
+              notifySubscribers('appointments', inMemoryAppointments);
             }
           } else if (payload.eventType === 'UPDATE' && payload.new) {
-            const updatedApt = payload.new as Appointment;
-            const current = getAppointments();
-            const updated = current.map((a) =>
-              a.id === updatedApt.id || a.token_number === updatedApt.token_number
-                ? { ...a, ...updatedApt }
+            const row = payload.new as any;
+            inMemoryAppointments = inMemoryAppointments.map((a) =>
+              a.id === row.id || a.token_number === row.token_number
+                ? {
+                    ...a,
+                    ...row,
+                    symptoms_summary: row.symptoms || a.symptoms_summary,
+                  }
                 : a
             );
-            localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(updated));
-            notifySubscribers('appointments', updated);
+            notifySubscribers('appointments', inMemoryAppointments);
           } else if (payload.eventType === 'DELETE' && payload.old) {
             const oldId = (payload.old as any)?.id;
             if (oldId) {
-              const current = getAppointments();
-              const updated = current.filter((a) => a.id !== oldId);
-              localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(updated));
-              notifySubscribers('appointments', updated);
+              inMemoryAppointments = inMemoryAppointments.filter((a) => a.id !== oldId);
+              notifySubscribers('appointments', inMemoryAppointments);
             }
           } else {
-            fetchLiveAppointments();
+            fetchAppointmentsFromSupabase().catch(() => {});
           }
         }
       )
@@ -176,42 +238,15 @@ export function initSupabaseSync(): () => void {
 }
 
 // ==========================================
-// APPOINTMENTS & QUEUE MANAGEMENT
+// APPOINTMENTS & QUEUE MANAGEMENT (Direct Supabase)
 // ==========================================
 
 export function getAppointments(): Appointment[] {
-  if (typeof window === 'undefined') return [];
-  const stored = localStorage.getItem(APPOINTMENTS_KEY);
-  if (!stored) {
-    localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify([]));
-    return [];
-  }
-  try {
-    const list: Appointment[] = JSON.parse(stored);
-    // Filter out any legacy dummy/mock patients
-    const mockNames = new Set([
-      'Ananya Banerjee',
-      'Rajesh Mukherjee',
-      'Suman Sen',
-      'Priyanka Das',
-      'Subhashish Roy',
-      'Debjani Ghosh',
-    ]);
-    const cleaned = list.filter(
-      (a) => !mockNames.has(a.patient_name) && !a.patient_id?.startsWith('PAT-102')
-    );
-    if (cleaned.length !== list.length) {
-      localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(cleaned));
-    }
-    return cleaned;
-  } catch {
-    return [];
-  }
+  return inMemoryAppointments;
 }
 
 export function saveAppointments(appointments: Appointment[]) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(appointments));
+  inMemoryAppointments = appointments;
   notifySubscribers('appointments', appointments);
 }
 
@@ -223,78 +258,130 @@ export interface BookingInput {
   booking_date: string; // YYYY-MM-DD
   shift: ShiftType;
   symptoms_summary?: string;
+  symptoms?: string;
 }
 
+/**
+ * DIRECT SUPABASE INSERTION:
+ * Inserts directly into `appointments` in Supabase.
+ * If Supabase returns an error, throws an explicit Error.
+ * ZERO localStorage caching or silent fallback.
+ */
 export async function createAppointment(input: BookingInput): Promise<{ appointment: Appointment; queuePosition: number }> {
-  const currentAppointments = getAppointments();
-
-  // Validate Friday clinic closed
+  // 1. Validate Friday clinic closed
   const dateObj = new Date(input.booking_date + 'T00:00:00');
   if (dateObj.getDay() === 5) { // 5 is Friday
     throw new Error('Clinic is closed on Fridays. Please select Saturday to Thursday.');
   }
 
-  // Calculate live queue count for this specific date and shift
-  const existingForSlot = currentAppointments.filter(
-    (a) => a.booking_date === input.booking_date && a.shift === input.shift && a.status !== 'cancelled'
-  );
+  const supabase = getSupabase();
 
-  const queuePosition = existingForSlot.length + 1;
+  // 2. Query live existing appointments directly from Supabase for accurate queue calculation
+  const { data: slotRows, error: slotQueryErr } = await supabase
+    .from('appointments')
+    .select('id, token_number, status')
+    .eq('booking_date', input.booking_date)
+    .eq('shift', input.shift)
+    .neq('status', 'cancelled');
+
+  if (slotQueryErr) {
+    console.error('Supabase slot query error:', slotQueryErr);
+    throw new Error(`Database error querying existing appointments: ${slotQueryErr.message}`);
+  }
+
+  const queuePosition = (slotRows?.length || 0) + 1;
   const shiftPrefix = input.shift === 'morning' ? 'MORN' : 'EVE';
   const cleanDate = input.booking_date.replace(/-/g, '');
   const padIndex = String(queuePosition).padStart(3, '0');
   const token_number = `TK-${cleanDate}-${shiftPrefix}-${padIndex}`;
 
-  // Find existing patient ID by phone or generate new one
-  const existingPatient = currentAppointments.find((a) => a.phone === input.phone);
-  const patient_id = existingPatient ? existingPatient.patient_id : `PAT-${Math.floor(1000 + Math.random() * 9000)}`;
-
-  const newAppointment: Appointment = {
-    id: generateUUID(),
+  // 3. Prepare payload matching exact requested Supabase schema:
+  // [{ token_number, patient_name, age, phone, address, booking_date, shift, symptoms, status: 'pending' }]
+  const symptomsVal = input.symptoms?.trim() || input.symptoms_summary?.trim() || null;
+  const payload: Record<string, any> = {
     token_number,
-    patient_id,
     patient_name: input.patient_name.trim(),
-    age: input.age ? Number(input.age) : undefined,
+    age: input.age ? Number(input.age) : null,
     phone: input.phone.trim(),
     address: input.address.trim(),
     booking_date: input.booking_date,
     shift: input.shift,
-    queue_position: queuePosition,
+    symptoms: symptomsVal,
     status: 'pending',
-    symptoms_summary: input.symptoms_summary?.trim(),
-    created_at: new Date().toISOString(),
   };
 
-  const updated = [newAppointment, ...currentAppointments];
-  saveAppointments(updated);
+  // 4. Directly execute Supabase insert
+  let { data, error } = await supabase
+    .from('appointments')
+    .insert([payload])
+    .select();
 
-  // Sync to Supabase if configured
-  const supabase = getSupabase();
-  if (supabase) {
-    try {
-      const { error: insertErr } = await supabase.from('appointments').insert([newAppointment]);
-      if (insertErr) {
-        console.warn('Supabase appointment insert error:', insertErr);
-      }
-    } catch (e) {
-      console.warn('Supabase appointment sync warning:', e);
-    }
+  // If the remote table schema cache reports missing optional 'age' column, retry without age
+  if (error && (error.code === 'PGRST204' || error.message?.includes('age'))) {
+    console.warn('[Supabase Insert] Retrying insert without age column:', error.message);
+    const { age: _unusedAge, ...withoutAge } = payload;
+    const retryRes = await supabase.from('appointments').insert([withoutAge]).select();
+    data = retryRes.data;
+    error = retryRes.error;
   }
 
-  return { appointment: newAppointment, queuePosition };
+  // Explicit error checking — NO silent localStorage mock fallback
+  if (error || !data || data.length === 0) {
+    const msg = error?.message || 'Database error: Supabase returned no confirmed record.';
+    console.error('[Supabase Error] Appointment booking failed:', error);
+    throw new Error(`Supabase Database Error: ${msg}`);
+  }
+
+  const insertedRow = data[0] as any;
+  const confirmedAppointment: Appointment = {
+    id: insertedRow.id,
+    token_number: insertedRow.token_number,
+    patient_id: `PAT-${insertedRow.phone ? insertedRow.phone.slice(-4) : '1001'}`,
+    patient_name: insertedRow.patient_name,
+    age: insertedRow.age ? Number(insertedRow.age) : input.age,
+    phone: insertedRow.phone,
+    address: insertedRow.address,
+    booking_date: insertedRow.booking_date,
+    shift: insertedRow.shift,
+    queue_position: queuePosition,
+    status: insertedRow.status || 'pending',
+    symptoms: insertedRow.symptoms || symptomsVal || undefined,
+    symptoms_summary: insertedRow.symptoms || symptomsVal || undefined,
+    created_at: insertedRow.created_at || new Date().toISOString(),
+  };
+
+  // Update in-memory state and notify subscribers
+  inMemoryAppointments = [
+    ...inMemoryAppointments.filter((a) => a.id !== confirmedAppointment.id && a.token_number !== confirmedAppointment.token_number),
+    confirmedAppointment,
+  ];
+  notifySubscribers('appointments', inMemoryAppointments);
+
+  return { appointment: confirmedAppointment, queuePosition };
 }
 
 export function getLiveQueueEstimate(date: string, shift: ShiftType): number {
-  const currentAppointments = getAppointments();
-  const existing = currentAppointments.filter(
+  const existing = inMemoryAppointments.filter(
     (a) => a.booking_date === date && a.shift === shift && a.status !== 'cancelled'
   );
   return existing.length + 1;
 }
 
-export function updateAppointmentStatus(id: string, status: AppointmentStatus, notes?: string) {
-  const appointments = getAppointments();
-  const updated = appointments.map((a) => {
+export async function updateAppointmentStatus(id: string, status: AppointmentStatus, notes?: string) {
+  const supabase = getSupabase();
+  const updateFields: Record<string, any> = { status };
+
+  const { error } = await supabase
+    .from('appointments')
+    .update(updateFields)
+    .eq('id', id);
+
+  if (error) {
+    console.error('Supabase updateAppointmentStatus error:', error);
+    throw new Error(`Database error updating status: ${error.message}`);
+  }
+
+  inMemoryAppointments = inMemoryAppointments.map((a) => {
     if (a.id === id) {
       return {
         ...a,
@@ -305,32 +392,44 @@ export function updateAppointmentStatus(id: string, status: AppointmentStatus, n
     }
     return a;
   });
-  saveAppointments(updated);
-
-  const supabase = getSupabase();
-  if (supabase) {
-    supabase.from('appointments').update({ status, doctor_notes: notes }).eq('id', id).then();
-  }
+  notifySubscribers('appointments', inMemoryAppointments);
 }
 
 // Dynamic Shift Reassignment (e.g. evening patient arrives in morning emergency)
-export function reassignAppointmentShift(id: string, newShift: ShiftType): Appointment | null {
-  const appointments = getAppointments();
-  const target = appointments.find((a) => a.id === id);
+export async function reassignAppointmentShift(id: string, newShift: ShiftType): Promise<Appointment | null> {
+  const target = inMemoryAppointments.find((a) => a.id === id);
   if (!target || target.shift === newShift) return null;
 
-  // Calculate new queue position in destination shift
-  const existingInTargetShift = appointments.filter(
-    (a) => a.booking_date === target.booking_date && a.shift === newShift && a.id !== id && a.status !== 'cancelled'
-  );
-  const newQueuePos = existingInTargetShift.length + 1;
+  const supabase = getSupabase();
+  const { data: slotApts } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('booking_date', target.booking_date)
+    .eq('shift', newShift)
+    .neq('status', 'cancelled');
+
+  const newQueuePos = (slotApts?.length || 0) + 1;
   const shiftPrefix = newShift === 'morning' ? 'MORN' : 'EVE';
   const cleanDate = target.booking_date.replace(/-/g, '');
   const padIndex = String(newQueuePos).padStart(3, '0');
   const newTokenNumber = `TK-${cleanDate}-${shiftPrefix}-${padIndex}`;
 
+  const { error } = await supabase
+    .from('appointments')
+    .update({
+      shift: newShift,
+      token_number: newTokenNumber,
+      status: 'in_consult',
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Supabase reassign shift error:', error);
+    throw new Error(`Failed to reassign shift: ${error.message}`);
+  }
+
   let updatedTarget: Appointment | null = null;
-  const updated = appointments.map((a) => {
+  inMemoryAppointments = inMemoryAppointments.map((a) => {
     if (a.id === id) {
       updatedTarget = {
         ...a,
@@ -345,28 +444,17 @@ export function reassignAppointmentShift(id: string, newShift: ShiftType): Appoi
     return a;
   });
 
-  saveAppointments(updated);
-
-  const supabase = getSupabase();
-  if (supabase) {
-    supabase
-      .from('appointments')
-      .update({ shift: newShift, queue_position: newQueuePos, token_number: newTokenNumber, status: 'in_consult' })
-      .eq('id', id)
-      .then();
-  }
-
+  notifySubscribers('appointments', inMemoryAppointments);
   return updatedTarget;
 }
 
 // Flexible Appointment Reassignment (Date and/or Shift)
-export function reassignAppointmentSlot(
+export async function reassignAppointmentSlot(
   id: string,
   newDate: string,
   newShift: ShiftType
-): Appointment | null {
-  const appointments = getAppointments();
-  const target = appointments.find((a) => a.id === id);
+): Promise<Appointment | null> {
+  const target = inMemoryAppointments.find((a) => a.id === id);
   if (!target) return null;
 
   // Validate Friday clinic closed
@@ -375,18 +463,37 @@ export function reassignAppointmentSlot(
     throw new Error('Clinic is closed on Fridays. Please select Saturday to Thursday.');
   }
 
-  // Calculate new queue position in destination slot
-  const existingInTargetSlot = appointments.filter(
-    (a) => a.booking_date === newDate && a.shift === newShift && a.id !== id && a.status !== 'cancelled'
-  );
-  const newQueuePos = existingInTargetSlot.length + 1;
+  const supabase = getSupabase();
+  const { data: slotApts } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('booking_date', newDate)
+    .eq('shift', newShift)
+    .neq('status', 'cancelled');
+
+  const newQueuePos = (slotApts?.length || 0) + 1;
   const shiftPrefix = newShift === 'morning' ? 'MORN' : 'EVE';
   const cleanDate = newDate.replace(/-/g, '');
   const padIndex = String(newQueuePos).padStart(3, '0');
   const newTokenNumber = `TK-${cleanDate}-${shiftPrefix}-${padIndex}`;
 
+  const { error } = await supabase
+    .from('appointments')
+    .update({
+      booking_date: newDate,
+      shift: newShift,
+      token_number: newTokenNumber,
+      status: 'pending',
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Supabase reassign slot error:', error);
+    throw new Error(`Failed to reassign appointment slot: ${error.message}`);
+  }
+
   let updatedTarget: Appointment | null = null;
-  const updated = appointments.map((a) => {
+  inMemoryAppointments = inMemoryAppointments.map((a) => {
     if (a.id === id) {
       updatedTarget = {
         ...a,
@@ -402,24 +509,7 @@ export function reassignAppointmentSlot(
     return a;
   });
 
-  saveAppointments(updated);
-
-  const supabase = getSupabase();
-  if (supabase) {
-    supabase
-      .from('appointments')
-      .update({
-        booking_date: newDate,
-        shift: newShift,
-        queue_position: newQueuePos,
-        token_number: newTokenNumber,
-        status: 'pending',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .then();
-  }
-
+  notifySubscribers('appointments', inMemoryAppointments);
   return updatedTarget;
 }
 
@@ -463,36 +553,53 @@ export async function savePrescription(prescription: Omit<Prescription, 'id' | '
 }
 
 // ==========================================
-// INVOICES & BILLING GENERATOR
+// INVOICES & BILLING GENERATOR (Direct Supabase)
 // ==========================================
 
 export function getInvoices(): Invoice[] {
-  if (typeof window === 'undefined') return [];
-  const stored = localStorage.getItem(INVOICES_KEY);
-  if (!stored) return [];
-  try {
-    return JSON.parse(stored);
-  } catch {
-    return [];
-  }
+  return inMemoryInvoices;
 }
 
 export async function createInvoice(invoiceData: Omit<Invoice, 'id' | 'invoice_number' | 'created_at'>): Promise<Invoice> {
-  const invoices = getInvoices();
+  const supabase = getSupabase();
   const year = new Date().getFullYear();
-  const count = invoices.length + 1;
+  const count = inMemoryInvoices.length + 1;
   const invoice_number = `INV-${year}-${String(count).padStart(4, '0')}`;
 
-  const newInvoice: Invoice = {
-    ...invoiceData,
-    id: `inv-${Date.now()}`,
+  const payload: Record<string, any> = {
     invoice_number,
-    created_at: new Date().toISOString(),
+    patient_name: invoiceData.patient_name.trim(),
+    phone: invoiceData.phone?.trim() || null,
+    patient_id: invoiceData.patient_id || null,
+    consultation_fee: Number(invoiceData.consultation_fee) || 200,
+    subtotal: Number(invoiceData.subtotal) || Number(invoiceData.total_amount),
+    discount: Number(invoiceData.discount) || 0,
+    tax: 0,
+    total_amount: Number(invoiceData.total_amount),
+    payment_mode: (invoiceData.payment_mode || 'cash').toLowerCase(),
+    appointment_id: invoiceData.appointment_id || null,
   };
 
-  const updated = [newInvoice, ...invoices];
-  localStorage.setItem(INVOICES_KEY, JSON.stringify(updated));
-  notifySubscribers('invoices', updated);
+  const { data, error } = await supabase
+    .from('invoices')
+    .insert([payload])
+    .select();
+
+  if (error || !data || data.length === 0) {
+    console.error('Supabase invoice insert error:', error);
+    throw new Error(`Database error saving invoice: ${error?.message || 'No record returned'}`);
+  }
+
+  const inserted = data[0] as any;
+  const newInvoice: Invoice = {
+    ...invoiceData,
+    id: inserted.id,
+    invoice_number: inserted.invoice_number,
+    created_at: inserted.created_at || new Date().toISOString(),
+  };
+
+  inMemoryInvoices = [newInvoice, ...inMemoryInvoices.filter((inv) => inv.id !== newInvoice.id)];
+  notifySubscribers('invoices', inMemoryInvoices);
 
   // Auto-deduct medicine quantities from inventory
   for (const item of newInvoice.items) {
@@ -503,23 +610,10 @@ export async function createInvoice(invoiceData: Omit<Invoice, 'id' | 'invoice_n
 
   // Update appointment status to completed if tied to an appointment
   if (newInvoice.appointment_id) {
-    updateAppointmentStatus(newInvoice.appointment_id, 'completed');
-  }
-
-  const supabase = getSupabase();
-  if (supabase) {
     try {
-      await supabase.from('invoices').insert([newInvoice]);
-      if (newInvoice.items.length > 0) {
-        await supabase.from('invoice_items').insert(
-          newInvoice.items.map((it) => ({
-            ...it,
-            invoice_id: newInvoice.id,
-          }))
-        );
-      }
+      await updateAppointmentStatus(newInvoice.appointment_id, 'completed');
     } catch (e) {
-      console.warn('Supabase invoice sync warning:', e);
+      console.warn('Could not update appointment status for invoice:', e);
     }
   }
 

@@ -17,17 +17,20 @@ export type AppointmentStatus = 'pending' | 'in_consult' | 'completed' | 'cancel
 export interface Appointment {
   id: string;
   token_number: string; // e.g. TK-20260915-MORN-001
-  patient_id: string;   // e.g. PAT-1042
+  patient_id?: string;   // e.g. PAT-1042
   patient_name: string;
   age?: number;
   phone: string;
   address: string;
   booking_date: string; // YYYY-MM-DD
   shift: ShiftType;
-  queue_position: number;
+  queue_position?: number;
+  queue_number?: number;
   status: AppointmentStatus;
+  symptoms?: string;
   symptoms_summary?: string;
   doctor_notes?: string;
+  consultation_notes?: string;
   created_at: string;
   updated_at?: string;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Users, 
   Clock, 
@@ -16,15 +16,19 @@ import {
   Sparkles,
   AlertCircle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  RefreshCw,
+  Radio
 } from 'lucide-react';
 import { Appointment, ShiftType, AppointmentStatus, UserProfile } from '../types';
 import { 
   getAppointments, 
   updateAppointmentStatus, 
   reassignAppointmentShift,
-  reassignAppointmentSlot
+  reassignAppointmentSlot,
+  subscribeToStore
 } from '../services/clinicStore';
+import { getSupabase } from '../services/supabase';
 import { exportAppointmentsToCSV } from '../utils/exportUtils';
 
 interface QueueManagerProps {
@@ -38,7 +42,133 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
   onStartConsult,
   onOpenBilling,
 }) => {
-  const appointments = getAppointments();
+  const [appointments, setAppointments] = useState<Appointment[]>(getAppointments());
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRealtimeActive, setIsRealtimeActive] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Direct Supabase fetch ordered by created_at ascending
+  const fetchDirectAppointments = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('[QueueManager] Supabase fetch error:', error);
+        setFetchError(`Database error: ${error.message}`);
+        return;
+      }
+
+      const list: Appointment[] = (data || []).map((row: any) => ({
+        id: row.id,
+        token_number: row.token_number,
+        patient_id: row.patient_id || `PAT-${(row.phone || '1000').slice(-4)}`,
+        patient_name: row.patient_name,
+        age: row.age ? Number(row.age) : undefined,
+        phone: row.phone,
+        address: row.address,
+        booking_date: row.booking_date,
+        shift: row.shift,
+        queue_position: row.queue_position || row.queue_number || 1,
+        status: row.status,
+        symptoms: row.symptoms,
+        symptoms_summary: row.symptoms || row.symptoms_summary,
+        doctor_notes: row.doctor_notes,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }));
+
+      setAppointments(list);
+    } catch (err: any) {
+      console.error('[QueueManager] Direct fetch exception:', err);
+      setFetchError(err.message || 'Failed to fetch queue from Supabase');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Supabase Realtime channel subscription + store subscription
+  useEffect(() => {
+    fetchDirectAppointments();
+
+    const supabase = getSupabase();
+    const channel = supabase
+      .channel('admin_staff_queue_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'appointments' },
+        (payload) => {
+          console.log('[Realtime Queue] Live Supabase event:', payload.eventType, payload.new);
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const row = payload.new as any;
+            const newApt: Appointment = {
+              id: row.id,
+              token_number: row.token_number,
+              patient_id: row.patient_id || `PAT-${(row.phone || '1000').slice(-4)}`,
+              patient_name: row.patient_name,
+              age: row.age ? Number(row.age) : undefined,
+              phone: row.phone,
+              address: row.address,
+              booking_date: row.booking_date,
+              shift: row.shift,
+              queue_position: row.queue_position || row.queue_number || 1,
+              status: row.status,
+              symptoms: row.symptoms,
+              symptoms_summary: row.symptoms || row.symptoms_summary,
+              doctor_notes: row.doctor_notes,
+              created_at: row.created_at,
+              updated_at: row.updated_at,
+            };
+            setAppointments((prev) => {
+              if (prev.some((a) => a.id === newApt.id || a.token_number === newApt.token_number)) {
+                return prev.map((a) => (a.id === newApt.id || a.token_number === newApt.token_number ? { ...a, ...newApt } : a));
+              }
+              return [...prev, newApt];
+            });
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const row = payload.new as any;
+            setAppointments((prev) =>
+              prev.map((a) =>
+                a.id === row.id || a.token_number === row.token_number
+                  ? {
+                      ...a,
+                      ...row,
+                      symptoms_summary: row.symptoms || a.symptoms_summary,
+                    }
+                  : a
+              )
+            );
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const oldId = (payload.old as any)?.id;
+            if (oldId) {
+              setAppointments((prev) => prev.filter((a) => a.id !== oldId));
+            }
+          } else {
+            fetchDirectAppointments();
+          }
+        }
+      )
+      .subscribe((status) => {
+        setIsRealtimeActive(status === 'SUBSCRIBED');
+      });
+
+    // In-tab store updates
+    const unsubscribeStore = subscribeToStore((event) => {
+      if (event.type === 'appointments' && Array.isArray(event.data)) {
+        setAppointments(event.data);
+      }
+    });
+
+    return () => {
+      supabase.removeChannel(channel);
+      unsubscribeStore();
+    };
+  }, [fetchDirectAppointments]);
 
   // Filters
   const todayStr = new Date().toISOString().split('T')[0];
@@ -116,13 +246,17 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
   }, [appointments, selectedDate, shiftFilter, statusFilter, searchQuery]);
 
   // Handle Shift Reassignment (e.g. evening patient arrives early morning)
-  const handleShiftReassign = (appointment: Appointment, targetShift: ShiftType) => {
-    const updated = reassignAppointmentShift(appointment.id, targetShift);
-    if (updated) {
-      setReassignSuccessNotice(
-        `Patient ${appointment.patient_name} shifted to ${targetShift.toUpperCase()} shift with Token ${updated.token_number} (Queue #${updated.queue_position}).`
-      );
-      setTimeout(() => setReassignSuccessNotice(''), 4000);
+  const handleShiftReassign = async (appointment: Appointment, targetShift: ShiftType) => {
+    try {
+      const updated = await reassignAppointmentShift(appointment.id, targetShift);
+      if (updated) {
+        setReassignSuccessNotice(
+          `Patient ${appointment.patient_name} shifted to ${targetShift.toUpperCase()} shift with Token ${updated.token_number} (Queue #${updated.queue_position}).`
+        );
+        setTimeout(() => setReassignSuccessNotice(''), 4000);
+      }
+    } catch (err: any) {
+      alert(`Could not reassign shift: ${err.message}`);
     }
   };
 
@@ -133,7 +267,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
     setReassignError('');
   };
 
-  const handleConfirmReassign = () => {
+  const handleConfirmReassign = async () => {
     if (!reassignModalApt) return;
     setReassignError('');
 
@@ -144,7 +278,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
     }
 
     try {
-      const updated = reassignAppointmentSlot(reassignModalApt.id, targetDate, targetShift);
+      const updated = await reassignAppointmentSlot(reassignModalApt.id, targetDate, targetShift);
       if (updated) {
         setReassignSuccessNotice(
           `Reassigned ${reassignModalApt.patient_name} to ${targetDate} (${targetShift.toUpperCase()} shift). New Token: ${updated.token_number} (Queue #${updated.queue_position}).`
@@ -158,8 +292,12 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
   };
 
   // Handle Mark Completed
-  const handleMarkStatus = (appointmentId: string, newStatus: AppointmentStatus) => {
-    updateAppointmentStatus(appointmentId, newStatus);
+  const handleMarkStatus = async (appointmentId: string, newStatus: AppointmentStatus) => {
+    try {
+      await updateAppointmentStatus(appointmentId, newStatus);
+    } catch (err: any) {
+      alert(`Could not update appointment status: ${err.message}`);
+    }
   };
 
   return (
@@ -169,16 +307,39 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
             <span>Clinic Patient Queue & Shift Manager</span>
-            <span className="text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold uppercase tracking-wider">
-              Live Real-Time
+            <span className={`text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+              isRealtimeActive 
+                ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300' 
+                : 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${isRealtimeActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              {isRealtimeActive ? 'Supabase Realtime Live' : 'Supabase Live Connected'}
             </span>
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Dr. M. A. Haque, M.D. (Homeo) • Managing Chamber Queue & Emergency Shift Reassignments
           </p>
+          {fetchError && (
+            <p className="text-xs text-rose-600 dark:text-rose-400 mt-1 font-medium flex items-center gap-1">
+              <AlertCircle className="w-3.5 h-3.5" />
+              {fetchError}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            id="btn-refresh-queue"
+            type="button"
+            onClick={fetchDirectAppointments}
+            disabled={isLoading}
+            className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
+            title="Fetch live appointments directly from Supabase"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>{isLoading ? 'Syncing...' : 'Sync Supabase'}</span>
+          </button>
+
           <button
             id="btn-export-queue-csv"
             onClick={() => exportAppointmentsToCSV(filteredQueue)}
