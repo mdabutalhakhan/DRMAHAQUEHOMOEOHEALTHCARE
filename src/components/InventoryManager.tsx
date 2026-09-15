@@ -1,10 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
 import { 
   Search, Plus, RefreshCw, AlertTriangle, Package, 
   ChevronDown, ChevronUp, X, Filter, Building2, 
-  MapPin, Calendar, CheckCircle2, Layers
+  MapPin, Calendar, CheckCircle2, Layers 
 } from 'lucide-react';
+import { getSupabase } from '../services/supabase';
+
+interface MedicineItem {
+  id: string;
+  name: string;
+  category?: string;
+  potency?: string;
+  bottle_size?: string;
+  rack_location?: string;
+  stock_qty: number;
+  low_stock_alert?: number;
+  storage_area?: string;
+  mrp?: number;
+  purchase_cost?: number;
+  manufacturer?: string;
+  distributor?: string;
+  expiry_date?: string;
+  created_at?: string;
+}
 
 const COMMON_REMEDIES = [
   'Arnica Montana', 'Rhus Toxicodendron', 'Bryonia Alba', 'Nux Vomica',
@@ -24,15 +42,15 @@ const COMMON_MANUFACTURERS = [
 ];
 
 export const InventoryManager: React.FC<any> = () => {
-  const [medicines, setMedicines] = useState<any[]>([]);
+  const [medicines, setMedicines] = useState<MedicineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterLowStock, setFilterLowStock] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Modals
+  // Modal States
   const [showAddModal, setShowAddModal] = useState(false);
-  const [dispenseMed, setDispenseMed] = useState<any | null>(null);
+  const [dispenseMed, setDispenseMed] = useState<MedicineItem | null>(null);
   const [dispenseQty, setDispenseQty] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
@@ -53,8 +71,13 @@ export const InventoryManager: React.FC<any> = () => {
     expiry_date: '2028-12-31'
   });
 
-  // Fetch medicines from Supabase
   const fetchMedicines = async () => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -63,7 +86,7 @@ export const InventoryManager: React.FC<any> = () => {
         .order('name', { ascending: true });
 
       if (!error && data) {
-        setMedicines(data);
+        setMedicines(data as MedicineItem[]);
       }
     } catch (err) {
       console.error('Error fetching inventory:', err);
@@ -75,9 +98,12 @@ export const InventoryManager: React.FC<any> = () => {
   useEffect(() => {
     fetchMedicines();
 
-    // Supabase Realtime Sync across all phones/tablets
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    // Realtime listener for cross-device sync
     const channel = supabase
-      .channel('medicines-live')
+      .channel('medicines-realtime-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines' }, () => {
         fetchMedicines();
       })
@@ -88,9 +114,15 @@ export const InventoryManager: React.FC<any> = () => {
     };
   }, []);
 
-  // Stock In: Add Medicine to Supabase
+  // Stock In
   const handleAddMedicine = async (e: React.FormEvent) => {
     e.preventDefault();
+    const supabase = getSupabase();
+    if (!supabase) {
+      alert('Database connection unavailable.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const { error } = await supabase.from('medicines').insert([formData]);
@@ -120,12 +152,19 @@ export const InventoryManager: React.FC<any> = () => {
     }
   };
 
-  // Stock Out: Dispense Medicine
+  // Stock Out / Dispense
   const handleDispense = async () => {
     if (!dispenseMed) return;
+    const supabase = getSupabase();
+    if (!supabase) {
+      alert('Database connection unavailable.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const updatedQty = Math.max(0, (dispenseMed.stock_qty || 0) - Number(dispenseQty));
+      const currentStock = dispenseMed.stock_qty || 0;
+      const updatedQty = Math.max(0, currentStock - Number(dispenseQty));
 
       const { error } = await supabase
         .from('medicines')
@@ -144,7 +183,6 @@ export const InventoryManager: React.FC<any> = () => {
     }
   };
 
-  // Filtered list
   const filtered = medicines.filter(m => {
     const matchesSearch = 
       m.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -160,7 +198,7 @@ export const InventoryManager: React.FC<any> = () => {
 
   return (
     <div className="space-y-4 w-full max-w-full">
-      {/* Metric Cards Banner */}
+      {/* Metrics Banner */}
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <div className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 p-3 sm:p-4 rounded-xl shadow-sm">
           <div className="text-xs text-stone-500 font-medium">Catalog Items</div>
@@ -193,7 +231,7 @@ export const InventoryManager: React.FC<any> = () => {
         </div>
       </div>
 
-      {/* Control Bar */}
+      {/* Action & Search Bar */}
       <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-stone-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
@@ -224,7 +262,7 @@ export const InventoryManager: React.FC<any> = () => {
         </div>
       </div>
 
-      {/* Responsive Accordion Cards (Zero Horizontal Cut-Off) */}
+      {/* Accordion Cards (Mobile & Tablet Friendly) */}
       <div className="space-y-2.5">
         {loading && medicines.length === 0 ? (
           <div className="text-center py-12 text-stone-500 font-medium bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800">
@@ -233,7 +271,7 @@ export const InventoryManager: React.FC<any> = () => {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-stone-400 bg-white dark:bg-slate-900 rounded-xl border border-stone-200 dark:border-slate-800">
-            No medicines found matching criteria. Click "+ Add Medicine" to stock items.
+            No medicines found. Click "+ Add Medicine" to stock items.
           </div>
         ) : (
           filtered.map((med) => {
@@ -245,7 +283,6 @@ export const InventoryManager: React.FC<any> = () => {
                 key={med.id}
                 className="bg-white dark:bg-slate-900 border border-stone-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm transition-all"
               >
-                {/* Header (Tap to Expand) */}
                 <div
                   onClick={() => setExpandedId(isExpanded ? null : med.id)}
                   className="p-3.5 sm:p-4 cursor-pointer flex items-center justify-between gap-3 hover:bg-stone-50/70 dark:hover:bg-slate-800/60"
@@ -270,7 +307,6 @@ export const InventoryManager: React.FC<any> = () => {
                     </div>
                   </div>
 
-                  {/* Stock count & Chevron */}
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
                       <div className={`text-sm sm:text-base font-bold ${isLow ? 'text-rose-600' : 'text-stone-900 dark:text-stone-100'}`}>
@@ -290,7 +326,6 @@ export const InventoryManager: React.FC<any> = () => {
                   </div>
                 </div>
 
-                {/* Expanded Details Body */}
                 {isExpanded && (
                   <div className="p-3.5 sm:p-4 pt-0 border-t border-stone-100 dark:border-slate-800 bg-stone-50/50 dark:bg-slate-900/40 space-y-3">
                     <div className="grid grid-cols-2 gap-2 text-xs pt-3 text-stone-600 dark:text-stone-400">
