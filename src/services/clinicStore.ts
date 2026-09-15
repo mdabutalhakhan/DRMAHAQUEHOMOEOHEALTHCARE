@@ -876,10 +876,31 @@ export function getProfiles(): UserProfile[] {
   }
 }
 
+export const AUTH_SESSION_KEY = 'hhc_auth_session';
+
 export function getCurrentUser(): UserProfile | null {
   if (typeof window === 'undefined') return null;
-  const stored = localStorage.getItem(CURRENT_USER_KEY);
+
+  // 1. Try local storage user key
+  let stored = localStorage.getItem(CURRENT_USER_KEY);
+
+  // 2. Try session storage or auth session record
+  if (!stored) {
+    const sessionRecord = sessionStorage.getItem(AUTH_SESSION_KEY) || localStorage.getItem(AUTH_SESSION_KEY);
+    if (sessionRecord) {
+      try {
+        const parsed = JSON.parse(sessionRecord);
+        if (parsed?.isAuthenticated && parsed?.user) {
+          stored = JSON.stringify(parsed.user);
+        }
+      } catch {
+        // ignore JSON parse error
+      }
+    }
+  }
+
   if (!stored) return null;
+
   try {
     const user: UserProfile = JSON.parse(stored);
     if (user.full_name === 'Md Abu Taher Khan') {
@@ -895,9 +916,20 @@ export function getCurrentUser(): UserProfile | null {
 export function setCurrentUser(user: UserProfile | null) {
   if (typeof window === 'undefined') return;
   if (user) {
+    const sessionData = JSON.stringify({
+      isAuthenticated: true,
+      user,
+      timestamp: Date.now(),
+    });
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    localStorage.setItem(AUTH_SESSION_KEY, sessionData);
+    sessionStorage.setItem(AUTH_SESSION_KEY, sessionData);
   } else {
     localStorage.removeItem(CURRENT_USER_KEY);
+    localStorage.removeItem(AUTH_SESSION_KEY);
+    sessionStorage.removeItem(AUTH_SESSION_KEY);
+    sessionStorage.removeItem('hhc_current_view');
+    sessionStorage.removeItem('hhc_active_tab');
   }
   notifySubscribers('auth_user', user);
 }

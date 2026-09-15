@@ -124,7 +124,7 @@ export const LiveTracker: React.FC = () => {
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Patient ID: <strong className="font-mono text-slate-700 dark:text-slate-300">{apt.patient_id}</strong> • Phone: {apt.phone}
+                        Patient ID: <strong className="font-mono text-slate-700 dark:text-slate-300">{apt.patient_id}</strong> • Age: <strong className="text-slate-700 dark:text-slate-300">{apt.age != null && !isNaN(Number(apt.age)) && Number(apt.age) > 0 ? `${apt.age} yrs` : 'N/A'}</strong> • Phone: {apt.phone}
                       </p>
                     </div>
 

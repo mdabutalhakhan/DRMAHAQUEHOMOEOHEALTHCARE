@@ -27,11 +27,79 @@ export default function App() {
   // Current authenticated user (Doctor, Staff, Admin)
   const [currentUser, setUser] = useState<UserProfile | null>(() => getCurrentUser());
 
-  // Current view: 'home' | 'tracker' | 'dashboard'
-  const [currentView, setCurrentView] = useState<'home' | 'tracker' | 'dashboard'>('home');
+  // Current view: 'home' | 'tracker' | 'dashboard' (Persisted across refreshes)
+  const [currentView, setCurrentView] = useState<'home' | 'tracker' | 'dashboard'>(() => {
+    if (typeof window === 'undefined') return 'home';
+
+    const hash = window.location.hash.toLowerCase().replace('#', '');
+    if (hash === 'tracker') return 'tracker';
+
+    const dashboardTabs = ['queue', 'inventory', 'billing', 'ai', 'ai-consultant', 'team', 'dashboard'];
+    const user = getCurrentUser();
+
+    if (dashboardTabs.includes(hash)) {
+      return user ? 'dashboard' : 'home';
+    }
+
+    const savedView = sessionStorage.getItem('hhc_current_view');
+    if (savedView === 'tracker') return 'tracker';
+    if (savedView === 'dashboard' && user) return 'dashboard';
+    if (savedView === 'home') return 'home';
+
+    // If authenticated user is present, stay in dashboard by default on refresh
+    if (user) return 'dashboard';
+
+    return 'home';
+  });
 
   // Login Modal
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  // Persist currentView to sessionStorage & sync hash
+  useEffect(() => {
+    sessionStorage.setItem('hhc_current_view', currentView);
+
+    if (currentView === 'home') {
+      if (window.location.hash && window.location.hash !== '#home') {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    } else if (currentView === 'tracker') {
+      if (window.location.hash !== '#tracker') {
+        window.history.replaceState(null, '', '#tracker');
+      }
+    } else if (currentView === 'dashboard') {
+      const hash = window.location.hash.toLowerCase().replace('#', '');
+      const dashboardTabs = ['queue', 'inventory', 'billing', 'ai', 'ai-consultant', 'team'];
+      if (!dashboardTabs.includes(hash)) {
+        const savedTab = sessionStorage.getItem('hhc_active_tab') || 'queue';
+        const hashTarget = savedTab === 'ai' ? 'ai-consultant' : savedTab;
+        window.history.replaceState(null, '', `#${hashTarget}`);
+      }
+    }
+  }, [currentView]);
+
+  // Sync hash changes (e.g. browser forward/backward buttons)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.toLowerCase().replace('#', '');
+      if (hash === 'tracker') {
+        setCurrentView('tracker');
+      } else if (hash === 'home' || hash === '') {
+        const savedView = sessionStorage.getItem('hhc_current_view');
+        if (savedView === 'home') {
+          setCurrentView('home');
+        }
+      } else {
+        const dashboardTabs = ['queue', 'inventory', 'billing', 'ai', 'ai-consultant', 'team', 'dashboard'];
+        if (dashboardTabs.includes(hash) && currentUser) {
+          setCurrentView('dashboard');
+        }
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [currentUser]);
 
   // Sync dark mode class on document.documentElement
   useEffect(() => {
@@ -52,13 +120,20 @@ export default function App() {
   }, []);
 
   const handleLoginSuccess = (user: UserProfile) => {
+    setCurrentUser(user);
     setUser(user);
+    sessionStorage.setItem('hhc_current_view', 'dashboard');
     setCurrentView('dashboard');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     setUser(null);
+    sessionStorage.removeItem('hhc_current_view');
+    sessionStorage.removeItem('hhc_active_tab');
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
     setCurrentView('home');
   };
 

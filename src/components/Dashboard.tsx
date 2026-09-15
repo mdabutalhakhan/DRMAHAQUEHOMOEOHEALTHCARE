@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   Boxes, 
@@ -33,8 +33,55 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onLogout,
   onReturnToHome,
 }) => {
-  const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'ai' | 'billing' | 'team'>('queue');
+  // Persist and restore active tab from URL hash or sessionStorage
+  const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'ai' | 'billing' | 'team'>(() => {
+    if (typeof window === 'undefined') return 'queue';
+
+    // 1. Check URL hash first
+    const hash = window.location.hash.toLowerCase().replace('#', '');
+    if (hash === 'inventory') return 'inventory';
+    if (hash === 'billing') return 'billing';
+    if (hash === 'ai' || hash === 'ai-consultant') return 'ai';
+    if (hash === 'team' && currentUser.role === 'admin') return 'team';
+    if (hash === 'queue') return 'queue';
+
+    // 2. Check sessionStorage
+    const saved = sessionStorage.getItem('hhc_active_tab') as any;
+    if (saved && ['queue', 'inventory', 'ai', 'billing', 'team'].includes(saved)) {
+      if (saved === 'team' && currentUser.role !== 'admin') {
+        return 'queue';
+      }
+      return saved;
+    }
+
+    return 'queue';
+  });
+
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Sync activeTab to sessionStorage and URL hash
+  useEffect(() => {
+    sessionStorage.setItem('hhc_active_tab', activeTab);
+    const hashVal = activeTab === 'ai' ? 'ai-consultant' : activeTab;
+    if (window.location.hash !== `#${hashVal}`) {
+      window.history.replaceState(null, '', `#${hashVal}`);
+    }
+  }, [activeTab]);
+
+  // Handle URL hash changes (browser back/forward navigation)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.toLowerCase().replace('#', '');
+      if (hash === 'inventory') setActiveTab('inventory');
+      else if (hash === 'billing') setActiveTab('billing');
+      else if (hash === 'ai' || hash === 'ai-consultant') setActiveTab('ai');
+      else if (hash === 'team' && currentUser.role === 'admin') setActiveTab('team');
+      else if (hash === 'queue') setActiveTab('queue');
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [currentUser.role]);
   
   // Consultation modal state
   const [activeConsultAppointment, setActiveConsultAppointment] = useState<Appointment | null>(null);
@@ -130,7 +177,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {/* Action Controls */}
         <div className="flex items-center gap-2.5 sm:gap-3">
           <button
-            onClick={onReturnToHome}
+            id="btn-public-view"
+            onClick={() => {
+              sessionStorage.setItem('hhc_current_view', 'home');
+              onReturnToHome();
+            }}
             className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-white text-[#1B4332] hover:bg-emerald-50 text-xs font-bold shadow-md transition cursor-pointer"
           >
             ← Public View

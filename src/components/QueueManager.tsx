@@ -18,7 +18,8 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
-  Radio
+  Radio,
+  User
 } from 'lucide-react';
 import { Appointment, ShiftType, AppointmentStatus, UserProfile } from '../types';
 import { 
@@ -69,7 +70,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
         token_number: row.token_number,
         patient_id: row.patient_id || `PAT-${(row.phone || '1000').slice(-4)}`,
         patient_name: row.patient_name,
-        age: row.age ? Number(row.age) : undefined,
+        age: row.age != null && row.age !== '' && !isNaN(Number(row.age)) ? Number(row.age) : undefined,
         phone: row.phone,
         address: row.address,
         booking_date: row.booking_date,
@@ -111,7 +112,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
               token_number: row.token_number,
               patient_id: row.patient_id || `PAT-${(row.phone || '1000').slice(-4)}`,
               patient_name: row.patient_name,
-              age: row.age ? Number(row.age) : undefined,
+              age: row.age != null && row.age !== '' && !isNaN(Number(row.age)) ? Number(row.age) : undefined,
               phone: row.phone,
               address: row.address,
               booking_date: row.booking_date,
@@ -559,8 +560,18 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                            <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
                               {apt.patient_name}
+                            </span>
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold tracking-wide shrink-0 ${
+                                apt.age != null && !isNaN(Number(apt.age)) && Number(apt.age) > 0
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                                  : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                              }`}
+                              title={apt.age != null && Number(apt.age) > 0 ? `Age: ${apt.age} years` : 'Age not provided'}
+                            >
+                              {apt.age != null && !isNaN(Number(apt.age)) && Number(apt.age) > 0 ? `${apt.age} yrs` : 'Age: N/A'}
                             </span>
                             <span className="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">
                               {apt.token_number}
@@ -614,8 +625,15 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
                           </p>
                         </div>
 
-                        {/* Patient Contact & Address Details */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                        {/* Patient Contact, Age & Address Details */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                          <div className="flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="font-semibold">Age:</span>
+                            <span className="font-medium text-slate-800 dark:text-slate-200">
+                              {apt.age != null && !isNaN(Number(apt.age)) && Number(apt.age) > 0 ? `${apt.age} yrs` : 'Age: N/A'}
+                            </span>
+                          </div>
                           <div className="flex items-center gap-1.5">
                             <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span className="font-semibold">Phone:</span>
@@ -735,10 +753,22 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
 
                       {/* Patient Info */}
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 dark:text-white text-sm">
-                          {apt.patient_name}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900 dark:text-white text-sm">
+                            {apt.patient_name}
+                          </span>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wide ${
+                              apt.age != null && !isNaN(Number(apt.age)) && Number(apt.age) > 0
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                            }`}
+                            title={apt.age != null && Number(apt.age) > 0 ? `Age: ${apt.age} years` : 'Age not provided'}
+                          >
+                            {apt.age != null && !isNaN(Number(apt.age)) && Number(apt.age) > 0 ? `${apt.age} yrs` : 'Age: N/A'}
+                          </span>
                         </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-1">
                           <span className="flex items-center gap-1">
                             <Phone className="w-3 h-3 text-slate-400" />
                             {apt.phone}
