@@ -128,19 +128,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-          {/* Hamburger Menu Toggle Button */}
-          <button
-            id="btn-toggle-drawer"
-            type="button"
-            onClick={() => setIsDrawerOpen(true)}
-            className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 text-xs font-bold flex items-center gap-2 shadow-sm transition cursor-pointer"
-            aria-label="Open Chamber Navigation Menu"
-          >
-            <Menu className="w-4 h-4 text-emerald-200" />
-            <span>☰ Navigation Menu</span>
-          </button>
-
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <button
             onClick={onReturnToHome}
             className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-white text-[#1B4332] hover:bg-emerald-50 text-xs font-bold shadow-md transition cursor-pointer"
@@ -211,9 +199,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           />
 
           {/* Drawer Sidebar */}
-          <aside className="relative w-80 max-w-[85vw] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-2xl z-50 flex flex-col h-full overflow-y-auto">
+          <aside className="relative w-80 max-w-[85vw] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-2xl z-50 h-[100dvh] max-h-[100dvh] flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-emerald-50/50 dark:bg-slate-800/50">
+            <div className="shrink-0 p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-emerald-50/50 dark:bg-slate-800/50">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white flex items-center justify-center font-bold shadow-xs">
                   <Stethoscope className="w-5 h-5 text-emerald-200" />
@@ -238,7 +226,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Navigation items */}
-            <div className="p-4 space-y-1.5 flex-1">
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 overscroll-contain">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-3 block mb-2">
                 Chamber Operations
               </span>
@@ -289,8 +277,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               })}
             </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 space-y-2">
+            {/* Footer with Log Out Chamber pinned */}
+            <div className="shrink-0 p-4 border-t border-stone-200 dark:border-slate-800 bg-stone-50 dark:bg-slate-900 mb-6 space-y-2">
               <div className="px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
                 <span className="text-[10px] text-slate-400 block">Logged In Personnel</span>
                 <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
