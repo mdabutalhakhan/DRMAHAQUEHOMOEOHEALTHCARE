@@ -19,6 +19,7 @@ export interface Appointment {
   token_number: string; // e.g. TK-20260915-MORN-001
   patient_id: string;   // e.g. PAT-1042
   patient_name: string;
+  age?: number;
   phone: string;
   address: string;
   booking_date: string; // YYYY-MM-DD
@@ -47,12 +48,14 @@ export interface Prescription {
 
 export interface InvoiceItem {
   id: string;
+  item_description: string; // 2-column manual billing: Item Description
+  price: number; // Amount / Price (₹)
   inventory_id?: string;
-  medicine_name: string;
-  potency: string;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
+  medicine_name?: string;
+  potency?: string;
+  quantity?: number;
+  unit_price?: number;
+  total_price?: number;
 }
 
 export type PaymentMode = 'cash' | 'upi' | 'card' | 'unpaid';
@@ -73,6 +76,7 @@ export interface Invoice {
   payment_mode: PaymentMode;
   payment_status: PaymentStatus;
   items: InvoiceItem[];
+  gstin?: string;
   created_at: string;
 }
 

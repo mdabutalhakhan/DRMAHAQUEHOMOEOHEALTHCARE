@@ -86,6 +86,7 @@ export function exportInvoicesToCSV(invoices: Invoice[], filename = 'Clinic_Invo
     'Patient ID': inv.patient_id,
     'Patient Name': inv.patient_name,
     'Phone': inv.phone,
+    'GSTIN': inv.gstin || 'N/A',
     'Consultation Fee': inv.consultation_fee,
     'Subtotal': inv.subtotal,
     'Total Amount': inv.total_amount,

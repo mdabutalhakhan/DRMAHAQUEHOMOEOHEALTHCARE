@@ -12,21 +12,77 @@
 }
 
 @media print {
-  body {
-    background: white !important;
-    color: black !important;
+  @page {
+    margin: 0;
+    size: auto;
   }
-  .no-print {
+  header, nav, footer, aside, .no-print {
     display: none !important;
+  }
+  body, #root, main {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
   .print-only {
     display: block !important;
   }
+
+  /* Thermal Receipt Mode: 80mm Width */
+  .thermal-receipt-80 {
+    width: 78mm !important;
+    max-width: 78mm !important;
+    margin: 0 auto !important;
+    padding: 3mm 2mm !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+    color: #000 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Thermal Receipt Mode: 58mm Width */
+  .thermal-receipt-58 {
+    width: 54mm !important;
+    max-width: 54mm !important;
+    margin: 0 auto !important;
+    padding: 2mm 1mm !important;
+    font-size: 9.5px !important;
+    line-height: 1.25 !important;
+    color: #000 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Standard A4 Voucher */
+  .standard-voucher {
+    width: 100% !important;
+    max-width: 190mm !important;
+    margin: 0 auto !important;
+    padding: 10mm !important;
+    box-shadow: none !important;
+  }
+
   .printable-area {
     box-shadow: none !important;
-    border: 1px solid #ddd !important;
-    margin: 0 !important;
-    padding: 16px !important;
-    width: 100% !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  .receipt-divider {
+    border-top: 1px dashed #000 !important;
+    margin: 6px 0 !important;
+  }
+
+  .receipt-divider-double {
+    border-top: 2px solid #000 !important;
+    margin: 6px 0 !important;
   }
 }

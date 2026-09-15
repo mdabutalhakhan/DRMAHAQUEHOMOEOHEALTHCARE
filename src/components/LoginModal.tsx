@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, AlertCircle, Loader2, KeyRound, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { X, Lock, Mail, AlertCircle, Loader2, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { UserProfile } from '../types';
 import { getProfiles, setCurrentUser } from '../services/clinicStore';
 import { getSupabase } from '../services/supabase';
@@ -109,7 +109,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
       if (!authenticatedUser) {
         throw new Error(
-          'Invalid credentials. For admin access, you can use email "admin@homoeo.com" with password "admin123", or sign in with your registered Supabase account.'
+          'Invalid email or password. Please verify your credentials or contact clinic administrator.'
         );
       }
 
@@ -124,134 +124,127 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-emerald-950/10 dark:border-slate-800 p-6 sm:p-8 shadow-2xl space-y-6 relative">
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-          aria-label="Close modal"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        <div className="text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white flex items-center justify-center mx-auto shadow-md">
-            <Lock className="w-7 h-7 text-emerald-200" />
-          </div>
-          <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Clinic Staff & Doctor Portal
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs mx-auto">
-            Authorized personnel only. Please sign in with your verified clinic email and password.
-          </p>
-        </div>
-
-        {/* Fallback Admin quick hint */}
-        <div className="p-3 rounded-2xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between gap-3">
-          <div className="space-y-0.5">
-            <span className="font-bold text-[#1B4332] dark:text-emerald-300 flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Admin Access Fallback</span>
-            </span>
-            <p className="text-[11px] text-slate-600 dark:text-slate-400 font-mono">
-              admin@homoeo.com • admin123
-            </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="w-full max-w-lg md:max-w-xl max-h-[90vh] md:max-h-[88vh] flex flex-col bg-[#FAF7EE] dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-emerald-900/20">
+        {/* Modal Header */}
+        <div className="shrink-0 p-4 border-b border-stone-200 dark:border-slate-800 flex justify-between items-center bg-white/70 dark:bg-slate-900/80">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#1B4332] text-white flex items-center justify-center shadow-xs">
+              <Lock className="w-5 h-5 text-emerald-300" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                Clinic Staff & Doctor Portal
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Dr. M. A. Haque, M.D. (Homoeo) • Benachity
+              </p>
+            </div>
           </div>
           <button
-            type="button"
-            id="btn-fill-admin-creds"
-            onClick={() => {
-              setEmail('admin@homoeo.com');
-              setPassword('admin123');
-              setErrorMsg('');
-            }}
-            className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 hover:text-emerald-950 dark:hover:text-white shrink-0 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-slate-700 shadow-xs hover:border-emerald-400 transition cursor-pointer"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-stone-200/60 dark:hover:bg-slate-800 transition cursor-pointer"
+            aria-label="Close modal"
           >
-            Fill Admin
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 flex items-start gap-2.5 animate-shake">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="font-medium">{errorMsg}</span>
-          </div>
-        )}
+        {/* Modal Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain">
+          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+            Authorized personnel only. Please sign in with your clinic credentials to access the Doctor Consultation Chamber and Queue Manager.
+          </p>
 
-        {/* Real Credential Login Form */}
-        <form onSubmit={handleCredentialLogin} className="space-y-4 pt-1">
-          <div>
-            <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
-              Work Email Address
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-              <input
-                id="login-email-input"
-                type="email"
-                required
-                placeholder="admin@homoeo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#1B4332] dark:focus:ring-emerald-500 transition"
-              />
+          {errorMsg && (
+            <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 flex items-start gap-2.5 animate-shake">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="font-medium">{errorMsg}</span>
             </div>
-          </div>
+          )}
 
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300">
-                Password
+          {/* Real Credential Login Form */}
+          <form id="staff-login-form" onSubmit={handleCredentialLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
+                Work Email Address
               </label>
-              <span className="text-[11px] text-slate-400">Min. 6 characters</span>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <input
+                  id="login-email-input"
+                  type="email"
+                  required
+                  placeholder="admin@homoeo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1B4332] dark:focus:ring-emerald-500 transition"
+                />
+              </div>
             </div>
-            <div className="relative">
-              <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-              <input
-                id="login-password-input"
-                type={showPassword ? 'text' : 'password'}
-                required
-                placeholder="Enter password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-11 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#1B4332] dark:focus:ring-emerald-500 transition"
-              />
-              <button
-                type="button"
-                id="btn-toggle-password-visibility"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition focus:outline-none cursor-pointer"
-                title={showPassword ? 'Hide password' : 'Show password'}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? (
-                  <EyeOff className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-          </div>
 
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300">
+                  Password
+                </label>
+                <span className="text-[11px] text-slate-400">Min. 6 characters</span>
+              </div>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <input
+                  id="login-password-input"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Enter password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-11 py-2.5 rounded-xl border border-stone-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#1B4332] dark:focus:ring-emerald-500 transition"
+                />
+                <button
+                  type="button"
+                  id="btn-toggle-password-visibility"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition focus:outline-none cursor-pointer"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        {/* Modal Footer / Actions (Pinned) */}
+        <div className="shrink-0 p-4 border-t border-stone-200 dark:border-slate-800 bg-stone-50/80 dark:bg-slate-900/80 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl border border-stone-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-stone-100 dark:hover:bg-slate-800 transition cursor-pointer"
+          >
+            Cancel
+          </button>
           <button
             type="submit"
+            form="staff-login-form"
             id="btn-submit-login"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Verifying Credentials...</span>
+                <span>Verifying...</span>
               </>
             ) : (
               <span>Authenticate & Open Chamber</span>
             )}
           </button>
-        </form>
-
-        <div className="pt-2 text-center text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800">
-          Homoeo Health Care • Dr. M. A. Haque, M.D. (Homoeo)
         </div>
       </div>
     </div>

@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 
 -- 4. APPOINTMENTS TABLE
 CREATE TABLE IF NOT EXISTS public.appointments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     token_number TEXT NOT NULL,
     patient_id TEXT NOT NULL,
     patient_name TEXT NOT NULL,
@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS public.appointments (
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_consult', 'completed', 'cancelled')),
     symptoms_summary TEXT,
     consultation_notes TEXT,
+    doctor_notes TEXT,
     created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
@@ -180,6 +181,11 @@ CREATE POLICY "Public Access to Prescription Images"
 CREATE POLICY "Authenticated users can upload prescriptions"
     ON storage.objects FOR INSERT TO authenticated
     WITH CHECK (bucket_id = 'prescriptions');
+
+-- 14. REALTIME REPLICATION FOR CROSS-DEVICE LIVE QUEUE SYNC
+-- Run this in Supabase SQL Editor to enable instant multi-screen appointment synchronization:
+ALTER PUBLICATION supabase_realtime ADD TABLE public.appointments;
+ALTER TABLE public.appointments REPLICA IDENTITY FULL;
 `;
 
 export const DatabaseSchemaModal: React.FC<DatabaseSchemaModalProps> = ({

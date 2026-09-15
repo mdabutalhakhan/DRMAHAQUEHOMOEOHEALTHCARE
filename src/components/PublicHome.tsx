@@ -17,10 +17,12 @@ import {
   Info,
   CalendarCheck,
   Copy,
-  Check
+  Check,
+  X
 } from 'lucide-react';
 import { Appointment, ShiftType } from '../types';
 import { createAppointment, getAppointments } from '../services/clinicStore';
+import { BookingModal } from './BookingModal';
 
 interface PublicHomeProps {
   onAppointmentBooked?: (appointment: Appointment) => void;
@@ -29,9 +31,13 @@ interface PublicHomeProps {
 export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) => {
   // Booking Form State
   const [patientName, setPatientName] = useState('');
+  const [age, setAge] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [doctorImageUrl, setDoctorImageUrl] = useState('');
+  
+  // Popup Booking Modal state
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   
   // Set default booking date to tomorrow or next non-Friday
   const getDefaultDate = () => {
@@ -105,8 +111,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
 
     try {
       setSubmitting(true);
+      const parsedAge = age ? parseInt(age, 10) : undefined;
       const result = await createAppointment({
         patient_name: patientName,
+        age: parsedAge,
         phone,
         address,
         booking_date: bookingDate,
@@ -121,6 +129,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
 
       // Reset form
       setPatientName('');
+      setAge('');
       setPhone('');
       setAddress('');
       setSymptoms('');
@@ -140,54 +149,56 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
   return (
     <div className="space-y-16 pb-12">
       {/* 1. HERO & WELCOME SECTION */}
-      <section className="relative overflow-hidden pt-8 pb-12 sm:pb-16 rounded-3xl bg-gradient-to-b from-emerald-50/70 via-white to-[#F8FAF9] dark:from-slate-900 dark:via-[#0F172A] dark:to-slate-900/60 border border-emerald-900/5 dark:border-slate-800">
+      <section className="relative overflow-hidden pt-4 sm:pt-8 pb-8 sm:pb-16 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-emerald-50/70 via-white to-[#F8FAF9] dark:from-slate-900 dark:via-[#0F172A] dark:to-slate-900/60 border border-emerald-900/5 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 items-center">
             {/* Left Hero Text */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100/90 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-800 text-[#1B4332] dark:text-emerald-300 text-xs font-bold tracking-wide">
-                <Leaf className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Dr. M. A. Haque, M.D. (Homoeo) • Homoeopathic Healthcare</span>
+            <div className="lg:col-span-7 space-y-3 sm:space-y-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-emerald-100/90 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-800 text-[#1B4332] dark:text-emerald-300 text-[11px] sm:text-xs font-bold tracking-wide">
+                <Leaf className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="truncate">Dr. M. A. Haque, M.D. (Homoeo) • Benachity</span>
               </div>
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#1B4332] dark:text-white tracking-tight leading-[1.15]">
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-[#1B4332] dark:text-white tracking-tight leading-[1.15]">
                 Homoeo Health Care
               </h1>
 
-              <p className="text-lg sm:text-xl text-slate-700 dark:text-slate-300 leading-relaxed font-normal">
+              <p className="text-sm sm:text-xl text-slate-700 dark:text-slate-300 leading-relaxed font-normal">
                 Personalized, gentle, and lasting healing for acute and chronic conditions. Experience genuine holistic recovery with zero side-effects under expert clinical supervision.
               </p>
 
-              {/* Trust Badges */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-                <div className="p-3 rounded-xl bg-white dark:bg-slate-800/80 border border-emerald-950/10 dark:border-slate-700 shadow-sm flex items-center gap-2.5">
-                  <Shield className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Zero Side-Effects</span>
+              {/* Trust Badges - Ultra Compact on Mobile */}
+              <div className="flex flex-wrap sm:grid sm:grid-cols-3 gap-1.5 sm:gap-3 pt-1">
+                <div className="px-2.5 py-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-white dark:bg-slate-800/80 border border-emerald-950/10 dark:border-slate-700 shadow-xs sm:shadow-sm flex items-center gap-1.5 sm:gap-2.5">
+                  <Shield className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Zero Side-Effects</span>
                 </div>
-                <div className="p-3 rounded-xl bg-white dark:bg-slate-800/80 border border-emerald-950/10 dark:border-slate-700 shadow-sm flex items-center gap-2.5">
-                  <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Root-Cause Cure</span>
+                <div className="px-2.5 py-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-white dark:bg-slate-800/80 border border-emerald-950/10 dark:border-slate-700 shadow-xs sm:shadow-sm flex items-center gap-1.5 sm:gap-2.5">
+                  <Activity className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Root-Cause Cure</span>
                 </div>
-                <div className="col-span-2 sm:col-span-1 p-3 rounded-xl bg-white dark:bg-slate-800/80 border border-emerald-950/10 dark:border-slate-700 shadow-sm flex items-center gap-2.5">
-                  <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Personalized Care</span>
+                <div className="px-2.5 py-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-white dark:bg-slate-800/80 border border-emerald-950/10 dark:border-slate-700 shadow-xs sm:shadow-sm flex items-center gap-1.5 sm:gap-2.5">
+                  <Users className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Personalized Care</span>
                 </div>
               </div>
 
-              {/* Call to Action scroll buttons */}
-              <div className="pt-2 flex flex-wrap items-center gap-4">
-                <a
-                  href="#booking-section"
-                  className="px-6 py-3.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-sm shadow-md shadow-emerald-900/20 flex items-center gap-2 transition-all transform hover:-translate-y-0.5"
+              {/* Call to Action buttons - Pulled up above the fold on mobile */}
+              <div className="pt-1 sm:pt-2 flex flex-wrap items-center gap-2.5 sm:gap-4">
+                <button
+                  type="button"
+                  id="hero-book-appointment-btn"
+                  onClick={() => setIsBookingModalOpen(true)}
+                  className="px-4 py-2.5 sm:px-6 sm:py-3.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-900/20 flex items-center gap-2 transition-all transform hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer"
                 >
                   <CalendarCheck className="w-4 h-4" />
                   <span>Book Appointment Now</span>
-                </a>
+                </button>
                 <a
                   href="https://wa.me/919933506514"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-5 py-3.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-[#1B4332] dark:text-emerald-300 font-bold text-sm flex items-center gap-2 hover:bg-emerald-200/80 transition-colors"
+                  className="px-3.5 py-2.5 sm:px-5 sm:py-3.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-[#1B4332] dark:text-emerald-300 font-bold text-xs sm:text-sm flex items-center gap-2 hover:bg-emerald-200/80 transition-colors"
                 >
                   <Phone className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                   <span>WhatsApp: 9933506514</span>
@@ -382,22 +393,22 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
       <section id="booking-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left Column: Booking Form */}
-          <div className="lg:col-span-8 bg-white dark:bg-slate-800 rounded-3xl border border-emerald-950/10 dark:border-slate-700 p-6 sm:p-10 shadow-lg">
-            <div className="mb-6">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+          <div className="lg:col-span-8 bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl border border-emerald-950/10 dark:border-slate-700 p-4 sm:p-8 lg:p-10 shadow-lg">
+            <div className="mb-4 sm:mb-6">
+              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                 Patient Self-Registration
               </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1">
+              <h2 className="text-xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1">
                 Book Your Doctor Consultation
               </h2>
-              <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5 sm:mt-1">
                 Fill your details below to generate your unique Token Number and live queue position.
               </p>
             </div>
 
             {errorMsg && (
-              <div className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm flex items-start gap-2.5">
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <div className="mb-4 p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs sm:text-sm flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 mt-0.5" />
                 <div>
                   <strong className="font-semibold block">Booking Alert:</strong>
                   <span>{errorMsg}</span>
@@ -405,34 +416,51 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
               </div>
             )}
 
-            <form onSubmit={handleBookingSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <form onSubmit={handleBookingSubmit} className="space-y-4 sm:space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-5">
                 {/* Patient Name */}
-                <div>
-                  <label htmlFor="patient-name-input" className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
+                <div className="sm:col-span-1">
+                  <label htmlFor="patient-name-input" className="block text-[11px] sm:text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
                     Patient Full Name *
                   </label>
                   <div className="relative">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                     <input
                       id="patient-name-input"
                       type="text"
                       required
-                      placeholder="e.g. Ramesh Chandra Sen"
+                      placeholder="e.g. Ramesh Sen"
                       value={patientName}
                       onChange={(e) => setPatientName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
+                      className="w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
                     />
                   </div>
                 </div>
 
+                {/* Age (Years) */}
+                <div>
+                  <label htmlFor="patient-age-input" className="block text-[11px] sm:text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
+                    Age (Years) <span className="text-slate-400 font-normal lowercase">(optional)</span>
+                  </label>
+                  <input
+                    id="patient-age-input"
+                    type="number"
+                    min="1"
+                    max="125"
+                    placeholder="e.g. 32"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    className="w-full px-3.5 py-2.5 sm:py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
+                  />
+                </div>
+
                 {/* Phone Number */}
                 <div>
-                  <label htmlFor="phone-number-input" className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
-                    Mobile Phone / WhatsApp *
+                  <label htmlFor="phone-number-input" className="block text-[11px] sm:text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
+                    Mobile / WhatsApp *
                   </label>
                   <div className="relative">
-                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                     <input
                       id="phone-number-input"
                       type="tel"
@@ -440,7 +468,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
                       placeholder="e.g. 9832100000"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
+                      className="w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
                     />
                   </div>
                 </div>
@@ -546,22 +574,22 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
                   type="submit"
                   id="btn-confirm-appointment"
                   disabled={submitting || isFriday}
-                  className={`w-full py-4 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2 shadow-lg transition-all ${
+                  className={`w-full py-3.5 sm:py-4 rounded-xl text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-md shadow-emerald-950/20 transition-all cursor-pointer ${
                     isFriday
                       ? 'bg-slate-400 cursor-not-allowed'
-                      : 'bg-[#1B4332] hover:bg-[#2D6A4F] shadow-emerald-950/20 active:scale-[0.99]'
+                      : 'bg-[#1B4332] hover:bg-[#2D6A4F] active:scale-[0.98]'
                   }`}
                 >
                   {submitting ? (
                     <span>Registering Patient...</span>
                   ) : (
                     <>
-                      <CheckCircle2 className="w-5 h-5 text-emerald-300" />
+                      <CalendarCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-300" />
                       <span>Confirm Appointment & Get Token</span>
                     </>
                   )}
                 </button>
-                <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-2.5">
+                <p className="text-center text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-2">
                   Instant token assigned with real-time queue position. No advance payment required online.
                 </p>
               </div>
@@ -642,100 +670,142 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
         </div>
       </section>
 
-      {/* 5. CONFIRMATION POPUP / MODAL (As explicitly specified in Prompt) */}
+      {/* 5. CONFIRMATION POPUP / MODAL (Strict modal viewport pattern) */}
       {confirmedAppointment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-emerald-500/30 p-6 sm:p-8 shadow-2xl space-y-6 relative">
-            <div className="text-center space-y-2">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center mx-auto shadow-inner">
-                <CheckCircle2 className="w-10 h-10" />
-              </div>
-              <h3 className="text-2xl font-extrabold text-[#1B4332] dark:text-emerald-300">
-                Appointment Confirmed!
-              </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                Hi <strong className="text-slate-900 dark:text-white">{confirmedAppointment.appointment.patient_name}</strong>, your appointment is confirmed!
-              </p>
-            </div>
-
-            {/* Rich Token Card */}
-            <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-slate-800/90 border border-emerald-200 dark:border-slate-700 space-y-3.5">
-              <div className="flex items-center justify-between pb-3 border-b border-emerald-200/70 dark:border-slate-700">
-                <div>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 block font-medium">Your Token Number</span>
-                  <span className="font-mono font-bold text-lg text-[#1B4332] dark:text-emerald-300">
-                    {confirmedAppointment.appointment.token_number}
-                  </span>
-                </div>
-                <button
-                  onClick={() => copyTokenToClipboard(confirmedAppointment.appointment.token_number)}
-                  className="p-2 rounded-lg bg-white dark:bg-slate-700 border border-emerald-200 dark:border-slate-600 text-slate-600 dark:text-slate-200 hover:bg-emerald-100 transition-colors flex items-center gap-1.5 text-xs font-semibold"
-                  title="Copy Token"
-                >
-                  {copiedToken ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span className="text-slate-500 dark:text-slate-400 block">Queue Position</span>
-                  <span className="font-extrabold text-base text-emerald-800 dark:text-emerald-300">
-                    #{confirmedAppointment.queuePosition}
-                  </span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg md:max-w-xl max-h-[90vh] md:max-h-[88vh] flex flex-col bg-[#FAF7EE] dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-emerald-900/20">
+            {/* Modal Header */}
+            <div className="shrink-0 p-4 border-b border-stone-200 dark:border-slate-800 flex justify-between items-center bg-white/70 dark:bg-slate-900/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shadow-xs shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400 block">Patient ID</span>
-                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                    {confirmedAppointment.appointment.patient_id}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 dark:text-slate-400 block">Date</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    {confirmedAppointment.appointment.booking_date}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 dark:text-slate-400 block">Shift Slot</span>
-                  <span className="font-semibold capitalize text-slate-800 dark:text-slate-200">
-                    {confirmedAppointment.appointment.shift} Slot ({confirmedAppointment.appointment.shift === 'morning' ? '10 AM - 12:30 PM' : '6 PM - 8:30 PM'})
-                  </span>
+                  <h3 className="text-base sm:text-lg font-bold text-[#1B4332] dark:text-emerald-300 leading-tight">
+                    Appointment Confirmed!
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Live Token generated for Dr. M. A. Haque Chamber
+                  </p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmedAppointment(null);
+                  setIsBookingModalOpen(false);
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-stone-200/60 dark:hover:bg-slate-800 transition cursor-pointer"
+                aria-label="Close dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Prompt's verbatim message */}
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-              <p>
-                <strong>Notice:</strong> Token: <strong>{confirmedAppointment.appointment.token_number}</strong>, Queue Position: <strong>#{confirmedAppointment.queuePosition}</strong>. Date: <strong>{confirmedAppointment.appointment.booking_date}</strong>, Shift: <strong>{confirmedAppointment.appointment.shift.toUpperCase()}</strong>.
+            {/* Modal Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+                Hi <strong className="text-slate-900 dark:text-white">{confirmedAppointment.appointment.patient_name}</strong>, your consultation slot has been reserved successfully.
               </p>
-              <p className="mt-1.5 font-medium text-emerald-800 dark:text-emerald-300">
-                Please visit the clinic on time. For details, contact 9933506514.
-              </p>
+
+              {/* Rich Token Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/80 dark:bg-slate-800/90 border border-emerald-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center justify-between pb-3 border-b border-emerald-200/70 dark:border-slate-700">
+                  <div>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">Your Token Number</span>
+                    <span className="font-mono font-extrabold text-xl text-[#1B4332] dark:text-emerald-300">
+                      {confirmedAppointment.appointment.token_number}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyTokenToClipboard(confirmedAppointment.appointment.token_number)}
+                    className="p-2 rounded-lg bg-white dark:bg-slate-700 border border-emerald-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-emerald-100 transition flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                    title="Copy Token"
+                  >
+                    {copiedToken ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Queue Position</span>
+                    <span className="font-extrabold text-base text-emerald-800 dark:text-emerald-300">
+                      #{confirmedAppointment.queuePosition}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Patient ID</span>
+                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                      {confirmedAppointment.appointment.patient_id}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Date</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {confirmedAppointment.appointment.booking_date}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400 block text-[11px]">Shift Slot</span>
+                    <span className="font-semibold capitalize text-slate-800 dark:text-slate-200">
+                      {confirmedAppointment.appointment.shift} Slot ({confirmedAppointment.appointment.shift === 'morning' ? '10 AM - 12:30 PM' : '6 PM - 8:30 PM'})
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Instructions notice */}
+              <div className="p-3.5 rounded-xl bg-stone-100/90 dark:bg-slate-800/80 border border-stone-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-1">
+                <p>
+                  <strong>Notice:</strong> Token <strong>{confirmedAppointment.appointment.token_number}</strong> (# {confirmedAppointment.queuePosition} in queue). Date: <strong>{confirmedAppointment.appointment.booking_date}</strong> ({confirmedAppointment.appointment.shift.toUpperCase()} Shift).
+                </p>
+                <p className="text-emerald-800 dark:text-emerald-300 font-medium">
+                  Please visit the clinic on time. For assistance, contact 9933506514.
+                </p>
+              </div>
             </div>
 
-            <div className="flex gap-3">
+            {/* Modal Footer */}
+            <div className="shrink-0 p-4 border-t border-stone-200 dark:border-slate-800 bg-stone-50/90 dark:bg-slate-900/90 flex items-center justify-end">
               <button
                 id="btn-close-confirmation-modal"
-                onClick={() => setConfirmedAppointment(null)}
-                className="w-full py-3.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-sm shadow-md transition"
+                type="button"
+                onClick={() => {
+                  setConfirmedAppointment(null);
+                  setIsBookingModalOpen(false);
+                }}
+                className="w-full py-3 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-sm shadow-md transition cursor-pointer"
               >
-                Okay, Done
+                Done / Close
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Pop-up Booking Modal */}
+      <BookingModal
+        isOpen={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        onSuccess={(appointment, queuePosition) => {
+          setConfirmedAppointment({ appointment, queuePosition });
+          setIsBookingModalOpen(false);
+          if (onAppointmentBooked) {
+            onAppointmentBooked(appointment);
+          }
+        }}
+      />
     </div>
   );
 };

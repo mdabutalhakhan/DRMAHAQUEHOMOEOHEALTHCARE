@@ -63,7 +63,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAF9] dark:bg-[#0F172A] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+    <div className="min-h-screen bg-[#FAF7EE] dark:bg-[#0F172A] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
       {/* Navigation Bar */}
       <Navbar
         darkMode={darkMode}

@@ -30,6 +30,17 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
   }
 }
 
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 function notifySubscribers(type: string, data?: any) {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('hhc_store_change', { detail: { type, data } }));
@@ -56,48 +67,112 @@ export function subscribeToStore(callback: (event: { type: string; data?: any })
     channel.addEventListener('message', handleChannelMessage);
   }
 
-  // Also listen for Supabase Realtime if connected
-  const supabase = getSupabase();
-  let subChannel: any = null;
-  if (supabase) {
-    subChannel = supabase
-      .channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
-        callback({ type: `supabase_${payload.table}`, data: payload });
-      })
-      .subscribe();
-  }
-
   return () => {
     window.removeEventListener('hhc_store_change', handleCustomEvent);
     if (channel) {
       channel.removeEventListener('message', handleChannelMessage);
-    }
-    if (subChannel && supabase) {
-      supabase.removeChannel(subChannel);
     }
   };
 }
 
 export function initSupabaseSync(): () => void {
   const supabase = getSupabase();
-  if (supabase) {
-    // Fetch live real appointments from Supabase
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('appointments')
-          .select('*')
-          .order('created_at', { ascending: false });
-        if (!error && Array.isArray(data)) {
-          saveAppointments(data as Appointment[]);
+  if (!supabase) return () => {};
+
+  // Fetch live appointments from Supabase and merge
+  const fetchLiveAppointments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        const local = getAppointments();
+        const map = new Map<string, Appointment>();
+        // Add Supabase records
+        for (const item of data) {
+          if (item && item.id) map.set(item.id, item as Appointment);
         }
-      } catch (err) {
-        console.warn('Could not fetch Supabase appointments:', err);
+        // Add any pending local-only records
+        for (const item of local) {
+          if (item && item.id && !map.has(item.id)) {
+            map.set(item.id, item);
+          }
+        }
+        const sorted = Array.from(map.values()).sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        saveAppointments(sorted);
       }
-    })();
+    } catch (err) {
+      console.warn('Could not fetch Supabase appointments:', err);
+    }
+  };
+
+  fetchLiveAppointments();
+
+  // Cross-device window focus check
+  const handleFocus = () => {
+    fetchLiveAppointments();
+  };
+  window.addEventListener('focus', handleFocus);
+  window.addEventListener('visibilitychange', handleFocus);
+
+  // Cross-device Realtime channel subscription via postgres_changes
+  let realtimeChannel: any = null;
+  try {
+    realtimeChannel = supabase
+      .channel('supabase_realtime_appointments_sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'appointments' },
+        (payload) => {
+          console.log('[Realtime] Supabase appointment event received:', payload);
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const newApt = payload.new as Appointment;
+            const current = getAppointments();
+            if (!current.some((a) => a.id === newApt.id || a.token_number === newApt.token_number)) {
+              const updated = [newApt, ...current];
+              localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(updated));
+              notifySubscribers('appointments', updated);
+            }
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            const updatedApt = payload.new as Appointment;
+            const current = getAppointments();
+            const updated = current.map((a) =>
+              a.id === updatedApt.id || a.token_number === updatedApt.token_number
+                ? { ...a, ...updatedApt }
+                : a
+            );
+            localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(updated));
+            notifySubscribers('appointments', updated);
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            const oldId = (payload.old as any)?.id;
+            if (oldId) {
+              const current = getAppointments();
+              const updated = current.filter((a) => a.id !== oldId);
+              localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(updated));
+              notifySubscribers('appointments', updated);
+            }
+          } else {
+            fetchLiveAppointments();
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Realtime] Appointments channel status:', status);
+      });
+  } catch (err) {
+    console.warn('[Realtime] Failed to initialize Supabase channel:', err);
   }
-  return subscribeToStore(() => {});
+
+  return () => {
+    window.removeEventListener('focus', handleFocus);
+    window.removeEventListener('visibilitychange', handleFocus);
+    if (supabase && realtimeChannel) {
+      supabase.removeChannel(realtimeChannel);
+    }
+  };
 }
 
 // ==========================================
@@ -142,6 +217,7 @@ export function saveAppointments(appointments: Appointment[]) {
 
 export interface BookingInput {
   patient_name: string;
+  age?: number;
   phone: string;
   address: string;
   booking_date: string; // YYYY-MM-DD
@@ -174,10 +250,11 @@ export async function createAppointment(input: BookingInput): Promise<{ appointm
   const patient_id = existingPatient ? existingPatient.patient_id : `PAT-${Math.floor(1000 + Math.random() * 9000)}`;
 
   const newAppointment: Appointment = {
-    id: `apt-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    id: generateUUID(),
     token_number,
     patient_id,
     patient_name: input.patient_name.trim(),
+    age: input.age ? Number(input.age) : undefined,
     phone: input.phone.trim(),
     address: input.address.trim(),
     booking_date: input.booking_date,
@@ -195,13 +272,24 @@ export async function createAppointment(input: BookingInput): Promise<{ appointm
   const supabase = getSupabase();
   if (supabase) {
     try {
-      await supabase.from('appointments').insert([newAppointment]);
+      const { error: insertErr } = await supabase.from('appointments').insert([newAppointment]);
+      if (insertErr) {
+        console.warn('Supabase appointment insert error:', insertErr);
+      }
     } catch (e) {
       console.warn('Supabase appointment sync warning:', e);
     }
   }
 
   return { appointment: newAppointment, queuePosition };
+}
+
+export function getLiveQueueEstimate(date: string, shift: ShiftType): number {
+  const currentAppointments = getAppointments();
+  const existing = currentAppointments.filter(
+    (a) => a.booking_date === date && a.shift === shift && a.status !== 'cancelled'
+  );
+  return existing.length + 1;
 }
 
 export function updateAppointmentStatus(id: string, status: AppointmentStatus, notes?: string) {
@@ -264,6 +352,70 @@ export function reassignAppointmentShift(id: string, newShift: ShiftType): Appoi
     supabase
       .from('appointments')
       .update({ shift: newShift, queue_position: newQueuePos, token_number: newTokenNumber, status: 'in_consult' })
+      .eq('id', id)
+      .then();
+  }
+
+  return updatedTarget;
+}
+
+// Flexible Appointment Reassignment (Date and/or Shift)
+export function reassignAppointmentSlot(
+  id: string,
+  newDate: string,
+  newShift: ShiftType
+): Appointment | null {
+  const appointments = getAppointments();
+  const target = appointments.find((a) => a.id === id);
+  if (!target) return null;
+
+  // Validate Friday clinic closed
+  const dateObj = new Date(newDate + 'T00:00:00');
+  if (dateObj.getDay() === 5) {
+    throw new Error('Clinic is closed on Fridays. Please select Saturday to Thursday.');
+  }
+
+  // Calculate new queue position in destination slot
+  const existingInTargetSlot = appointments.filter(
+    (a) => a.booking_date === newDate && a.shift === newShift && a.id !== id && a.status !== 'cancelled'
+  );
+  const newQueuePos = existingInTargetSlot.length + 1;
+  const shiftPrefix = newShift === 'morning' ? 'MORN' : 'EVE';
+  const cleanDate = newDate.replace(/-/g, '');
+  const padIndex = String(newQueuePos).padStart(3, '0');
+  const newTokenNumber = `TK-${cleanDate}-${shiftPrefix}-${padIndex}`;
+
+  let updatedTarget: Appointment | null = null;
+  const updated = appointments.map((a) => {
+    if (a.id === id) {
+      updatedTarget = {
+        ...a,
+        booking_date: newDate,
+        shift: newShift,
+        queue_position: newQueuePos,
+        token_number: newTokenNumber,
+        status: 'pending' as AppointmentStatus,
+        updated_at: new Date().toISOString(),
+      };
+      return updatedTarget;
+    }
+    return a;
+  });
+
+  saveAppointments(updated);
+
+  const supabase = getSupabase();
+  if (supabase) {
+    supabase
+      .from('appointments')
+      .update({
+        booking_date: newDate,
+        shift: newShift,
+        queue_position: newQueuePos,
+        token_number: newTokenNumber,
+        status: 'pending',
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id)
       .then();
   }

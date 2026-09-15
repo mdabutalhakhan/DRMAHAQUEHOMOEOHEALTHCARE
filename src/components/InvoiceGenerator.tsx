@@ -6,15 +6,15 @@ import {
   Printer, 
   CheckCircle2, 
   FileDown, 
-  Sparkles, 
-  IndianRupee, 
   User, 
   Phone,
   PackageCheck,
-  AlertCircle
+  AlertCircle,
+  Building2,
+  SlidersHorizontal
 } from 'lucide-react';
-import { Appointment, InventoryItem, Invoice, InvoiceItem, PaymentMode } from '../types';
-import { createInvoice, getInventory } from '../services/clinicStore';
+import { Appointment, Invoice, InvoiceItem, PaymentMode } from '../types';
+import { createInvoice, getInvoices } from '../services/clinicStore';
 import { exportInvoicesToCSV } from '../utils/exportUtils';
 
 interface InvoiceGeneratorProps {
@@ -23,41 +23,60 @@ interface InvoiceGeneratorProps {
   onBackToDashboard?: () => void;
 }
 
+type PrintFormat = 'thermal-80' | 'thermal-58' | 'a4';
+
 export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
   initialAppointment,
   onInvoiceCreated,
   onBackToDashboard,
 }) => {
-  const inventory = getInventory();
-
   // Patient Info
   const [patientName, setPatientName] = useState(initialAppointment?.patient_name || '');
   const [patientId, setPatientId] = useState(initialAppointment?.patient_id || `PAT-${Math.floor(1000 + Math.random() * 9000)}`);
   const [phone, setPhone] = useState(initialAppointment?.phone || '');
   
+  // Clinic & Tax Credentials
+  const [gstin, setGstin] = useState('GSTIN: [To be added / Optional]');
+
   // Financials
   const [consultationFee, setConsultationFee] = useState<number>(200); // Pre-filled default Consultation Charge: ₹200 (fully editable)
   const [discount, setDiscount] = useState<number>(0);
   const [tax, setTax] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   
-  // Dynamic Medicine Rows
-  const [items, setItems] = useState<Array<Omit<InvoiceItem, 'id' | 'total_price'>>>([
+  // 2-Column Manual Billing Items: "Item Description" and "Amount / Price (₹)"
+  const [items, setItems] = useState<Array<{ item_description: string; price: number }>>([
     {
-      medicine_name: 'Arnica Montana',
-      potency: '200C',
-      quantity: 1,
-      unit_price: 110,
+      item_description: 'Dispensed Medicines & Dilutions (100 ml Mother Q)',
+      price: 150,
     },
   ]);
+
+  // Single-row item quick entry state
+  const [quickDesc, setQuickDesc] = useState('');
+  const [quickPrice, setQuickPrice] = useState<string>('150');
+
+  const handleQuickAdd = () => {
+    if (!quickDesc.trim()) return;
+    setItems((prev) => [
+      ...prev,
+      {
+        item_description: quickDesc.trim(),
+        price: Number(quickPrice) || 0,
+      },
+    ]);
+    setQuickDesc('');
+    setQuickPrice('150');
+  };
 
   const [savedInvoice, setSavedInvoice] = useState<Invoice | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [printFormat, setPrintFormat] = useState<PrintFormat>('thermal-80');
 
   // Auto-calculate Subtotal
   const medicinesSubtotal = useMemo(() => {
-    return items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unit_price) || 0), 0);
+    return items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
   }, [items]);
 
   const subtotal = medicinesSubtotal + (Number(consultationFee) || 0);
@@ -67,10 +86,8 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
     setItems([
       ...items,
       {
-        medicine_name: '',
-        potency: '30C',
-        quantity: 1,
-        unit_price: 100,
+        item_description: '',
+        price: 100,
       },
     ]);
   };
@@ -79,26 +96,14 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const handleItemChange = (index: number, field: string, value: any) => {
+  const handleItemChange = (index: number, field: 'item_description' | 'price', value: any) => {
     const updated = [...items];
-    (updated[index] as any)[field] = value;
-    setItems(updated);
-  };
-
-  // Quick select from inventory to auto-populate unit price & potency
-  const handleSelectFromInventory = (index: number, inventoryId: string) => {
-    const found = inventory.find((i) => i.id === inventoryId);
-    if (found) {
-      const updated = [...items];
-      updated[index] = {
-        inventory_id: found.id,
-        medicine_name: found.medicine_name,
-        potency: found.potency,
-        quantity: 1,
-        unit_price: found.mrp,
-      };
-      setItems(updated);
+    if (field === 'price') {
+      updated[index].price = Number(value) || 0;
+    } else {
+      updated[index].item_description = value;
     }
+    setItems(updated);
   };
 
   const handleSaveInvoice = async () => {
@@ -115,24 +120,30 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
     setIsSaving(true);
     try {
       const formattedItems: InvoiceItem[] = items.map((it, idx) => ({
-        ...it,
         id: `item-${Date.now()}-${idx}`,
-        total_price: (Number(it.quantity) || 0) * (Number(it.unit_price) || 0),
+        item_description: it.item_description.trim() || 'Dispensed Medicine',
+        price: Number(it.price) || 0,
+        // legacy compatibility
+        medicine_name: it.item_description,
+        total_price: Number(it.price) || 0,
+        quantity: 1,
+        unit_price: Number(it.price) || 0,
       }));
 
       const newInv = await createInvoice({
         appointment_id: initialAppointment?.id,
         patient_id: patientId,
-        patient_name: patientName,
-        phone,
-        consultation_fee: consultationFee,
+        patient_name: patientName.trim(),
+        phone: phone.trim(),
+        consultation_fee: Number(consultationFee) || 0,
         subtotal,
-        discount,
-        tax,
+        discount: Number(discount) || 0,
+        tax: Number(tax) || 0,
         total_amount: totalAmount,
         payment_mode: paymentMode,
         payment_status: 'paid',
         items: formattedItems,
+        gstin: gstin.trim() || 'GSTIN: [To be added / Optional]',
       });
 
       setSavedInvoice(newInv);
@@ -153,103 +164,135 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800 no-print">
         <div>
           <div className="flex items-center gap-2">
             <span className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300">
               <Receipt className="w-5 h-5" />
             </span>
-            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">
-              Invoice & Clinical Billing Generator
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+              Billing & Receipt Generator
             </h2>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Dr. M. A. Haque Homeo Health Care • Automatic Patient ID & Invoice Sequence
+            Manual 2-column billing • Thermal POS receipt (80mm / 58mm) & GST ready
           </p>
         </div>
 
-        {onBackToDashboard && (
+        <div className="flex items-center gap-3">
           <button
-            onClick={onBackToDashboard}
-            className="text-xs font-semibold px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+            id="btn-export-invoices-csv"
+            onClick={() => exportInvoicesToCSV(getInvoices())}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition"
           >
-            ← Back to Queue Dashboard
+            <FileDown className="w-4 h-4 text-emerald-600" />
+            <span>Export Invoices (CSV)</span>
           </button>
-        )}
+          {onBackToDashboard && (
+            <button
+              onClick={onBackToDashboard}
+              className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+            >
+              Back
+            </button>
+          )}
+        </div>
       </div>
 
-      {errorMsg && (
-        <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
-
-      {/* INVOICE FORM OR PRINTABLE VOUCHER */}
       {!savedInvoice ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Main Billing Form */}
-          <div className="lg:col-span-8 bg-white dark:bg-slate-800 rounded-3xl border border-emerald-950/10 dark:border-slate-700 p-6 sm:p-8 shadow-sm space-y-6">
-            {/* Patient Header Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pb-4 border-b border-slate-100 dark:border-slate-700 text-xs">
-              <div>
-                <label className="block font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">
-                  Patient Full Name *
-                </label>
-                <div className="relative">
-                  <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+        /* BILLING ENTRY FORM */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Left Column: Patient Info & 2-Column Charges */}
+          <div className="lg:col-span-8 space-y-6">
+            {errorMsg && (
+              <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* Patient Header Box */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-sm space-y-4">
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white uppercase tracking-wider">
+                Patient & Clinic Details
+              </h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    Patient Name *
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      id="invoice-patient-name"
+                      type="text"
+                      placeholder="e.g. Ramesh Chandra"
+                      value={patientName}
+                      onChange={(e) => setPatientName(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    Patient ID
+                  </label>
                   <input
-                    id="invoice-patient-name"
+                    id="invoice-patient-id"
                     type="text"
-                    required
-                    value={patientName}
-                    onChange={(e) => setPatientName(e.target.value)}
-                    placeholder="Patient Name"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
+                    value={patientId}
+                    onChange={(e) => setPatientId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-mono text-xs font-medium text-emerald-800 dark:text-emerald-400 focus:outline-none"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                    Contact Phone *
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      id="invoice-patient-phone"
+                      type="tel"
+                      placeholder="10-digit mobile"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">
-                  Mobile Phone *
+              {/* GSTIN Field */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                  Clinic GSTIN
                 </label>
                 <div className="relative">
-                  <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
+                  <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
-                    id="invoice-patient-phone"
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Phone"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white"
+                    id="invoice-gstin"
+                    type="text"
+                    value={gstin}
+                    onChange={(e) => setGstin(e.target.value)}
+                    placeholder="GSTIN: [To be added / Optional]"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">
-                  Unique Patient ID
-                </label>
-                <input
-                  id="invoice-patient-id"
-                  type="text"
-                  value={patientId}
-                  onChange={(e) => setPatientId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-emerald-50/50 dark:bg-slate-900 font-mono font-bold text-[#1B4332] dark:text-emerald-400"
-                />
               </div>
             </div>
 
-            {/* Consultation Charge Row */}
-            <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-slate-900/60 border border-emerald-200/60 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Doctor Consultation Fee Card */}
+            <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
               <div>
-                <span className="font-bold text-sm text-slate-900 dark:text-white block">
-                  Default Doctor Consultation Fee
+                <span className="font-bold text-xs uppercase tracking-wider text-[#1B4332] dark:text-emerald-300 block">
+                  Doctor Consultation Charge
                 </span>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Pre-filled at ₹200 (fully customizable for follow-ups or waivers)
+                  Pre-filled default at ₹200 (fully customizable or set to 0 for follow-ups)
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -259,111 +302,123 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                   type="number"
                   min="0"
                   value={consultationFee}
-                  onChange={(e) => setConsultationFee(Number(e.target.value))}
+                  onChange={(e) => setConsultationFee(Number(e.target.value) || 0)}
                   className="w-28 px-3 py-1.5 rounded-xl border border-emerald-300 dark:border-slate-600 bg-white dark:bg-slate-800 font-bold text-sm text-right focus:outline-none focus:ring-2 focus:ring-emerald-600"
                 />
               </div>
             </div>
 
-            {/* Dynamic Medicine Line Items */}
+            {/* 2-Column Medicine & Charge Line Items (Only: Item Description and Amount / Price) */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Prescribed Medicines & Dilutions Dispensed
-                </h3>
+                <div>
+                  <h3 className="font-bold text-sm uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Dispensed Medicines & Charges
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    2-column manual billing: Enter item description and amount directly
+                  </p>
+                </div>
                 <button
                   type="button"
-                  id="btn-add-medicine-row"
+                  id="btn-add-blank-row"
                   onClick={handleAddItem}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/80 dark:hover:bg-emerald-900 text-emerald-900 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition"
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                  title="Add blank row"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add Medicine Row</span>
+                  <span>Blank Row</span>
                 </button>
               </div>
 
-              <div className="space-y-3">
+              {/* Single-Row Fast Item Entry: [Description] [Price] [+ Add Item] */}
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 space-y-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#1B4332] dark:text-emerald-300 block">
+                  Quick Add Line Item
+                </span>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <input
+                    id="quick-item-desc"
+                    type="text"
+                    placeholder="Item Description (e.g. Dispensed Medicine, Dilution 30C, Tonic)..."
+                    value={quickDesc}
+                    onChange={(e) => setQuickDesc(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleQuickAdd();
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 rounded-xl border border-emerald-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-28 sm:w-32 shrink-0">
+                      <span className="absolute left-3 top-2 text-xs text-slate-400 font-semibold">₹</span>
+                      <input
+                        id="quick-item-price"
+                        type="number"
+                        min="0"
+                        placeholder="Price"
+                        value={quickPrice}
+                        onChange={(e) => setQuickPrice(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleQuickAdd();
+                          }
+                        }}
+                        className="w-full pl-7 pr-3 py-2 rounded-xl border border-emerald-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-right text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      id="btn-quick-add-item"
+                      onClick={handleQuickAdd}
+                      disabled={!quickDesc.trim()}
+                      className="px-4 py-2 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] disabled:opacity-40 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 shadow-sm"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ Add Item</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items List (Each row single-row on both mobile and desktop) */}
+              <div className="space-y-2 pt-1">
                 {items.map((item, idx) => (
                   <div
                     key={idx}
-                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center"
+                    className="p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 flex items-center gap-2"
                   >
-                    {/* Medicine Name or Inventory Quick Selector */}
-                    <div className="sm:col-span-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-semibold text-slate-500">Medicine Name</label>
-                        <select
-                          onChange={(e) => handleSelectFromInventory(idx, e.target.value)}
-                          className="text-[10px] text-emerald-700 dark:text-emerald-400 bg-transparent border-0 cursor-pointer font-semibold"
-                        >
-                          <option value="">(Select from stock)</option>
-                          {inventory.map((inv) => (
-                            <option key={inv.id} value={inv.id}>
-                              {inv.medicine_name} {inv.potency} (Stock: {inv.stock_quantity})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="e.g. Rhus Tox"
-                        value={item.medicine_name}
-                        onChange={(e) => handleItemChange(idx, 'medicine_name', e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium"
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      placeholder="Item Description"
+                      value={item.item_description}
+                      onChange={(e) => handleItemChange(idx, 'item_description', e.target.value)}
+                      className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                    />
 
-                    {/* Potency */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">Potency</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 200C / Q"
-                        value={item.potency}
-                        onChange={(e) => handleItemChange(idx, 'potency', e.target.value)}
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium"
-                      />
-                    </div>
-
-                    {/* Quantity / Phials */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">Quantity</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => handleItemChange(idx, 'quantity', Number(e.target.value))}
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-center"
-                      />
-                    </div>
-
-                    {/* Unit Price */}
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">Unit Price (₹)</label>
+                    <div className="relative w-24 sm:w-28 shrink-0">
+                      <span className="absolute left-2.5 top-2 text-xs text-slate-400 font-semibold">₹</span>
                       <input
                         type="number"
                         min="0"
-                        value={item.unit_price}
-                        onChange={(e) => handleItemChange(idx, 'unit_price', Number(e.target.value))}
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-right"
+                        value={item.price}
+                        onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
+                        className="w-full pl-6 pr-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-right text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
                       />
                     </div>
 
-                    {/* Line Total & Remove */}
-                    <div className="sm:col-span-2 flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        ₹{(Number(item.quantity) || 0) * (Number(item.unit_price) || 0)}
-                      </span>
-                      {items.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(idx)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(idx)}
+                      disabled={items.length <= 1}
+                      className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-25 transition cursor-pointer shrink-0"
+                      title="Remove row"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -383,7 +438,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
               </div>
 
               <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
-                <span>Medicine Subtotal ({items.length} items):</span>
+                <span>Items Subtotal ({items.length} items):</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200">₹{medicinesSubtotal}</span>
               </div>
 
@@ -401,8 +456,8 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                     type="number"
                     min="0"
                     value={discount}
-                    onChange={(e) => setDiscount(Number(e.target.value))}
-                    className="w-16 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-right font-semibold"
+                    onChange={(e) => setDiscount(Number(e.target.value) || 0)}
+                    className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-right font-semibold text-xs"
                   />
                 </div>
               </div>
@@ -425,7 +480,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                     key={mode}
                     type="button"
                     onClick={() => setPaymentMode(mode)}
-                    className={`py-2 px-3 rounded-xl border text-center font-bold uppercase tracking-wider transition ${
+                    className={`py-2 px-3 rounded-xl border text-center font-bold uppercase tracking-wider transition cursor-pointer ${
                       paymentMode === mode
                         ? 'bg-[#1B4332] border-[#1B4332] text-white shadow-sm'
                         : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
@@ -437,41 +492,85 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Button */}
             <button
               type="button"
               id="btn-save-invoice"
               disabled={isSaving}
               onClick={handleSaveInvoice}
-              className="w-full py-4 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-sm shadow-md shadow-emerald-950/20 flex items-center justify-center gap-2 transition"
+              className="w-full py-4 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-sm shadow-md shadow-emerald-950/20 flex items-center justify-center gap-2 transition cursor-pointer"
             >
               <PackageCheck className="w-5 h-5 text-emerald-300" />
-              <span>{isSaving ? 'Dispensing & Saving...' : 'Save & Generate Invoice'}</span>
+              <span>{isSaving ? 'Saving Invoice...' : 'Save & Generate Invoice'}</span>
             </button>
             <p className="text-[11px] text-center text-slate-500">
-              Saving automatically deducts stock from inventory with an audit log.
+              Generates official printable receipt with thermal POS and PDF print options.
             </p>
           </div>
         </div>
       ) : (
-        /* PRINTABLE INVOICE RECEIPT VOUCHER */
+        /* PRINTABLE INVOICE RECEIPT & THERMAL POS SECTION */
         <div className="max-w-3xl mx-auto space-y-6">
-          <div className="flex items-center justify-between no-print">
+          {/* Print Controls Toolbar */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-4 no-print shadow-sm">
             <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 text-sm font-bold">
               <CheckCircle2 className="w-5 h-5" />
-              <span>Invoice Generated Successfully: {savedInvoice.invoice_number}</span>
+              <span>Invoice Generated: {savedInvoice.invoice_number}</span>
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* Print Format Selector: Thermal 80mm / 58mm / A4 */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl text-xs font-semibold">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 ml-1.5 mr-0.5" />
+                <button
+                  type="button"
+                  onClick={() => setPrintFormat('thermal-80')}
+                  className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                    printFormat === 'thermal-80'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-800 dark:text-emerald-300 shadow-xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                  title="80mm Thermal POS Receipt (Standard roll)"
+                >
+                  80mm POS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintFormat('thermal-58')}
+                  className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                    printFormat === 'thermal-58'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-800 dark:text-emerald-300 shadow-xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                  title="58mm Thermal POS Receipt (Compact roll)"
+                >
+                  58mm POS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintFormat('a4')}
+                  className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                    printFormat === 'a4'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-800 dark:text-emerald-300 shadow-xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                  title="Standard A4 / A5 Clinic Voucher"
+                >
+                  A4 Voucher
+                </button>
+              </div>
+
               <button
                 onClick={() => setSavedInvoice(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 transition"
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
               >
-                Create Another Invoice
+                New Invoice
               </button>
+
               <button
                 id="btn-print-invoice"
                 onClick={triggerPrint}
-                className="px-5 py-2 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center gap-2 shadow-sm transition"
+                className="px-4 py-2 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print / Download PDF</span>
@@ -479,113 +578,213 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
             </div>
           </div>
 
-          {/* Clean Printed Voucher Box */}
-          <div className="printable-area p-8 sm:p-10 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-xl space-y-6 font-sans">
-            {/* Clinic Header */}
-            <div className="flex justify-between items-start pb-6 border-b border-slate-200">
-              <div>
-                <h1 className="text-2xl font-extrabold text-[#1B4332] tracking-tight">Homoeo Health Care</h1>
-                <p className="text-sm font-semibold text-slate-700">Dr. M. A. Haque, M.D. (Homoeo)</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  Salbagan Road, Benachity, Durgapur, PIN: 713213
-                </p>
-                <p className="text-xs text-slate-500">Phone / WhatsApp: 9933506514</p>
-              </div>
-
-              <div className="text-right">
-                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">Official Receipt</span>
-                <span className="font-mono font-extrabold text-base text-slate-900 block mt-0.5">
-                  {savedInvoice.invoice_number}
-                </span>
-                <span className="text-xs text-slate-500 block">
-                  Date: {new Date(savedInvoice.created_at).toLocaleDateString()}
-                </span>
-              </div>
-            </div>
-
-            {/* Patient Credentials */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-              <div>
-                <span className="text-slate-500 block">Patient Name:</span>
-                <strong className="text-slate-900 text-sm">{savedInvoice.patient_name}</strong>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Patient ID:</span>
-                <strong className="font-mono text-emerald-800 text-sm">{savedInvoice.patient_id}</strong>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Contact Phone:</span>
-                <strong className="text-slate-900">{savedInvoice.phone}</strong>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Payment Mode:</span>
-                <strong className="uppercase text-emerald-800 font-bold">{savedInvoice.payment_mode} (PAID)</strong>
-              </div>
-            </div>
-
-            {/* Itemized Table */}
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b-2 border-slate-200 text-slate-700 uppercase font-bold">
-                  <th className="py-2.5">Item Description</th>
-                  <th className="py-2.5">Potency</th>
-                  <th className="py-2.5 text-center">Qty</th>
-                  <th className="py-2.5 text-right">Unit Price</th>
-                  <th className="py-2.5 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                <tr>
-                  <td className="py-2.5 font-medium">Doctor Clinical Consultation Fee</td>
-                  <td className="py-2.5 text-slate-500">-</td>
-                  <td className="py-2.5 text-center">1</td>
-                  <td className="py-2.5 text-right">₹{savedInvoice.consultation_fee}</td>
-                  <td className="py-2.5 text-right font-bold">₹{savedInvoice.consultation_fee}</td>
-                </tr>
-                {savedInvoice.items.map((it, i) => (
-                  <tr key={i}>
-                    <td className="py-2.5 font-medium">{it.medicine_name}</td>
-                    <td className="py-2.5 text-slate-600 font-semibold">{it.potency}</td>
-                    <td className="py-2.5 text-center">{it.quantity}</td>
-                    <td className="py-2.5 text-right">₹{it.unit_price}</td>
-                    <td className="py-2.5 text-right font-bold">₹{it.total_price}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Calculations Footer */}
-            <div className="pt-4 border-t border-slate-200 flex justify-end">
-              <div className="w-64 space-y-1.5 text-xs text-right">
-                <div className="flex justify-between text-slate-600">
-                  <span>Subtotal:</span>
-                  <span className="font-semibold">₹{savedInvoice.subtotal}</span>
+          {/* RECEIPT VIEWPORT (Dynamically adapts class according to chosen print format, centered on mobile/tablet) */}
+          <div className="w-full flex items-center justify-center py-2 px-2 overflow-x-auto">
+            {printFormat === 'thermal-80' || printFormat === 'thermal-58' ? (
+              /* THERMAL POS RECEIPT LAYOUT */
+              <div
+                className={`printable-area ${
+                  printFormat === 'thermal-80' ? 'thermal-receipt-80 w-full max-w-[340px]' : 'thermal-receipt-58 w-full max-w-[270px]'
+                } mx-auto p-4 sm:p-5 rounded-2xl bg-white text-black border border-slate-300 shadow-lg font-mono text-xs`}
+              >
+                {/* Header */}
+                <div className="text-center space-y-1 pb-2">
+                  <h1 className="text-base font-black tracking-tight uppercase">Homoeo Health Care</h1>
+                  <p className="text-xs font-bold">Dr. M. A. Haque, M.D. (Homoeo)</p>
+                  <p className="text-[10px] leading-tight">Salbagan Road, Benachity, Durgapur-713213</p>
+                  <p className="text-[10px]">Phone: 9933506514</p>
+                  <p className="text-[10px] font-semibold">{savedInvoice.gstin || 'GSTIN: [To be added / Optional]'}</p>
                 </div>
-                {savedInvoice.discount > 0 && (
-                  <div className="flex justify-between text-emerald-700">
-                    <span>Discount:</span>
-                    <span>- ₹{savedInvoice.discount}</span>
+
+                <div className="receipt-divider border-t border-dashed border-black my-2"></div>
+
+                {/* Receipt Metadata */}
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex justify-between">
+                    <span>Receipt No:</span>
+                    <span className="font-bold">{savedInvoice.invoice_number}</span>
                   </div>
-                )}
-                <div className="flex justify-between text-base font-extrabold text-[#1B4332] pt-2 border-t border-slate-200">
-                  <span>Total Amount Paid:</span>
-                  <span>₹{savedInvoice.total_amount}</span>
+                  <div className="flex justify-between">
+                    <span>Date:</span>
+                    <span>{new Date(savedInvoice.created_at).toLocaleDateString()} {new Date(savedInvoice.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Patient:</span>
+                    <span className="font-bold truncate max-w-[150px]">{savedInvoice.patient_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Patient ID:</span>
+                    <span>{savedInvoice.patient_id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Phone:</span>
+                    <span>{savedInvoice.phone}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Payment:</span>
+                    <span className="font-bold uppercase">{savedInvoice.payment_mode} (PAID)</span>
+                  </div>
+                </div>
+
+                <div className="receipt-divider border-t border-dashed border-black my-2"></div>
+
+                {/* 2-Column Items Table */}
+                <div className="text-[11px]">
+                  <div className="flex justify-between font-bold pb-1 border-b border-black">
+                    <span>ITEM DESCRIPTION</span>
+                    <span>AMOUNT</span>
+                  </div>
+                  <div className="divide-y divide-dotted divide-slate-400 pt-1">
+                    {/* Consultation fee */}
+                    <div className="py-1 flex justify-between gap-2">
+                      <span className="font-medium">Dr. Consultation Fee</span>
+                      <span className="font-bold shrink-0">₹{savedInvoice.consultation_fee}</span>
+                    </div>
+
+                    {/* Dispensed items */}
+                    {savedInvoice.items.map((it, i) => (
+                      <div key={i} className="py-1 flex justify-between gap-2">
+                        <span className="break-words leading-tight">{it.item_description || it.medicine_name}</span>
+                        <span className="font-bold shrink-0">₹{it.price || it.total_price}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="receipt-divider border-t border-dashed border-black my-2"></div>
+
+                {/* Totals */}
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>₹{savedInvoice.subtotal}</span>
+                  </div>
+                  {savedInvoice.discount > 0 && (
+                    <div className="flex justify-between font-semibold">
+                      <span>Discount:</span>
+                      <span>- ₹{savedInvoice.discount}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-black pt-1 border-t border-black">
+                    <span>TOTAL PAID:</span>
+                    <span>₹{savedInvoice.total_amount}</span>
+                  </div>
+                </div>
+
+                <div className="receipt-divider border-t border-dashed border-black my-3"></div>
+
+                {/* Footer Notice */}
+                <div className="text-center text-[10px] space-y-1 pt-1">
+                  <p className="font-semibold">Clinic: Sat - Thu (Friday Closed)</p>
+                  <p>Wishing you good health & wellness</p>
+                  <p className="font-bold text-[11px] pt-1">Authorized Signatory</p>
+                  <p>Dr. M. A. Haque, M.D. (Homoeo)</p>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* STANDARD A4 / A5 CLINIC VOUCHER LAYOUT */
+              <div className="printable-area standard-voucher w-full p-8 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-xl space-y-6 font-sans">
+                {/* Clinic Header */}
+                <div className="flex justify-between items-start pb-6 border-b border-slate-200">
+                  <div>
+                    <h1 className="text-2xl font-extrabold text-[#1B4332] tracking-tight">Homoeo Health Care</h1>
+                    <p className="text-sm font-semibold text-slate-700">Dr. M. A. Haque, M.D. (Homoeo)</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Salbagan Road, Benachity, Durgapur, PIN: 713213
+                    </p>
+                    <p className="text-xs text-slate-500">Phone / WhatsApp: 9933506514</p>
+                    <p className="text-xs font-mono font-semibold text-slate-600 mt-0.5">
+                      {savedInvoice.gstin || 'GSTIN: [To be added / Optional]'}
+                    </p>
+                  </div>
 
-            {/* Signatory */}
-            <div className="pt-8 flex items-end justify-between text-xs text-slate-500">
-              <div>
-                <p>Clinic Hours: Sat - Thu (Fri Closed)</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Created by Md Abu Talha Khan • Homoeo Health Care</p>
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">Official Receipt</span>
+                    <span className="font-mono font-extrabold text-base text-slate-900 block mt-0.5">
+                      {savedInvoice.invoice_number}
+                    </span>
+                    <span className="text-xs text-slate-500 block">
+                      Date: {new Date(savedInvoice.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Patient Credentials */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                  <div>
+                    <span className="text-slate-500 block">Patient Name:</span>
+                    <strong className="text-slate-900 text-sm">{savedInvoice.patient_name}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Patient ID:</span>
+                    <strong className="font-mono text-emerald-800 text-sm">{savedInvoice.patient_id}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Contact Phone:</span>
+                    <strong className="text-slate-900">{savedInvoice.phone}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block">Payment Mode:</span>
+                    <strong className="uppercase text-emerald-800 font-bold">{savedInvoice.payment_mode} (PAID)</strong>
+                  </div>
+                </div>
+
+                {/* 2-Column Itemized Table */}
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-slate-200 text-slate-700 uppercase font-bold">
+                      <th className="py-2.5">Item Description</th>
+                      <th className="py-2.5 text-right">Amount / Price (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    <tr>
+                      <td className="py-2.5 font-medium">Doctor Clinical Consultation Fee</td>
+                      <td className="py-2.5 text-right font-bold">₹{savedInvoice.consultation_fee}</td>
+                    </tr>
+                    {savedInvoice.items.map((it, i) => (
+                      <tr key={i}>
+                        <td className="py-2.5 font-medium">{it.item_description || it.medicine_name}</td>
+                        <td className="py-2.5 text-right font-bold">₹{it.price || it.total_price}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* Calculations Footer */}
+                <div className="pt-4 border-t border-slate-200 flex justify-end">
+                  <div className="w-64 space-y-1.5 text-xs text-right">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Subtotal:</span>
+                      <span className="font-semibold">₹{savedInvoice.subtotal}</span>
+                    </div>
+                    {savedInvoice.discount > 0 && (
+                      <div className="flex justify-between text-emerald-700">
+                        <span>Discount:</span>
+                        <span>- ₹{savedInvoice.discount}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-base font-extrabold text-[#1B4332] pt-2 border-t border-slate-200">
+                      <span>Total Amount Paid:</span>
+                      <span>₹{savedInvoice.total_amount}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Signatory */}
+                <div className="pt-8 flex items-end justify-between text-xs text-slate-500">
+                  <div>
+                    <p>Clinic Hours: Sat - Thu (Fri Closed)</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Homoeo Health Care • Benachity, Durgapur</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="w-40 border-b border-slate-300 pb-1 mb-1"></div>
+                    <span className="font-bold text-slate-800">Authorized Signatory</span>
+                    <p className="text-[11px] text-slate-500">Dr. M. A. Haque, M.D. (Homoeo)</p>
+                  </div>
+                </div>
               </div>
-              <div className="text-right">
-                <div className="w-40 border-b border-slate-300 pb-1 mb-1"></div>
-                <span className="font-bold text-slate-800">Authorized Signatory</span>
-                <p className="text-[11px] text-slate-500">Dr. M. A. Haque, M.D. (Homoeo)</p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}

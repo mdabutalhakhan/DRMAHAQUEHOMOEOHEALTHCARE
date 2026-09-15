@@ -4,14 +4,15 @@ import {
   Boxes, 
   Sparkles, 
   Receipt, 
-  Database, 
   ShieldAlert, 
   Calendar, 
   Plus, 
   LogOut,
   Stethoscope,
   ChevronRight,
-  HeartHandshake
+  HeartHandshake,
+  Menu,
+  X
 } from 'lucide-react';
 import { Appointment, Invoice, UserProfile } from '../types';
 import { QueueManager } from './QueueManager';
@@ -19,7 +20,6 @@ import { InventoryManager } from './InventoryManager';
 import { AIConsultant } from './AIConsultant';
 import { InvoiceGenerator } from './InvoiceGenerator';
 import { ConsultationModal } from './ConsultationModal';
-import { DatabaseSchemaModal } from './DatabaseSchemaModal';
 import { TeamManagement } from './TeamManagement';
 
 interface DashboardProps {
@@ -34,6 +34,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onReturnToHome,
 }) => {
   const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'ai' | 'billing' | 'team'>('queue');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
   // Consultation modal state
   const [activeConsultAppointment, setActiveConsultAppointment] = useState<Appointment | null>(null);
@@ -44,9 +45,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // AI Symptoms state passed from consultation
   const [aiInitialSymptoms, setAiInitialSymptoms] = useState('');
-
-  // Supabase Schema modal
-  const [isSchemaModalOpen, setIsSchemaModalOpen] = useState(false);
 
   const handleStartConsult = (appointment: Appointment) => {
     setActiveConsultAppointment(appointment);
@@ -64,121 +62,260 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setActiveTab('ai');
   };
 
+  const navigationItems = [
+    {
+      id: 'queue' as const,
+      label: 'Queue & Chamber Manager',
+      shortLabel: 'Queue',
+      icon: Users,
+      description: 'Live patient queue, tokens & consultations'
+    },
+    {
+      id: 'inventory' as const,
+      label: 'Medicine Inventory',
+      shortLabel: 'Inventory',
+      icon: Boxes,
+      description: 'Potency, dilutions, mother tinctures & stock alerts'
+    },
+    {
+      id: 'ai' as const,
+      label: 'AI Clinical Consultant (Gemini)',
+      shortLabel: 'AI Consultant',
+      icon: Sparkles,
+      description: 'Repertory & materia medica repertorization'
+    },
+    {
+      id: 'billing' as const,
+      label: 'Invoice & Billing',
+      shortLabel: 'Billing',
+      icon: Receipt,
+      description: '2-column manual billing & thermal POS receipt'
+    },
+    ...(currentUser.role === 'admin'
+      ? [
+          {
+            id: 'team' as const,
+            label: 'Staff & Doctor Team',
+            shortLabel: 'Team',
+            icon: ShieldAlert,
+            description: 'Staff roles, doctor accounts & access control'
+          }
+        ]
+      : [])
+  ];
+
+  const currentNavItem = navigationItems.find((item) => item.id === activeTab) || navigationItems[0];
+
   return (
-    <div className="space-y-8 pb-16">
+    <div className="space-y-6 pb-16">
       {/* Dashboard Sub-Header */}
-      <div className="p-6 rounded-3xl bg-gradient-to-r from-[#1B4332] to-[#2D6A4F] text-white shadow-xl shadow-emerald-950/15 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-1.5">
+      <div className="p-4 sm:p-6 rounded-3xl bg-gradient-to-r from-[#1B4332] to-[#2D6A4F] text-white shadow-xl shadow-emerald-950/15 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+        <div className="space-y-1 sm:space-y-1.5">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-white/20 text-emerald-100">
               Chamber Control Center
             </span>
-            <span className="text-xs text-emerald-200">
+            <span className="text-xs text-emerald-200 hidden sm:inline">
               Dr. M. A. Haque Homoeo Health Care
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight">
             Welcome, {currentUser.full_name}
           </h1>
-          <p className="text-xs text-emerald-100/90 font-medium">
+          <p className="text-[11px] sm:text-xs text-emerald-100/90 font-medium">
             Role: <span className="capitalize font-bold text-white">{currentUser.role}</span> • Salbagan Road, Benachity, Durgapur
           </p>
         </div>
 
-        {/* Action badges & Database modal trigger */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Action Controls */}
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          {/* Hamburger Menu Toggle Button */}
           <button
-            onClick={() => setIsSchemaModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-emerald-800/80 hover:bg-emerald-800 text-emerald-100 border border-emerald-600/40 text-xs font-bold flex items-center gap-2 shadow-sm transition"
+            id="btn-toggle-drawer"
+            type="button"
+            onClick={() => setIsDrawerOpen(true)}
+            className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white border border-white/20 text-xs font-bold flex items-center gap-2 shadow-sm transition cursor-pointer"
+            aria-label="Open Chamber Navigation Menu"
           >
-            <Database className="w-4 h-4 text-emerald-300" />
-            <span>Supabase Architecture</span>
+            <Menu className="w-4 h-4 text-emerald-200" />
+            <span>☰ Navigation Menu</span>
           </button>
 
           <button
             onClick={onReturnToHome}
-            className="px-4 py-2.5 rounded-xl bg-white text-[#1B4332] hover:bg-emerald-50 text-xs font-bold shadow-md transition"
+            className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-white text-[#1B4332] hover:bg-emerald-50 text-xs font-bold shadow-md transition cursor-pointer"
           >
-            ← Public Booking View
+            ← Public View
           </button>
         </div>
       </div>
 
-      {/* Main Navigation Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200 dark:border-slate-800">
-        <button
-          id="tab-queue"
-          onClick={() => setActiveTab('queue')}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'queue'
-              ? 'bg-[#1B4332] text-white shadow-md'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Queue & Chamber Manager</span>
-        </button>
-
-        <button
-          id="tab-inventory"
-          onClick={() => setActiveTab('inventory')}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'inventory'
-              ? 'bg-[#1B4332] text-white shadow-md'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <Boxes className="w-4 h-4" />
-          <span>Medicine Inventory</span>
-        </button>
-
-        <button
-          id="tab-ai"
-          onClick={() => setActiveTab('ai')}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'ai'
-              ? 'bg-[#1B4332] text-white shadow-md'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <Sparkles className="w-4 h-4 text-emerald-300" />
-          <span>AI Clinical Consultant (Gemini)</span>
-        </button>
-
-        <button
-          id="tab-billing"
-          onClick={() => {
-            setBillingAppointment(null);
-            setActiveTab('billing');
-          }}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'billing'
-              ? 'bg-[#1B4332] text-white shadow-md'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <Receipt className="w-4 h-4" />
-          <span>Invoice & Billing</span>
-        </button>
-
-        {currentUser.role === 'admin' && (
+      {/* TOP CONTROL BAR (Active Module & Quick Switcher) */}
+      <div className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-xs">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           <button
-            id="tab-team"
-            onClick={() => setActiveTab('team')}
-            className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'team'
-                ? 'bg-[#1B4332] text-white shadow-md'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
+            type="button"
+            onClick={() => setIsDrawerOpen(true)}
+            className="p-2 rounded-xl bg-emerald-50 dark:bg-slate-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 text-[#1B4332] dark:text-emerald-400 transition cursor-pointer"
+            title="Open Drawer Menu"
           >
-            <ShieldAlert className="w-4 h-4" />
-            <span>Staff & Doctor Team</span>
+            <Menu className="w-4 h-4" />
           </button>
-        )}
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider hidden sm:inline">
+                Active Workspace:
+              </span>
+              <span className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                <currentNavItem.icon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>{currentNavItem.label}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Compact Quick Switcher for Instant Navigation */}
+        <div className="hidden md:flex items-center gap-1.5">
+          {navigationItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  if (item.id === 'billing') setBillingAppointment(null);
+                  setActiveTab(item.id);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                  isActive
+                    ? 'bg-[#1B4332] text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{item.shortLabel}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* TAB CONTENT VIEWS */}
-      <div>
+      {/* OFF-CANVAS COLLAPSIBLE DRAWER / SIDEBAR */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex animate-fade-in">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsDrawerOpen(false)}
+          />
+
+          {/* Drawer Sidebar */}
+          <aside className="relative w-80 max-w-[85vw] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-2xl z-50 flex flex-col h-full overflow-y-auto">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-emerald-50/50 dark:bg-slate-800/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white flex items-center justify-center font-bold shadow-xs">
+                  <Stethoscope className="w-5 h-5 text-emerald-200" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">
+                    Chamber Modules
+                  </h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Dr. M. A. Haque, M.D. (Homoeo)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                aria-label="Close navigation drawer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Navigation items */}
+            <div className="p-4 space-y-1.5 flex-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-3 block mb-2">
+                Chamber Operations
+              </span>
+
+              {navigationItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    id={`drawer-tab-${item.id}`}
+                    type="button"
+                    onClick={() => {
+                      if (item.id === 'billing') setBillingAppointment(null);
+                      setActiveTab(item.id);
+                      setIsDrawerOpen(false);
+                    }}
+                    className={`w-full p-3 rounded-2xl text-left transition-all flex items-start gap-3 cursor-pointer ${
+                      isActive
+                        ? 'bg-[#1B4332] text-white shadow-md'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div
+                      className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                        isActive
+                          ? 'bg-white/20 text-white'
+                          : 'bg-emerald-50 dark:bg-slate-800 text-[#1B4332] dark:text-emerald-400'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-xs flex items-center justify-between">
+                        <span>{item.label}</span>
+                        {isActive && <ChevronRight className="w-3.5 h-3.5 text-emerald-300" />}
+                      </div>
+                      <p
+                        className={`text-[10px] mt-0.5 truncate ${
+                          isActive ? 'text-emerald-100' : 'text-slate-400 dark:text-slate-500'
+                        }`}
+                      >
+                        {item.description}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 space-y-2">
+              <div className="px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                <span className="text-[10px] text-slate-400 block">Logged In Personnel</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
+                  {currentUser.full_name}
+                </span>
+                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">
+                  {currentUser.role}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={onLogout}
+                className="w-full py-2.5 px-3 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Log Out Chamber</span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* ACTIVE WORKSPACE VIEW (100% VIEWPORT WIDTH) */}
+      <div className="w-full">
         {activeTab === 'queue' && (
           <QueueManager
             currentUser={currentUser}
@@ -223,14 +360,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
             handleOpenBilling(apt);
           }}
           onOpenAIConsultant={handleOpenAIFromConsult}
-        />
-      )}
-
-      {/* Supabase Schema Modal */}
-      {isSchemaModalOpen && (
-        <DatabaseSchemaModal
-          isOpen={isSchemaModalOpen}
-          onClose={() => setIsSchemaModalOpen(false)}
         />
       )}
     </div>
