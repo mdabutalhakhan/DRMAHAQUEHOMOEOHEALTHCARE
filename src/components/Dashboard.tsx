@@ -110,8 +110,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setIsConsultModalOpen(true);
   };
 
-  const handleOpenBilling = (appointment: Appointment) => {
-    setBillingAppointment(appointment);
+  const handleOpenBilling = (appointment: Appointment, prescriptionUrl?: string) => {
+    const finalPrescriptionUrl = prescriptionUrl || appointment.prescription_url;
+    setBillingAppointment({
+      ...appointment,
+      prescription_url: finalPrescriptionUrl,
+    });
     setActiveTab('billing');
   };
 
@@ -439,6 +443,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {activeTab === 'billing' && (
           <InvoiceGenerator
             initialAppointment={billingAppointment}
+            initialPrescriptionUrl={billingAppointment?.prescription_url}
             onBackToDashboard={() => setActiveTab('queue')}
           />
         )}
@@ -464,9 +469,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           isOpen={isConsultModalOpen}
           onClose={() => setIsConsultModalOpen(false)}
           appointment={activeConsultAppointment}
-          onOpenInvoiceForPatient={(apt) => {
+          onOpenInvoiceForPatient={(apt, _diagnosis, prescUrl) => {
             setIsConsultModalOpen(false);
-            handleOpenBilling(apt);
+            handleOpenBilling(apt, prescUrl);
           }}
           onOpenAIConsultant={handleOpenAIFromConsult}
         />

@@ -165,6 +165,7 @@ export async function fetchInvoicesFromSupabase(): Promise<Invoice[]> {
       payment_mode: (row.payment_mode || 'cash').toLowerCase() as any,
       payment_status: (row.payment_status || 'paid') as any,
       items: Array.isArray(row.items) ? row.items : [],
+      prescription_url: row.prescription_url || undefined,
       created_at: row.created_at || new Date().toISOString(),
     };
   });
@@ -668,6 +669,7 @@ export async function createInvoice(invoiceData: Omit<Invoice, 'id' | 'invoice_n
     total_amount: Number(invoiceData.total_amount),
     payment_mode: (invoiceData.payment_mode || 'cash').toLowerCase(),
     payment_status: 'paid',
+    ...(invoiceData.prescription_url ? { prescription_url: invoiceData.prescription_url } : {}),
   };
 
   let inserted: any = null;
@@ -760,6 +762,7 @@ export async function createInvoice(invoiceData: Omit<Invoice, 'id' | 'invoice_n
     id: inserted?.id || `inv-${Date.now()}`,
     invoice_number: inserted?.invoice_number || invoice_number,
     appointment_id: safeAppointmentId || undefined,
+    prescription_url: invoiceData.prescription_url || inserted?.prescription_url || undefined,
     items: serializedItems,
     created_at: inserted?.created_at || new Date().toISOString(),
   };

@@ -17,12 +17,13 @@ import {
 import { Appointment } from '../types';
 import { savePrescription, updateAppointmentStatus } from '../services/clinicStore';
 import { getSupabase } from '../services/supabase';
+import { compressImageToWebP } from '../utils/imageCompression';
 
 interface ConsultationModalProps {
   isOpen: boolean;
   onClose: () => void;
   appointment: Appointment | null;
-  onOpenInvoiceForPatient?: (appointment: Appointment, diagnosis: string) => void;
+  onOpenInvoiceForPatient?: (appointment: Appointment, diagnosis: string, prescriptionUrl?: string) => void;
   onOpenAIConsultant?: (symptoms: string) => void;
 }
 
@@ -34,8 +35,16 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
 }) => {
   if (!isOpen || !appointment) return null;
 
-  const [prescriptionImage, setPrescriptionImage] = useState<string | null>(null);
+  const [prescriptionImage, setPrescriptionImage] = useState<string | null>(appointment.prescription_url || null);
+  const [prescriptionUrl, setPrescriptionUrl] = useState<string | null>(appointment.prescription_url || null);
+  const [compressionStats, setCompressionStats] = useState<{
+    originalSizeKb: number;
+    compressedSizeKb: number;
+    dimensions: string;
+    fileName: string;
+  } | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadNotice, setUploadNotice] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -46,39 +55,58 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
   const handleImageFileChange = async (file: File) => {
     try {
       setUploadingImage(true);
+      setUploadNotice('Compressing client-side to WebP (max 1280px)...');
 
-      // 1. First convert to base64 preview
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64Data = e.target?.result as string;
-        setPrescriptionImage(base64Data);
+      // 1. Compress and convert the image client-side using HTML5 Canvas
+      // Max dimension 1280px, format image/webp 0.75 quality, clean filename
+      const patientIdClean = appointment.patient_id || `PAT-${appointment.phone.slice(-4)}`;
+      const compressed = await compressImageToWebP(file, patientIdClean, 1280, 0.75);
 
-        // 2. If Supabase is connected, upload to 'prescriptions' storage bucket
-        const supabase = getSupabase();
-        if (supabase) {
-          try {
-            const fileName = `${appointment.patient_id}_${Date.now()}.jpg`;
-            const { data, error } = await supabase.storage
+      // Immediate visual preview & state assignment
+      setPrescriptionImage(compressed.dataUrl);
+      setPrescriptionUrl(compressed.dataUrl); // fallback dataUrl
+      setCompressionStats({
+        originalSizeKb: Math.round(compressed.originalSize / 1024),
+        compressedSizeKb: Math.round(compressed.compressedSize / 1024),
+        dimensions: `${compressed.width}×${compressed.height}px`,
+        fileName: compressed.fileName,
+      });
+
+      // 2. Upload compressed WebP blob to Supabase Storage bucket 'prescriptions'
+      const supabase = getSupabase();
+      if (supabase) {
+        setUploadNotice('Uploading compressed WebP to cloud storage...');
+        try {
+          const { data, error } = await supabase.storage
+            .from('prescriptions')
+            .upload(compressed.fileName, compressed.blob, {
+              contentType: 'image/webp',
+              upsert: true,
+            });
+
+          if (error) {
+            console.warn('Supabase storage upload notice:', error.message);
+            // Even if cloud storage bucket is restricted, local base64 preview is active
+            setUploadNotice('Saved locally (WebP format)');
+          } else if (data) {
+            const { data: publicUrlData } = supabase.storage
               .from('prescriptions')
-              .upload(fileName, file, { contentType: file.type, upsert: true });
+              .getPublicUrl(compressed.fileName);
 
-            if (!error && data) {
-              const { data: publicUrlData } = supabase.storage
-                .from('prescriptions')
-                .getPublicUrl(fileName);
-              if (publicUrlData?.publicUrl) {
-                setPrescriptionImage(publicUrlData.publicUrl);
-              }
+            if (publicUrlData?.publicUrl) {
+              setPrescriptionUrl(publicUrlData.publicUrl);
+              setPrescriptionImage(publicUrlData.publicUrl);
+              setUploadNotice('Uploaded & verified on Supabase Storage');
             }
-          } catch (storageErr) {
-            console.warn('Supabase storage upload notice:', storageErr);
           }
+        } catch (storageErr) {
+          console.warn('Supabase storage upload error:', storageErr);
         }
-        setUploadingImage(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      console.error('Prescription image error:', err);
+      }
+    } catch (err: any) {
+      console.error('Prescription compression/upload error:', err);
+      alert('Failed to process image: ' + (err.message || 'Unknown error'));
+    } finally {
       setUploadingImage(false);
     }
   };
@@ -86,6 +114,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
   const handleSaveConsultation = async () => {
     setSaving(true);
     try {
+      const finalUrl = prescriptionUrl || prescriptionImage || undefined;
       await savePrescription({
         appointment_id: appointment.id,
         patient_id: appointment.patient_id,
@@ -95,7 +124,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
         clinical_diagnosis: 'Physical Clinical Prescription Archived',
         repertory_symptoms: appointment.symptoms_summary || '',
         prescription_notes: 'Physical prescription photographed & verified.',
-        prescription_image_url: prescriptionImage || undefined,
+        prescription_image_url: finalUrl,
       });
 
       // Mark visit completed
@@ -109,6 +138,37 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
       console.error('Error saving consultation:', e);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleProceedToInvoice = async () => {
+    const finalUrl = prescriptionUrl || prescriptionImage || undefined;
+    setSaving(true);
+    try {
+      await savePrescription({
+        appointment_id: appointment.id,
+        patient_id: appointment.patient_id,
+        patient_name: appointment.patient_name,
+        phone: appointment.phone,
+        doctor_name: 'Dr. M. A. Haque, M.D. (Homoeo)',
+        clinical_diagnosis: 'Physical Clinical Prescription Archived',
+        repertory_symptoms: appointment.symptoms_summary || '',
+        prescription_notes: 'Physical prescription photographed & verified.',
+        prescription_image_url: finalUrl,
+      });
+      updateAppointmentStatus(appointment.id, 'completed', 'Consultation finished');
+    } catch (e) {
+      console.warn('Auto-save prescription before invoice note:', e);
+    } finally {
+      setSaving(false);
+      onOpenInvoiceForPatient?.(
+        {
+          ...appointment,
+          prescription_url: finalUrl,
+        },
+        'Clinical evaluation completed',
+        finalUrl
+      );
     }
   };
 
@@ -201,17 +261,21 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
             </div>
           )}
 
-          {/* Physical Prescription Picture Capture */}
+            {/* Physical Prescription Picture Capture */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Physical Prescription Picture / Scan
               </label>
-              {uploadingImage && (
-                <span className="text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Uploading image...
+              {uploadingImage ? (
+                <span className="text-xs text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 font-medium animate-pulse">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> {uploadNotice || 'Processing WebP image...'}
                 </span>
-              )}
+              ) : uploadNotice ? (
+                <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                  ✓ {uploadNotice}
+                </span>
+              ) : null}
             </div>
 
             {/* Hidden file inputs */}
@@ -256,7 +320,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
                       Direct Camera Capture
                     </span>
                     <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Snap physical prescription paper instantly
+                      Snap physical prescription (Auto-compressed WebP)
                     </span>
                   </div>
                 </button>
@@ -276,7 +340,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
                       Upload Document / Picture
                     </span>
                     <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Browse JPG, PNG, or photo from gallery
+                      Browse gallery photo (Auto-converts to WebP &lt;200KB)
                     </span>
                   </div>
                 </button>
@@ -284,14 +348,26 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
             ) : (
               <div className="relative rounded-2xl overflow-hidden border border-emerald-300 dark:border-slate-700 p-2.5 bg-white dark:bg-slate-800/80 shadow-xs">
                 <div className="flex items-center justify-between p-2 mb-2 bg-emerald-100/70 dark:bg-emerald-950/60 rounded-xl text-xs">
-                  <span className="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    Prescription Image Captured
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5 min-w-0 pr-2">
+                    <span className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Prescription Compressed & Attached
+                    </span>
+                    {compressionStats && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-900 text-emerald-950 dark:text-emerald-100 font-mono text-[10px] font-bold">
+                        WebP • {compressionStats.compressedSizeKb} KB ({compressionStats.dimensions})
+                      </span>
+                    )}
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setPrescriptionImage(null)}
-                    className="text-red-600 hover:text-red-700 font-semibold flex items-center gap-1 cursor-pointer"
+                    onClick={() => {
+                      setPrescriptionImage(null);
+                      setPrescriptionUrl(null);
+                      setCompressionStats(null);
+                      setUploadNotice('');
+                    }}
+                    className="text-red-600 hover:text-red-700 font-semibold flex items-center gap-1 cursor-pointer shrink-0"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     Retake
@@ -316,7 +392,7 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
             type="button"
             id="btn-save-consultation-notes"
             onClick={handleSaveConsultation}
-            disabled={saving}
+            disabled={saving || uploadingImage}
             className="px-4 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-xs sm:text-sm shadow-md flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
@@ -327,13 +403,11 @@ export const ConsultationModal: React.FC<ConsultationModalProps> = ({
             <button
               type="button"
               id="btn-proceed-to-invoice"
-              onClick={() => {
-                handleSaveConsultation();
-                onOpenInvoiceForPatient(appointment, 'Clinical evaluation completed');
-              }}
-              className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm shadow-sm flex items-center gap-2 transition cursor-pointer"
+              onClick={handleProceedToInvoice}
+              disabled={saving || uploadingImage}
+              className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm shadow-sm flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
             >
-              <Receipt className="w-4 h-4" />
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
               <span>Generate Billing & Invoice</span>
             </button>
           )}

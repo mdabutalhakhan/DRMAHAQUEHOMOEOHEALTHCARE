@@ -35,6 +35,7 @@ export interface Appointment {
   symptoms_summary?: string;
   doctor_notes?: string;
   consultation_notes?: string;
+  prescription_url?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -85,6 +86,7 @@ export interface Invoice {
   payment_mode: PaymentMode;
   payment_status: PaymentStatus;
   items: InvoiceItem[];
+  prescription_url?: string;
   gstin?: string;
   created_at: string;
 }

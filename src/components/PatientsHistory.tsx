@@ -21,7 +21,11 @@ import {
   Copy,
   Check,
   RefreshCw,
-  Receipt
+  Receipt,
+  Download,
+  Eye,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
 import { Invoice, Appointment, UserProfile } from '../types';
 import { 
@@ -69,6 +73,101 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [printFormat, setPrintFormat] = useState<'thermal-80' | 'thermal-58' | 'a4'>('thermal-80');
   const [copiedId, setCopiedId] = useState(false);
+
+  // Prescription Lightbox modal state
+  const [lightboxPrescription, setLightboxPrescription] = useState<{
+    url: string;
+    invoiceNumber: string;
+    patientName: string;
+    patientId: string;
+    date: string;
+  } | null>(null);
+  const [imageZoom, setImageZoom] = useState<number>(1);
+
+  // Keyboard shortcut (Escape) to close active modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (lightboxPrescription) {
+          setLightboxPrescription(null);
+          setImageZoom(1);
+        } else if (viewingInvoice) {
+          setViewingInvoice(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxPrescription, viewingInvoice]);
+
+  const handlePrintPrescription = (presc: { url: string; invoiceNumber: string; patientName: string; patientId: string; date: string }) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups to print the prescription scan.');
+      return;
+    }
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Prescription - ${presc.patientName} (${presc.invoiceNumber})</title>
+          <style>
+            @page { size: auto; margin: 10mm; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 16px; color: #111; }
+            .header { border-bottom: 2px solid #1B4332; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .clinic { font-size: 16px; font-weight: 800; color: #1B4332; }
+            .meta { font-size: 11px; line-height: 1.4; text-align: right; }
+            .patient-box { background: #f4f6f5; padding: 8px 12px; border-radius: 6px; margin-bottom: 14px; font-size: 12px; display: flex; justify-content: space-between; }
+            .image-container { text-align: center; margin-top: 10px; }
+            .presc-img { max-width: 100%; max-height: 82vh; object-fit: contain; border-radius: 6px; }
+            .footer { margin-top: 16px; border-top: 1px solid #ddd; padding-top: 6px; font-size: 10px; color: #666; display: flex; justify-content: space-between; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="clinic">HOMOEO HEALTH CARE</div>
+              <div style="font-size: 11px; color: #444;">Dr. M. A. Haque, M.D. (Homoeo) • Regd. Homoeopathic Clinic</div>
+            </div>
+            <div class="meta">
+              <strong>Invoice #:</strong> ${presc.invoiceNumber}<br/>
+              <strong>Date:</strong> ${presc.date}
+            </div>
+          </div>
+          <div class="patient-box">
+            <div><strong>Patient:</strong> ${presc.patientName} (${presc.patientId})</div>
+            <div><strong>Record:</strong> Physical Clinical Prescription (WebP Archive)</div>
+          </div>
+          <div class="image-container">
+            <img src="${presc.url}" class="presc-img" alt="Prescription Scan" />
+          </div>
+          <div class="footer">
+            <div>Homoeo Health Care • Benachity, Durgapur</div>
+            <div>Digitally Archived Clinical Record</div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.focus();
+              setTimeout(function() { window.print(); }, 400);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleDownloadPrescription = (presc: { url: string; invoiceNumber: string; patientName: string; patientId: string }) => {
+    const cleanName = presc.patientName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanId = presc.patientId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const link = document.createElement('a');
+    link.href = presc.url;
+    link.download = `Prescription_${cleanName}_${cleanId}_${presc.invoiceNumber}.webp`;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Fetch Supabase data on mount and provide explicit refresh
   const refreshData = async () => {
@@ -487,11 +586,51 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                     </div>
                   </div>
 
-                  {/* Totals Strip */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700 text-xs">
-                    <div className="text-slate-500 font-medium text-[11px]">
-                      Status: <strong className="text-emerald-700 dark:text-emerald-400 uppercase">Paid</strong>
-                    </div>
+                  {/* Prescription Attachment Strip & Status */}
+                  <div className="pt-2.5 border-t border-slate-100 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-2.5">
+                    {inv.prescription_url ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setLightboxPrescription({
+                            url: inv.prescription_url!,
+                            invoiceNumber: inv.invoice_number,
+                            patientName: patient.name,
+                            patientId: patient.id,
+                            date: visitDate.toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            }),
+                          })
+                        }
+                        className="group inline-flex items-center gap-2 p-1.5 pr-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-800 transition cursor-pointer text-left shadow-2xs"
+                        title="Click to view full-screen prescription"
+                      >
+                        <div className="w-8 h-8 rounded-lg overflow-hidden border border-emerald-400/60 dark:border-emerald-700 bg-white dark:bg-slate-900 shrink-0 relative flex items-center justify-center">
+                          <img
+                            src={inv.prescription_url}
+                            alt="Prescription Thumbnail"
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1 leading-none">
+                            📄 View Prescription
+                          </span>
+                          <span className="text-[10px] text-emerald-700 dark:text-emerald-400 leading-none mt-1 block">
+                            Attached Clinical Scan
+                          </span>
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500 text-[11px] font-medium border border-slate-200 dark:border-slate-700">
+                        <FileText className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                        <span>No Prescription Attached</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2.5">
                       {inv.discount > 0 && (
                         <span className="text-slate-400 text-[11px]">
@@ -921,6 +1060,35 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                     </div>
                   </div>
 
+                  {/* Prescription Attachment Notice in Print Modal */}
+                  {viewingInvoice.prescription_url && (
+                    <div className="flex items-center justify-between p-2.5 px-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+                      <span className="font-semibold flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Clinical Prescription Scan Digitally Attached</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLightboxPrescription({
+                            url: viewingInvoice.prescription_url!,
+                            invoiceNumber: viewingInvoice.invoice_number,
+                            patientName: viewingInvoice.patient_name,
+                            patientId: viewingInvoice.patient_id,
+                            date: new Date(viewingInvoice.created_at).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            }),
+                          });
+                        }}
+                        className="text-emerald-700 hover:text-emerald-800 underline font-bold cursor-pointer"
+                      >
+                        View Scan
+                      </button>
+                    </div>
+                  )}
+
                   {/* Line Items Table */}
                   <div className="border border-slate-200 rounded-xl overflow-hidden">
                     <table className="w-full text-left border-collapse">
@@ -994,6 +1162,126 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-screen Lightbox Modal for Prescription Document */}
+      {lightboxPrescription && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-fade-in"
+          onClick={() => {
+            setLightboxPrescription(null);
+            setImageZoom(1);
+          }}
+        >
+          <div
+            className="relative w-full max-w-4xl max-h-[94vh] flex flex-col bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-slate-700/80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Lightbox Header Bar */}
+            <div className="px-4 py-3 sm:px-6 sm:py-3.5 bg-slate-800/95 border-b border-slate-700/80 flex flex-wrap items-center justify-between gap-3 text-white">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-2 rounded-xl bg-emerald-950 border border-emerald-700/60 text-emerald-400 shrink-0">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xs sm:text-sm font-black text-white truncate">
+                      {lightboxPrescription.patientName}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-900/60 text-emerald-300 border border-emerald-700/40">
+                      {lightboxPrescription.invoiceNumber}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {lightboxPrescription.date}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Verified Clinical Prescription Scan • WebP Format
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setImageZoom((prev) => (prev >= 2 ? 1 : prev + 0.5))}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                  title="Toggle Zoom"
+                >
+                  {imageZoom > 1 ? <ZoomOut className="w-3.5 h-3.5" /> : <ZoomIn className="w-3.5 h-3.5" />}
+                  <span className="hidden sm:inline">{Math.round(imageZoom * 100)}%</span>
+                </button>
+
+                <a
+                  href={lightboxPrescription.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                  title="Open raw image in new tab"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Open in tab</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPrescription(lightboxPrescription)}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                  title="Download WebP prescription file"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Download</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePrintPrescription(lightboxPrescription)}
+                  className="px-3 py-1.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                  title="Print prescription scan"
+                >
+                  <Printer className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Print</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLightboxPrescription(null);
+                    setImageZoom(1);
+                  }}
+                  className="p-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white transition cursor-pointer ml-1"
+                  title="Close (Esc)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Lightbox Image Stage */}
+            <div className="flex-1 overflow-auto p-4 sm:p-6 flex items-center justify-center bg-black/60 min-h-[320px] max-h-[78vh]">
+              <div
+                className="transition-transform duration-200 ease-out flex items-center justify-center"
+                style={{ transform: `scale(${imageZoom})`, transformOrigin: 'center center' }}
+              >
+                <img
+                  src={lightboxPrescription.url}
+                  alt={`Prescription for ${lightboxPrescription.patientName}`}
+                  className="max-h-[72vh] max-w-full object-contain rounded-xl shadow-2xl border border-slate-800"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </div>
+
+            {/* Lightbox Footer Note */}
+            <div className="px-4 py-2 bg-slate-950/80 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Dr. M. A. Haque, M.D. (Homoeo) • Homoeo Health Care Archives</span>
+              <span className="font-mono text-emerald-400">Secure WebP Storage</span>
             </div>
           </div>
         </div>
