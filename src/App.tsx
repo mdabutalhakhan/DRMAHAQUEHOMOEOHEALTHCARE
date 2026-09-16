@@ -3,6 +3,7 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { PublicHome } from './components/PublicHome';
 import { LiveTracker } from './components/LiveTracker';
+import { LiveTrackerModal } from './components/LiveTrackerModal';
 import { Dashboard } from './components/Dashboard';
 import { LoginModal } from './components/LoginModal';
 import { UserProfile } from './types';
@@ -55,6 +56,8 @@ export default function App() {
 
   // Login Modal
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  // Live Queue Tracker Modal
+  const [isTrackerModalOpen, setIsTrackerModalOpen] = useState(false);
 
   // Persist currentView to sessionStorage & sync hash
   useEffect(() => {
@@ -185,12 +188,13 @@ export default function App() {
         onLogout={handleLogout}
         currentView={currentView}
         setCurrentView={setCurrentView}
+        onOpenTracker={() => setIsTrackerModalOpen(true)}
       />
 
       {/* Main Content Area */}
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-8">
         {currentView === 'home' && (
-          <PublicHome onOpenTracker={() => setCurrentView('tracker')} />
+          <PublicHome onOpenTracker={() => setIsTrackerModalOpen(true)} />
         )}
 
         {currentView === 'tracker' && (
@@ -223,6 +227,12 @@ export default function App() {
         )}
       </main>
 
+      {/* Live Queue & Token Tracker Modal */}
+      <LiveTrackerModal
+        isOpen={isTrackerModalOpen}
+        onClose={() => setIsTrackerModalOpen(false)}
+      />
+
       {/* Login Modal */}
       <LoginModal
         isOpen={isLoginModalOpen}
@@ -233,7 +243,7 @@ export default function App() {
       {/* Footer with Mandatory Attribution & Timings */}
       <Footer
         onOpenBooking={() => setCurrentView('home')}
-        onOpenTracker={() => setCurrentView('tracker')}
+        onOpenTracker={() => setIsTrackerModalOpen(true)}
         onOpenLogin={() => setIsLoginModalOpen(true)}
       />
     </div>

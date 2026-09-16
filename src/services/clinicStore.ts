@@ -563,7 +563,6 @@ export async function reassignAppointmentSlot(
       shift: newShift,
       token_number: newTokenNumber,
       status: 'pending',
-      updated_at: new Date().toISOString(),
     })
     .eq('id', id);
 
@@ -621,7 +620,6 @@ export async function autoCancelExpiredAppointments(apts?: Appointment[]): Promi
     .from('appointments')
     .update({
       status: 'cancelled',
-      updated_at: new Date().toISOString(),
     })
     .in('id', expiredIds);
 
@@ -937,7 +935,10 @@ export function addInventoryItem(item: Omit<InventoryItem, 'id' | 'updated_at'>)
 
   const supabase = getSupabase();
   if (supabase) {
-    supabase.from('inventory').insert([newItem]).then();
+    const { updated_at: _unused, ...safeItem } = newItem;
+    supabase.from('inventory').insert([safeItem]).then(({ error }) => {
+      if (error) console.warn('Supabase inventory insert note:', error.message);
+    });
   }
 
   return newItem;
@@ -962,7 +963,10 @@ export function updateInventoryItem(itemOrId: InventoryItem | string, partial?: 
 
   const supabase = getSupabase();
   if (supabase && updatedItem) {
-    supabase.from('inventory').update(updatedItem).eq('id', updatedItem.id).then();
+    const { updated_at: _unused, ...safeItem } = updatedItem;
+    supabase.from('inventory').update(safeItem).eq('id', safeItem.id).then(({ error }) => {
+      if (error) console.warn('Supabase inventory update note:', error.message);
+    });
   }
 }
 

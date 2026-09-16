@@ -80,49 +80,28 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked, onO
   return (
     <div className="space-y-12 sm:space-y-16 pb-12">
       {/* 1. HERO & WELCOME SECTION */}
-      <section className="relative overflow-hidden pt-4 sm:pt-8 pb-8 sm:pb-16 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-emerald-50/70 via-white to-[#F8FAF9] dark:from-slate-900 dark:via-[#0F172A] dark:to-slate-900/60 border border-emerald-900/5 dark:border-slate-800">
+      <section className="relative overflow-hidden pt-3 sm:pt-8 pb-6 sm:pb-12 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-emerald-50/70 via-white to-[#F8FAF9] dark:from-slate-900 dark:via-[#0F172A] dark:to-slate-900/60 border border-emerald-900/5 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-10 items-center">
             {/* Left Hero Text */}
-            <div className="lg:col-span-7 space-y-3 sm:space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full bg-emerald-100/90 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-800 text-[#1B4332] dark:text-emerald-300 text-[11px] sm:text-xs font-bold tracking-wide">
-                <Leaf className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="truncate">Dr. M. A. Haque, M.D. (Homoeo) • Benachity</span>
-              </div>
-
+            <div className="lg:col-span-7 space-y-2.5 sm:space-y-4">
               <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-[#1B4332] dark:text-white tracking-tight leading-[1.15]">
                 Homoeo Health Care
               </h1>
 
-              <p className="text-sm sm:text-xl text-slate-700 dark:text-slate-300 leading-relaxed font-normal">
+              <p className="text-sm sm:text-lg text-slate-700 dark:text-slate-300 leading-relaxed font-normal py-1 sm:py-0">
                 Personalized, gentle, and lasting healing for acute and chronic conditions. Experience genuine holistic recovery with zero side-effects under expert clinical supervision.
               </p>
 
-              {/* Trust Badges - Compact on Mobile */}
-              <div className="flex flex-wrap sm:grid sm:grid-cols-3 gap-1.5 sm:gap-3 pt-1">
-                <div className="px-2.5 py-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-white dark:bg-slate-800/80 border border-emerald-950/10 dark:border-slate-700 shadow-xs sm:shadow-sm flex items-center gap-1.5 sm:gap-2.5">
-                  <Shield className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Zero Side-Effects</span>
-                </div>
-                <div className="px-2.5 py-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-white dark:bg-slate-800/80 border border-emerald-950/10 dark:border-slate-700 shadow-xs sm:shadow-sm flex items-center gap-1.5 sm:gap-2.5">
-                  <Activity className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Root-Cause Cure</span>
-                </div>
-                <div className="px-2.5 py-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-white dark:bg-slate-800/80 border border-emerald-950/10 dark:border-slate-700 shadow-xs sm:shadow-sm flex items-center gap-1.5 sm:gap-2.5">
-                  <Users className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Personalized Care</span>
-                </div>
-              </div>
-
-              {/* Call to Action buttons */}
-              <div className="pt-1 sm:pt-2 flex flex-wrap items-center gap-2.5 sm:gap-4">
+              {/* Call to Action buttons - Full-width on mobile with matching heights */}
+              <div className="pt-1 sm:pt-2 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-3.5">
                 <button
                   type="button"
                   id="hero-book-appointment-btn"
                   onClick={() => setIsBookingModalOpen(true)}
-                  className="px-4 py-2.5 sm:px-6 sm:py-3.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-900/20 flex items-center gap-2 transition-all transform hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer"
+                  className="w-full sm:w-auto h-12 px-5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-sm shadow-md shadow-emerald-900/20 flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer"
                 >
-                  <CalendarCheck className="w-4 h-4" />
+                  <CalendarCheck className="w-4.5 h-4.5 text-emerald-200 shrink-0" />
                   <span>Book Appointment Now</span>
                 </button>
 
@@ -131,9 +110,9 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked, onO
                     type="button"
                     id="hero-live-tracker-btn"
                     onClick={onOpenTracker}
-                    className="px-3.5 py-2.5 sm:px-5 sm:py-3.5 rounded-xl bg-white dark:bg-slate-800 border border-emerald-950/15 dark:border-slate-700 text-[#1B4332] dark:text-emerald-300 font-bold text-xs sm:text-sm flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-slate-700 shadow-xs transition cursor-pointer"
+                    className="w-full sm:w-auto h-12 px-5 rounded-xl bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 border border-emerald-950/20 dark:border-slate-700 text-[#1B4332] dark:text-emerald-300 font-bold text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
                   >
-                    <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <Clock className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <span>Live Queue Tracker</span>
                   </button>
                 )}
@@ -142,24 +121,40 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked, onO
                   href="https://wa.me/919933506514"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3.5 py-2.5 sm:px-5 sm:py-3.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-[#1B4332] dark:text-emerald-300 font-bold text-xs sm:text-sm flex items-center gap-2 hover:bg-emerald-200/80 transition-colors"
+                  className="w-full sm:w-auto h-12 px-5 rounded-xl bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-[#1B4332] dark:text-emerald-300 font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-200/80 transition-colors"
                 >
-                  <Phone className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+                  <Phone className="w-4.5 h-4.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
                   <span>WhatsApp: 9933506514</span>
                 </a>
+              </div>
+
+              {/* Trust Badges - Relocated below action buttons */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-2 sm:pt-3">
+                <div className="px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xs flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
+                  <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Zero Side-Effects</span>
+                </div>
+                <div className="px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xs flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
+                  <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Root-Cause Cure</span>
+                </div>
+                <div className="px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xs flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
+                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Personalized Care</span>
+                </div>
               </div>
             </div>
 
             {/* Right Card: Doctor Profile & Highlights */}
             <div className="lg:col-span-5">
-              <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xl shadow-emerald-950/5 relative">
-                <div className="flex items-center gap-4 pb-6 border-b border-slate-100 dark:border-slate-700">
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white flex items-center justify-center font-bold text-2xl shadow-inner shrink-0 border border-emerald-500/20">
+              <div className="p-5 sm:p-7 md:p-8 rounded-2xl bg-white dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xl shadow-emerald-950/5 relative">
+                <div className="flex items-center gap-3.5 sm:gap-5 pb-5 border-b border-slate-100 dark:border-slate-700">
+                  <div className="w-24 h-32 sm:w-28 sm:h-36 rounded-2xl overflow-hidden bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white flex items-center justify-center font-bold text-2xl shadow-sm shrink-0 border-2 border-emerald-100 dark:border-emerald-800">
                     {doctorPhotoUrl ? (
                       <img
                         src={doctorPhotoUrl}
                         alt="Dr. M. A. Haque"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover object-top rounded-2xl"
                         referrerPolicy="no-referrer"
                         onError={() => setDoctorPhotoUrl('')}
                       />
@@ -167,15 +162,22 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked, onO
                       <span>MH</span>
                     )}
                   </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  <div className="flex flex-col justify-center space-y-0.5 sm:space-y-1 min-w-0">
+                    <div className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                      <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                      <span>Senior Homoeopath</span>
+                    </div>
+                    <h2 className="whitespace-nowrap font-bold text-lg md:text-xl tracking-tight text-emerald-950 dark:text-emerald-50 leading-tight">
                       Dr. M. A. Haque
                     </h2>
-                    <p className="text-sm font-semibold text-[#2D6A4F] dark:text-emerald-400">
-                      M.D. (Homoeo) • Homoeopathic Healthcare
+                    <p className="text-xs sm:text-sm font-semibold text-[#2D6A4F] dark:text-emerald-400">
+                      M.D. (Homoeo)
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 leading-snug">
                       Senior Consultant & Chronic Disease Specialist
+                    </p>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
+                      Govt. Regd. Medical Practitioner • Durgapur Chamber
                     </p>
                   </div>
                 </div>
@@ -206,90 +208,91 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked, onO
       </section>
 
       {/* 2. CLINIC LOCATION & TIMINGS BANNER (Single unified clean section) */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="rounded-2xl sm:rounded-3xl bg-[#1B4332] text-white p-6 sm:p-8 shadow-xl shadow-emerald-950/15">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-800/95 border border-emerald-950/10 dark:border-slate-700 p-5 sm:p-7 md:p-8 shadow-md">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 items-stretch">
             {/* Card 1: Clinic Location with full Google Maps destination */}
-            <div className="flex flex-col justify-between p-6 rounded-2xl bg-emerald-900/50 border border-emerald-700/40">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-700/70 border border-emerald-500/40 flex items-center justify-center shrink-0">
-                  <MapPin className="w-6 h-6 text-emerald-300" />
+            <div className="w-full p-5 sm:p-6 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700 flex flex-col justify-between space-y-4">
+              <div className="flex items-start gap-3.5 sm:gap-4">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/50 flex items-center justify-center shrink-0">
+                  <MapPin className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div>
+                <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-lg text-white tracking-wide">
+                    <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white tracking-wide">
                       Clinic Location
                     </h3>
-                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-700 text-emerald-200">
-                      Durgapur, WB
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                      Benachity, Durgapur
                     </span>
                   </div>
-                  <p className="text-sm text-emerald-100/90 mt-2 leading-relaxed">
-                    <strong>Dr. M. A. Haque Homoeo Health Care</strong><br />
-                    Salbagan Road, Benachity, Durgapur,<br />
-                    PIN: 713213, West Bengal
-                  </p>
-                  <p className="text-xs text-emerald-300 mt-2 font-medium">
-                    Landmark: Salbagan Road, Benachity (Near Market Centre)
+                  <div className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                    <p className="font-bold text-slate-900 dark:text-white">Dr. M. A. Haque Homoeo Health Care</p>
+                    <p>Salbagan Road, Benachity, Durgapur</p>
+                    <p>PIN: 713213, West Bengal</p>
+                    <p className="font-medium text-slate-800 dark:text-slate-200 mt-1">Landmark: Near Roy Medical</p>
+                  </div>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium pt-1">
+                    Landmark: Salbagan Road, Benachity (Near Roy Medical)
                   </p>
                 </div>
               </div>
 
-              <div className="mt-5 pt-4 border-t border-emerald-700/50">
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
                 <a
                   href="https://maps.google.com/?q=Dr.+M.+A.+Haque+Homoeo+Health+Care,+Salbagan+Road,+Benachity,+Durgapur,+713213"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-[#1B4332] hover:bg-emerald-100 font-bold text-xs sm:text-sm shadow-sm transition"
+                  className="text-blue-600 hover:text-blue-700 font-semibold text-sm inline-flex items-center gap-1.5 underline-offset-2 hover:underline"
                   title="Open exact clinic location on Google Maps"
                 >
-                  <MapPin className="w-4 h-4 text-emerald-700" />
+                  <MapPin className="w-4 h-4 text-blue-600" />
                   <span>Open Clinic in Google Maps ↗</span>
                 </a>
               </div>
             </div>
 
             {/* Card 2: Clinic & Doctor Timings (Unified) */}
-            <div className="flex flex-col justify-between p-6 rounded-2xl bg-emerald-900/50 border border-emerald-700/40 space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-700/70 border border-emerald-500/40 flex items-center justify-center shrink-0">
-                  <Clock className="w-6 h-6 text-emerald-300" />
+            <div className="w-full p-5 sm:p-6 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700 flex flex-col justify-between space-y-4">
+              <div className="flex items-start gap-3.5 sm:gap-4">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/50 flex items-center justify-center shrink-0">
+                  <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-bold text-lg text-white tracking-wide">
+                    <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white tracking-wide">
                       Clinic & Doctor Timings
                     </h3>
-                    <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-red-800 text-red-100 font-bold">
+                    <span className="text-red-600 font-bold text-sm tracking-wide">
                       Friday Closed
                     </span>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     {/* Chamber Consultation Hours */}
-                    <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-700/40">
-                      <span className="text-emerald-300 font-bold block text-xs">
+                    <div className="p-3 rounded-xl bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700">
+                      <span className="text-emerald-800 dark:text-emerald-400 font-bold block text-xs">
                         Dr. M. A. Haque Consultations
                       </span>
-                      <ul className="mt-1.5 space-y-1 text-emerald-100">
+                      <ul className="mt-1.5 space-y-1 text-slate-700 dark:text-slate-300">
                         <li>• <strong>Morning Slot:</strong> 10:00 AM – 12:30 PM</li>
                         <li>• <strong>Evening Slot:</strong> 6:00 PM – 8:30 PM</li>
                       </ul>
-                      <span className="block text-[10px] text-emerald-300/80 mt-1">
+                      <span className="block text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                         Days: Saturday to Thursday
                       </span>
                     </div>
 
                     {/* Pharmacy & Clinic Working Hours */}
-                    <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-700/40">
-                      <span className="text-emerald-300 font-bold block text-xs">
+                    <div className="p-3 rounded-xl bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700">
+                      <span className="text-emerald-800 dark:text-emerald-400 font-bold block text-xs">
                         Clinic & Dispensary Hours
                       </span>
-                      <ul className="mt-1.5 space-y-1 text-emerald-100">
+                      <ul className="mt-1.5 space-y-1 text-slate-700 dark:text-slate-300">
                         <li>• <strong>Morning:</strong> 9:00 AM – 2:00 PM</li>
                         <li>• <strong>Evening:</strong> 5:00 PM – 10:00 PM</li>
                       </ul>
-                      <span className="block text-[10px] text-emerald-300/80 mt-1">
+                      <span className="block text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                         Pharmacy open throughout shifts
                       </span>
                     </div>
@@ -297,9 +300,9 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked, onO
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-emerald-700/50 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-200">
-                <span>Helpline / WhatsApp: <strong className="text-white">9933506514</strong></span>
-                <span className="text-[11px] text-emerald-300/80">Token-based digitized queue</span>
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400">
+                <span>Helpline / WhatsApp: <strong className="text-slate-900 dark:text-white">9933506514</strong></span>
+                <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">Digital queue & instant token system</span>
               </div>
             </div>
           </div>
@@ -363,74 +366,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked, onO
         </div>
       </section>
 
-      {/* 4. STREAMLINED QUICK ACTIONS & LIVE QUEUE PORTAL (No duplicate form) */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="p-6 sm:p-10 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-lg">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-            {/* Action 1: Book Consultation */}
-            <div className="p-6 sm:p-8 rounded-2xl bg-emerald-50/70 dark:bg-slate-900/60 border border-emerald-200 dark:border-slate-700 flex flex-col justify-between h-full space-y-6">
-              <div className="space-y-3">
-                <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold">
-                  <CalendarCheck className="w-6 h-6" />
-                </div>
-                <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-                  Book Doctor Consultation
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Reserve your consultation slot with Dr. M. A. Haque. Get an instant Token ID and guaranteed queue position with zero advance fees.
-                </p>
-                <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
-                  <p>• Morning Slot: 10:00 AM – 12:30 PM</p>
-                  <p>• Evening Slot: 6:00 PM – 8:30 PM (Sat–Thu)</p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                id="portal-book-appointment-btn"
-                onClick={() => setIsBookingModalOpen(true)}
-                className="w-full py-3.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-sm shadow-md shadow-emerald-900/20 flex items-center justify-center gap-2 transition cursor-pointer"
-              >
-                <CalendarCheck className="w-4 h-4 text-emerald-300" />
-                <span>Book Appointment (Instant Token)</span>
-              </button>
-            </div>
-
-            {/* Action 2: Live Queue & Token Tracker */}
-            <div className="p-6 sm:p-8 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 flex flex-col justify-between h-full space-y-6">
-              <div className="space-y-3">
-                <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-                  Live Queue & Token Tracker
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Already registered or holding a Token ID? Check your real-time position in Dr. M. A. Haque's chamber queue and track waiting time live.
-                </p>
-                <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
-                  <p>• Track by registered 10-digit Phone Number</p>
-                  <p>• Or search directly by Token ID (e.g. TK-2026...)</p>
-                </div>
-              </div>
-
-              {onOpenTracker && (
-                <button
-                  type="button"
-                  id="portal-live-tracker-btn"
-                  onClick={onOpenTracker}
-                  className="w-full py-3.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-[#1B4332] dark:text-emerald-300 border border-emerald-900/20 dark:border-slate-600 font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
-                >
-                  <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>Open Live Queue Tracker →</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 5. CONFIRMATION POPUP / MODAL */}
+      {/* 4. CONFIRMATION POPUP / MODAL */}
       {confirmedAppointment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-lg md:max-w-xl max-h-[90vh] md:max-h-[88vh] flex flex-col bg-[#FAF7EE] dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-emerald-900/20">

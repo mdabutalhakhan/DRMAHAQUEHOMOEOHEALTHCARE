@@ -22,6 +22,7 @@ interface NavbarProps {
   onLogout: () => void;
   currentView: 'home' | 'tracker' | 'dashboard';
   setCurrentView: (view: 'home' | 'tracker' | 'dashboard') => void;
+  onOpenTracker?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -32,6 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   currentView,
   setCurrentView,
+  onOpenTracker,
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-emerald-950/10 dark:border-slate-800 bg-[#FAF7EE]/95 dark:bg-[#0F172A]/95 backdrop-blur-md transition-colors">
@@ -73,12 +75,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               id="nav-tracker-btn"
-              onClick={() => setCurrentView('tracker')}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                currentView === 'tracker'
-                  ? 'bg-emerald-100/80 text-[#1B4332] dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
+              onClick={() => {
+                if (onOpenTracker) {
+                  onOpenTracker();
+                } else {
+                  setCurrentView('tracker');
+                }
+              }}
+              className="px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <Search className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               Live Queue Tracker

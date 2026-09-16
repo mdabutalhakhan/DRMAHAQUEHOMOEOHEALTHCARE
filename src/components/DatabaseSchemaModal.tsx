@@ -213,6 +213,8 @@ CREATE POLICY "Public or authenticated can update clinic settings"
 
 -- 15. REALTIME REPLICATION FOR CROSS-DEVICE LIVE SYNC
 -- Run this in Supabase SQL Editor to enable instant multi-screen appointment synchronization:
+ALTER TABLE IF EXISTS public.appointments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW());
+ALTER TABLE IF EXISTS public.inventory ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW());
 ALTER PUBLICATION supabase_realtime ADD TABLE public.appointments;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.clinic_settings;
 ALTER TABLE public.appointments REPLICA IDENTITY FULL;

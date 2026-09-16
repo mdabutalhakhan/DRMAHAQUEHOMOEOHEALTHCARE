@@ -83,7 +83,8 @@ export const Footer: React.FC<FooterProps> = ({
                 <span>
                   Dr. M. A. Haque Homoeo Health Care,<br />
                   Salbagan Road, Benachity, Durgapur,<br />
-                  PIN: 713213, West Bengal
+                  PIN: 713213, West Bengal<br />
+                  <span className="text-emerald-300">Landmark: Near Roy Medical</span>
                 </span>
               </p>
               <div className="pt-2 border-t border-emerald-800/60">
