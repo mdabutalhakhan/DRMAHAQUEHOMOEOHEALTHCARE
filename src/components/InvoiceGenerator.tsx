@@ -45,29 +45,12 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   
   // 2-Column Manual Billing Items: "Item Description" and "Amount / Price (₹)"
-  const [items, setItems] = useState<Array<{ item_description: string; price: number }>>([
+  const [items, setItems] = useState<Array<{ item_description: string; price: number | '' }>>([
     {
-      item_description: 'Dispensed Medicines & Dilutions (100 ml Mother Q)',
-      price: 150,
+      item_description: '',
+      price: '',
     },
   ]);
-
-  // Single-row item quick entry state
-  const [quickDesc, setQuickDesc] = useState('');
-  const [quickPrice, setQuickPrice] = useState<string>('150');
-
-  const handleQuickAdd = () => {
-    if (!quickDesc.trim()) return;
-    setItems((prev) => [
-      ...prev,
-      {
-        item_description: quickDesc.trim(),
-        price: Number(quickPrice) || 0,
-      },
-    ]);
-    setQuickDesc('');
-    setQuickPrice('150');
-  };
 
   const [savedInvoice, setSavedInvoice] = useState<Invoice | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -83,11 +66,11 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
   const totalAmount = Math.max(0, subtotal - (Number(discount) || 0) + (Number(tax) || 0));
 
   const handleAddItem = () => {
-    setItems([
-      ...items,
+    setItems((prev) => [
+      ...prev,
       {
         item_description: '',
-        price: 100,
+        price: '',
       },
     ]);
   };
@@ -99,7 +82,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
   const handleItemChange = (index: number, field: 'item_description' | 'price', value: any) => {
     const updated = [...items];
     if (field === 'price') {
-      updated[index].price = Number(value) || 0;
+      updated[index].price = value === '' ? '' : Math.max(0, Number(value) || 0);
     } else {
       updated[index].item_description = value;
     }
@@ -119,19 +102,24 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
 
     setIsSaving(true);
     try {
-      const formattedItems: InvoiceItem[] = items.map((it, idx) => ({
-        id: `item-${Date.now()}-${idx}`,
-        item_description: it.item_description.trim() || 'Dispensed Medicine',
-        price: Number(it.price) || 0,
-        // legacy compatibility
-        medicine_name: it.item_description,
-        total_price: Number(it.price) || 0,
-        quantity: 1,
-        unit_price: Number(it.price) || 0,
-      }));
+      const formattedItems: InvoiceItem[] = items
+        .filter((it) => it.item_description.trim() !== '' || (Number(it.price) || 0) > 0)
+        .map((it, idx) => ({
+          id: `item-${Date.now()}-${idx}`,
+          item_description: it.item_description.trim() || 'Dispensed Medicine',
+          price: Number(it.price) || 0,
+          // legacy compatibility
+          medicine_name: it.item_description.trim() || 'Dispensed Medicine',
+          total_price: Number(it.price) || 0,
+          quantity: 1,
+          unit_price: Number(it.price) || 0,
+        }));
+
+      // Safe appointment_id handling: convert UUID or Token to string, or omit if null/empty
+      const safeAptId = initialAppointment?.id ? String(initialAppointment.id).trim() : undefined;
 
       const newInv = await createInvoice({
-        appointment_id: initialAppointment?.id,
+        appointment_id: safeAptId,
         patient_id: patientId,
         patient_name: patientName.trim(),
         phone: phone.trim(),
@@ -323,65 +311,12 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                   type="button"
                   id="btn-add-blank-row"
                   onClick={handleAddItem}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
                   title="Add blank row"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Blank Row</span>
+                  <span>+ Blank Row</span>
                 </button>
-              </div>
-
-              {/* Single-Row Fast Item Entry: [Description] [Price] [+ Add Item] */}
-              <div className="p-3 sm:p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#1B4332] dark:text-emerald-300 block">
-                  Quick Add Line Item
-                </span>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <input
-                    id="quick-item-desc"
-                    type="text"
-                    placeholder="Item Description (e.g. Dispensed Medicine, Dilution 30C, Tonic)..."
-                    value={quickDesc}
-                    onChange={(e) => setQuickDesc(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleQuickAdd();
-                      }
-                    }}
-                    className="flex-1 px-3 py-2 rounded-xl border border-emerald-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                  />
-                  <div className="flex items-center gap-2">
-                    <div className="relative w-28 sm:w-32 shrink-0">
-                      <span className="absolute left-3 top-2 text-xs text-slate-400 font-semibold">₹</span>
-                      <input
-                        id="quick-item-price"
-                        type="number"
-                        min="0"
-                        placeholder="Price"
-                        value={quickPrice}
-                        onChange={(e) => setQuickPrice(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleQuickAdd();
-                          }
-                        }}
-                        className="w-full pl-7 pr-3 py-2 rounded-xl border border-emerald-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-right text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      id="btn-quick-add-item"
-                      onClick={handleQuickAdd}
-                      disabled={!quickDesc.trim()}
-                      className="px-4 py-2 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] disabled:opacity-40 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0 shadow-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>+ Add Item</span>
-                    </button>
-                  </div>
-                </div>
               </div>
 
               {/* Items List (Each row single-row on both mobile and desktop) */}
@@ -393,7 +328,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                   >
                     <input
                       type="text"
-                      placeholder="Item Description"
+                      placeholder="Item Description (e.g. Arnica 200C / Dilution / Tonic)"
                       value={item.item_description}
                       onChange={(e) => handleItemChange(idx, 'item_description', e.target.value)}
                       className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
@@ -404,6 +339,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                       <input
                         type="number"
                         min="0"
+                        placeholder="0"
                         value={item.price}
                         onChange={(e) => handleItemChange(idx, 'price', e.target.value)}
                         className="w-full pl-6 pr-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-right text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
@@ -421,6 +357,16 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                     </button>
                   </div>
                 ))}
+
+                <button
+                  type="button"
+                  id="btn-add-row-bottom"
+                  onClick={handleAddItem}
+                  className="w-full py-2.5 rounded-xl border border-dashed border-emerald-300 dark:border-slate-700 hover:bg-emerald-50/50 dark:hover:bg-slate-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer mt-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Blank Row</span>
+                </button>
               </div>
             </div>
           </div>

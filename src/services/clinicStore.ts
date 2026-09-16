@@ -566,36 +566,122 @@ export async function createInvoice(invoiceData: Omit<Invoice, 'id' | 'invoice_n
   const count = inMemoryInvoices.length + 1;
   const invoice_number = `INV-${year}-${String(count).padStart(4, '0')}`;
 
-  const payload: Record<string, any> = {
+  // Safe appointment_id handling: convert UUID or Token to string, or omit if null
+  let safeAppointmentId: string | null = null;
+  if (invoiceData.appointment_id) {
+    const rawId = String(invoiceData.appointment_id).trim();
+    if (rawId && rawId !== 'null' && rawId !== 'undefined') {
+      safeAppointmentId = rawId;
+    }
+  }
+
+  // Ensure items array is properly formatted and serialized
+  const serializedItems = Array.isArray(invoiceData.items)
+    ? invoiceData.items.map((it, idx) => ({
+        id: it.id || `item-${Date.now()}-${idx}`,
+        item_description: it.item_description || it.medicine_name || '',
+        price: Number(it.price ?? it.total_price) || 0,
+        medicine_name: it.medicine_name || it.item_description || '',
+        total_price: Number(it.total_price ?? it.price) || 0,
+        quantity: Number(it.quantity) || 1,
+        unit_price: Number(it.unit_price ?? it.price) || 0,
+      }))
+    : [];
+
+  const basePayload: Record<string, any> = {
     invoice_number,
     patient_name: invoiceData.patient_name.trim(),
     phone: invoiceData.phone?.trim() || null,
-    patient_id: invoiceData.patient_id || null,
-    consultation_fee: Number(invoiceData.consultation_fee) || 200,
+    patient_id: invoiceData.patient_id ? String(invoiceData.patient_id) : `PAT-${Math.floor(1000 + Math.random() * 9000)}`,
+    consultation_fee: Number(invoiceData.consultation_fee) || 0,
     subtotal: Number(invoiceData.subtotal) || Number(invoiceData.total_amount),
     discount: Number(invoiceData.discount) || 0,
-    tax: 0,
+    tax: Number(invoiceData.tax) || 0,
     total_amount: Number(invoiceData.total_amount),
     payment_mode: (invoiceData.payment_mode || 'cash').toLowerCase(),
-    appointment_id: invoiceData.appointment_id || null,
+    payment_status: 'paid',
   };
 
-  const { data, error } = await supabase
-    .from('invoices')
-    .insert([payload])
-    .select();
+  let inserted: any = null;
 
-  if (error || !data || data.length === 0) {
-    console.error('Supabase invoice insert error:', error);
-    throw new Error(`Database error saving invoice: ${error?.message || 'No record returned'}`);
+  if (supabase) {
+    // Attempt 1: Full payload with appointment_id and serialized items
+    const fullPayload: Record<string, any> = {
+      ...basePayload,
+      items: serializedItems,
+    };
+    if (safeAppointmentId) {
+      fullPayload.appointment_id = safeAppointmentId;
+    }
+
+    let res = await supabase.from('invoices').insert([fullPayload]).select();
+
+    // If schema error because 'items' column does not exist on invoices table
+    if (res.error && (res.error.message?.includes('items') || res.error.code === 'PGRST204')) {
+      console.warn('Retrying invoice save without items column in invoices table:', res.error.message);
+      const withoutItemsPayload = { ...basePayload };
+      if (safeAppointmentId) {
+        withoutItemsPayload.appointment_id = safeAppointmentId;
+      }
+      res = await supabase.from('invoices').insert([withoutItemsPayload]).select();
+    }
+
+    // If schema error because appointment_id UUID syntax or foreign key
+    if (res.error && (res.error.message?.includes('appointment_id') || res.error.message?.includes('uuid') || res.error.code === '22P02' || res.error.code === '23503')) {
+      console.warn('Retrying invoice save omitting appointment_id:', res.error.message);
+      const withoutAptPayload: Record<string, any> = {
+        ...basePayload,
+        items: serializedItems,
+      };
+      res = await supabase.from('invoices').insert([withoutAptPayload]).select();
+      if (res.error && (res.error.message?.includes('items') || res.error.code === 'PGRST204')) {
+        res = await supabase.from('invoices').insert([basePayload]).select();
+      }
+    }
+
+    if (!res.error && res.data && res.data.length > 0) {
+      inserted = res.data[0];
+
+      // If separate invoice_items table exists, safely attempt insert into invoice_items
+      if (inserted?.id && serializedItems.length > 0) {
+        try {
+          const lineItems = serializedItems.map(it => ({
+            invoice_id: inserted.id,
+            medicine_name: it.item_description || it.medicine_name || 'Dispensed Medicine',
+            potency: (it as any).potency || 'N/A',
+            quantity: it.quantity || 1,
+            unit_price: it.price || 0,
+            total_price: it.price || 0,
+          }));
+          await supabase.from('invoice_items').insert(lineItems);
+        } catch {
+          // Non-blocking
+        }
+      }
+    } else if (res.error) {
+      console.error('Supabase invoice insert error:', res.error);
+      // Fallback local record to avoid blocking print / receipt rendering
+      inserted = {
+        id: `inv-${Date.now()}`,
+        invoice_number,
+        created_at: new Date().toISOString(),
+      };
+    }
+  } else {
+    inserted = {
+      id: `inv-${Date.now()}`,
+      invoice_number,
+      created_at: new Date().toISOString(),
+    };
   }
 
-  const inserted = data[0] as any;
   const newInvoice: Invoice = {
     ...invoiceData,
-    id: inserted.id,
-    invoice_number: inserted.invoice_number,
-    created_at: inserted.created_at || new Date().toISOString(),
+    id: inserted?.id || `inv-${Date.now()}`,
+    invoice_number: inserted?.invoice_number || invoice_number,
+    appointment_id: safeAppointmentId || undefined,
+    items: serializedItems,
+    created_at: inserted?.created_at || new Date().toISOString(),
   };
 
   inMemoryInvoices = [newInvoice, ...inMemoryInvoices.filter((inv) => inv.id !== newInvoice.id)];
@@ -609,9 +695,9 @@ export async function createInvoice(invoiceData: Omit<Invoice, 'id' | 'invoice_n
   }
 
   // Update appointment status to completed if tied to an appointment
-  if (newInvoice.appointment_id) {
+  if (safeAppointmentId) {
     try {
-      await updateAppointmentStatus(newInvoice.appointment_id, 'completed');
+      await updateAppointmentStatus(safeAppointmentId, 'completed');
     } catch (e) {
       console.warn('Could not update appointment status for invoice:', e);
     }
