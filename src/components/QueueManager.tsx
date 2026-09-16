@@ -27,10 +27,28 @@ import {
   updateAppointmentStatus, 
   reassignAppointmentShift,
   reassignAppointmentSlot,
-  subscribeToStore
+  subscribeToStore,
+  parseQueueNumberFromTokenOrRow
 } from '../services/clinicStore';
 import { getSupabase } from '../services/supabase';
 import { exportAppointmentsToCSV } from '../utils/exportUtils';
+
+// Helper to derive sequential queue position dynamically from trailing digits of token_number
+export const getDisplayQueueNumber = (apt: Appointment, index?: number): number => {
+  if (apt?.token_number) {
+    const match = String(apt.token_number).match(/(\d+)$/);
+    if (match && match[1]) {
+      const parsed = parseInt(match[1], 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+  }
+  if (apt?.queue_position && apt.queue_position > 0) {
+    return apt.queue_position;
+  }
+  return index !== undefined ? index + 1 : 1;
+};
 
 interface QueueManagerProps {
   currentUser: UserProfile;
@@ -75,7 +93,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
         address: row.address,
         booking_date: row.booking_date,
         shift: row.shift,
-        queue_position: row.queue_position || row.queue_number || 1,
+        queue_position: parseQueueNumberFromTokenOrRow(row),
         status: row.status,
         symptoms: row.symptoms,
         symptoms_summary: row.symptoms || row.symptoms_summary,
@@ -117,7 +135,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
               address: row.address,
               booking_date: row.booking_date,
               shift: row.shift,
-              queue_position: row.queue_position || row.queue_number || 1,
+              queue_position: parseQueueNumberFromTokenOrRow(row),
               status: row.status,
               symptoms: row.symptoms,
               symptoms_summary: row.symptoms || row.symptoms_summary,
@@ -238,11 +256,14 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
       }
       return true;
     }).sort((a, b) => {
-      // Sort by shift first (morning then evening) then by queue_position
+      // Sort by shift first (morning then evening) then by sequential queue position
       if (a.shift !== b.shift) {
         return a.shift === 'morning' ? -1 : 1;
       }
-      return a.queue_position - b.queue_position;
+      const posA = getDisplayQueueNumber(a);
+      const posB = getDisplayQueueNumber(b);
+      if (posA !== posB) return posA - posB;
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
   }, [appointments, selectedDate, shiftFilter, statusFilter, searchQuery]);
 
@@ -536,7 +557,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
           <>
             {/* 1. MOBILE & TABLET EXPANDABLE CARDS (Shown on screens < 1024px) */}
             <div className="block lg:hidden divide-y divide-slate-100 dark:divide-slate-700/80">
-              {filteredQueue.map((apt) => {
+              {filteredQueue.map((apt, index) => {
                 const isExpanded = !!expandedAptIds[apt.id];
                 return (
                   <div
@@ -556,7 +577,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <span className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 font-extrabold flex items-center justify-center text-xs shrink-0">
-                          #{apt.queue_position}
+                          #{getDisplayQueueNumber(apt, index)}
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -725,7 +746,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {filteredQueue.map((apt) => (
+                  {filteredQueue.map((apt, index) => (
                     <tr
                       key={apt.id}
                       className={`hover:bg-slate-50/80 dark:hover:bg-slate-750 transition ${
@@ -738,7 +759,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 font-extrabold flex items-center justify-center text-xs">
-                            #{apt.queue_position}
+                            #{getDisplayQueueNumber(apt, index)}
                           </span>
                           <div>
                             <span className="font-mono font-bold text-slate-900 dark:text-white block">

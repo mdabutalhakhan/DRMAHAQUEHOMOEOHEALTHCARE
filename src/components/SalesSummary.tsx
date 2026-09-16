@@ -135,11 +135,6 @@ export const SalesSummary: React.FC<SalesSummaryProps> = ({
       // 1. Time Period Filter
       if (timePeriod === 'today') {
         if (invLocalStr !== todayLocalStr) return false;
-        // Shift sub-filter for Today
-        if (shiftFilter !== 'all') {
-          const invShift = inv.shift || (invDate.getHours() < 14 ? 'morning' : 'evening');
-          if (invShift !== shiftFilter) return false;
-        }
       } else if (timePeriod === 'week') {
         // Last 7 days
         const diffDays = (now.getTime() - invDate.getTime()) / (1000 * 3600 * 24);
@@ -157,6 +152,12 @@ export const SalesSummary: React.FC<SalesSummaryProps> = ({
       } else if (timePeriod === 'custom') {
         if (customStartDate && invLocalStr < customStartDate) return false;
         if (customEndDate && invLocalStr > customEndDate) return false;
+      }
+
+      // Shift filter (Morning / Evening / All)
+      if (shiftFilter !== 'all') {
+        const invShift = String(inv.shift || (invDate.getHours() < 14 ? 'morning' : 'evening')).toLowerCase();
+        if (invShift !== shiftFilter.toLowerCase()) return false;
       }
 
       // 2. Payment Mode Filter
@@ -216,7 +217,7 @@ export const SalesSummary: React.FC<SalesSummaryProps> = ({
       }
 
       const invDate = new Date(inv.created_at || Date.now());
-      const shift = inv.shift || (invDate.getHours() < 14 ? 'morning' : 'evening');
+      const shift = String(inv.shift || (invDate.getHours() < 14 ? 'morning' : 'evening')).toLowerCase();
       if (shift === 'morning') {
         morningSales += gross;
         morningPatients += 1;

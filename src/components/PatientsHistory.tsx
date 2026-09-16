@@ -70,52 +70,47 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
   const [printFormat, setPrintFormat] = useState<'thermal-80' | 'thermal-58' | 'a4'>('thermal-80');
   const [copiedId, setCopiedId] = useState(false);
 
-  // Fetch Supabase data on mount
-  useEffect(() => {
-    let isMounted = true;
+  // Fetch Supabase data on mount and provide explicit refresh
+  const refreshData = async () => {
+    setLoading(true);
+    try {
+      const [invList, aptList] = await Promise.allSettled([
+        fetchInvoicesFromSupabase(),
+        fetchAppointmentsFromSupabase(),
+      ]);
 
-    async function loadData() {
-      setLoading(true);
-      try {
-        const [invList, aptList] = await Promise.allSettled([
-          fetchInvoicesFromSupabase(),
-          fetchAppointmentsFromSupabase(),
-        ]);
-
-        if (isMounted) {
-          if (invList.status === 'fulfilled' && invList.value) {
-            setInvoices(invList.value);
-          } else {
-            setInvoices(getInvoices());
-          }
-
-          if (aptList.status === 'fulfilled' && aptList.value) {
-            setAppointments(aptList.value);
-          } else {
-            setAppointments(getAppointments());
-          }
-        }
-      } catch (err) {
-        console.warn('PatientsHistory loadData warning:', err);
-      } finally {
-        if (isMounted) setLoading(false);
+      if (invList.status === 'fulfilled' && invList.value) {
+        setInvoices(invList.value);
+      } else {
+        setInvoices(getInvoices());
       }
-    }
 
-    loadData();
+      if (aptList.status === 'fulfilled' && aptList.value) {
+        setAppointments(aptList.value);
+      } else {
+        setAppointments(getAppointments());
+      }
+    } catch (err) {
+      console.warn('PatientsHistory refreshData warning:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshData();
 
     // Subscribe to store updates (e.g. newly created invoices or appointments)
     const unsubscribe = subscribeToStore((event) => {
       if (event.type === 'invoices') {
-        setInvoices(getInvoices());
+        setInvoices([...getInvoices()]);
       }
       if (event.type === 'appointments') {
-        setAppointments(getAppointments());
+        setAppointments([...getAppointments()]);
       }
     });
 
     return () => {
-      isMounted = false;
       unsubscribe();
     };
   }, []);
@@ -252,6 +247,13 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
 
   // Reusable Patient Timeline / Visit History component
   const renderPatientChart = (patient: PatientGroup, isMobile = false) => {
+    // Sort invoices chronologically descending (newest visit first)
+    const sortedInvoices = [...patient.invoices].sort(
+      (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+    );
+    // Dynamic Total Billing (₹) calculated accurately across all invoices
+    const totalBilling = sortedInvoices.reduce((sum, inv) => sum + (Number(inv.total_amount) || 0), 0);
+
     return (
       <div className="space-y-4">
         {/* Patient Header Card */}
@@ -315,9 +317,9 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
               </span>
             </div>
             <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900">
-              <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Billing</span>
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Billing (₹)</span>
               <span className="font-extrabold text-emerald-700 dark:text-emerald-400 text-sm font-mono">
-                ₹{patient.totalSpent}
+                ₹{totalBilling}
               </span>
             </div>
             <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900">
@@ -340,12 +342,21 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
           <div className="flex items-center justify-between">
             <h4 className="font-extrabold text-xs sm:text-sm uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Chronological Visit Timeline ({patient.invoices.length} Invoices)</span>
+              <span>Chronological Visit Timeline ({sortedInvoices.length} Invoices)</span>
             </h4>
-            <span className="text-[11px] text-slate-400">Dr. M. A. Haque Chamber</span>
+            <button
+              type="button"
+              onClick={refreshData}
+              disabled={loading}
+              className="px-2.5 py-1 rounded-lg text-[11px] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 font-semibold flex items-center gap-1 cursor-pointer transition"
+              title="Sync latest invoices from Supabase database"
+            >
+              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+              <span>Sync Records</span>
+            </button>
           </div>
 
-          {patient.invoices.length === 0 ? (
+          {sortedInvoices.length === 0 ? (
             <div className="p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center space-y-2.5">
               <FileText className="w-7 h-7 mx-auto text-slate-400 opacity-50" />
               <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -372,7 +383,7 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
               )}
             </div>
           ) : (
-            patient.invoices.map((inv) => {
+            sortedInvoices.map((inv) => {
               const visitDate = inv.created_at ? new Date(inv.created_at) : new Date();
               return (
                 <div
@@ -449,7 +460,7 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                               <div className="flex items-center gap-2 min-w-0 pr-2">
                                 <Pill className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                 <span className="text-slate-700 dark:text-slate-300 font-medium truncate">
-                                  {item.item_description || item.medicine_name}
+                                  {item.item_description || item.medicine_name || 'Dispensed Remedy'}
                                 </span>
                               </div>
                               <span className="font-mono font-bold text-slate-800 dark:text-slate-200 shrink-0">
@@ -457,6 +468,18 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                               </span>
                             </div>
                           ))
+                        ) : (inv.medicine_total !== undefined && inv.medicine_total > 0) ? (
+                          <div className="p-2 flex justify-between items-center text-xs">
+                            <div className="flex items-center gap-2 min-w-0 pr-2">
+                              <Pill className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="text-slate-700 dark:text-slate-300 font-medium truncate">
+                                Dispensed Homoeopathic Remedies
+                              </span>
+                            </div>
+                            <span className="font-mono font-bold text-slate-800 dark:text-slate-200 shrink-0">
+                              ₹{inv.medicine_total}
+                            </span>
+                          </div>
                         ) : (
                           <div className="p-2 text-slate-400 italic text-[11px]">No dispensed medicines recorded.</div>
                         )}

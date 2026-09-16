@@ -67,6 +67,20 @@ export function subscribeToStore(callback: (event: { type: string; data?: any })
   };
 }
 
+// Helper to derive sequential queue position dynamically from trailing digits of token_number
+export const parseQueueNumberFromTokenOrRow = (row: any): number => {
+  if (row?.token_number) {
+    const match = String(row.token_number).match(/(\d+)$/);
+    if (match && match[1]) {
+      const parsed = parseInt(match[1], 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  }
+  if (row?.queue_position && Number(row.queue_position) > 0) return Number(row.queue_position);
+  if (row?.queue_number && Number(row.queue_number) > 0) return Number(row.queue_number);
+  return 1;
+};
+
 /**
  * Directly fetches appointments from Supabase table ordered by created_at ascending.
  */
@@ -92,7 +106,7 @@ export async function fetchAppointmentsFromSupabase(): Promise<Appointment[]> {
     address: row.address,
     booking_date: row.booking_date,
     shift: row.shift,
-    queue_position: row.queue_position || row.queue_number || 1,
+    queue_position: parseQueueNumberFromTokenOrRow(row),
     status: row.status,
     symptoms: row.symptoms,
     symptoms_summary: row.symptoms || row.symptoms_summary,
@@ -204,7 +218,7 @@ export function initSupabaseSync(): () => void {
               address: row.address,
               booking_date: row.booking_date,
               shift: row.shift,
-              queue_position: row.queue_position || row.queue_number || 1,
+              queue_position: parseQueueNumberFromTokenOrRow(row),
               status: row.status,
               symptoms: row.symptoms,
               symptoms_summary: row.symptoms || row.symptoms_summary,
@@ -595,6 +609,16 @@ export async function savePrescription(prescription: Omit<Prescription, 'id' | '
 
 export function getInvoices(): Invoice[] {
   return inMemoryInvoices;
+}
+
+export function registerCreatedInvoice(invoice: Invoice) {
+  const existingIdx = inMemoryInvoices.findIndex(i => i.id === invoice.id || i.invoice_number === invoice.invoice_number);
+  if (existingIdx >= 0) {
+    inMemoryInvoices[existingIdx] = invoice;
+  } else {
+    inMemoryInvoices = [invoice, ...inMemoryInvoices];
+  }
+  notifySubscribers('invoices', inMemoryInvoices);
 }
 
 export async function createInvoice(invoiceData: Omit<Invoice, 'id' | 'invoice_number' | 'created_at'>): Promise<Invoice> {

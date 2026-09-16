@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS public.invoices (
   consultation_fee NUMERIC(10, 2) DEFAULT 200.00,
   medicine_total NUMERIC(10, 2) DEFAULT 0.00,
   shift TEXT DEFAULT 'morning' CHECK (shift IN ('morning', 'evening')),
+  items JSONB DEFAULT '[]'::jsonb,
   subtotal NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
   discount NUMERIC(10, 2) DEFAULT 0.00,
   tax NUMERIC(10, 2) DEFAULT 0.00,
@@ -276,3 +277,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.appointments;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.inventory;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.clinic_settings;
+
+-- Ensure required columns exist on invoices for existing deployments
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS medicine_total NUMERIC(10, 2) DEFAULT 0.00;
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS shift TEXT DEFAULT 'morning';
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'::jsonb;

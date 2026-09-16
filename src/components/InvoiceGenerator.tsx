@@ -14,7 +14,8 @@ import {
   SlidersHorizontal
 } from 'lucide-react';
 import { Appointment, Invoice, InvoiceItem, PaymentMode } from '../types';
-import { createInvoice, getInvoices } from '../services/clinicStore';
+import { createInvoice, getInvoices, registerCreatedInvoice } from '../services/clinicStore';
+import { getSupabase } from '../services/supabase';
 import { exportInvoicesToCSV } from '../utils/exportUtils';
 
 interface InvoiceGeneratorProps {
@@ -102,13 +103,22 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
 
     setIsSaving(true);
     try {
-      const formattedItems: InvoiceItem[] = items
+      const supabase = getSupabase();
+      const currentShift = initialAppointment?.shift 
+        ? (initialAppointment.shift.toLowerCase() === 'morning' ? 'Morning' : 'Evening')
+        : (new Date().getHours() < 14 ? 'Morning' : 'Evening');
+
+      const year = new Date().getFullYear();
+      const existingInvoices = getInvoices();
+      const invoiceNumber = `INV-${year}-${String(existingInvoices.length + 1).padStart(4, '0')}`;
+      const cleanPatientId = patientId.trim() || `PAT-${(phone.trim() || '1000').slice(-4)}`;
+
+      const medicineRows: InvoiceItem[] = items
         .filter((it) => it.item_description.trim() !== '' || (Number(it.price) || 0) > 0)
         .map((it, idx) => ({
           id: `item-${Date.now()}-${idx}`,
           item_description: it.item_description.trim() || 'Dispensed Medicine',
           price: Number(it.price) || 0,
-          // legacy compatibility
           medicine_name: it.item_description.trim() || 'Dispensed Medicine',
           total_price: Number(it.price) || 0,
           quantity: 1,
@@ -118,32 +128,121 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
       // Safe appointment_id handling: convert UUID or Token to string, or omit if null/empty
       const safeAptId = initialAppointment?.id ? String(initialAppointment.id).trim() : undefined;
 
-      // Determine shift: Morning / Evening based on appointment or current hour (< 14:00 is Morning)
-      const invoiceShift = initialAppointment?.shift || (new Date().getHours() < 14 ? 'morning' : 'evening');
-
-      const newInv = await createInvoice({
-        appointment_id: safeAptId,
-        patient_id: patientId,
+      // Prepare payload to explicitly write the record into Supabase invoices table
+      const invoicePayload: Record<string, any> = {
+        invoice_number: invoiceNumber,
+        patient_id: cleanPatientId,
         patient_name: patientName.trim(),
         phone: phone.trim(),
         consultation_fee: Number(consultationFee) || 0,
-        medicine_total: medicinesSubtotal,
-        shift: invoiceShift,
-        subtotal,
+        medicine_total: Number(medicinesSubtotal) || 0,
+        subtotal: Number(subtotal) || Number(totalAmount),
         discount: Number(discount) || 0,
         tax: Number(tax) || 0,
-        total_amount: totalAmount,
-        payment_mode: paymentMode,
-        payment_status: 'paid',
-        items: formattedItems,
-        gstin: gstin.trim() || 'GSTIN: [To be added / Optional]',
-      });
+        total_amount: Number(totalAmount),
+        payment_mode: (paymentMode || 'Cash').toLowerCase(), // 'cash' | 'upi' | 'card'
+        shift: currentShift.toLowerCase(), // 'morning' | 'evening'
+        items: medicineRows,
+        created_at: new Date().toISOString()
+      };
 
-      setSavedInvoice(newInv);
+      if (safeAptId && safeAptId !== 'null' && safeAptId !== 'undefined') {
+        invoicePayload.appointment_id = safeAptId;
+      }
+
+      // Explicit insert into Supabase invoices table
+      let insertResult = await supabase.from('invoices').insert([invoicePayload]).select();
+
+      // Gracefully retry if items, shift or medicine_total column is missing in older schemas
+      if (insertResult.error && (insertResult.error.message?.includes('items') || insertResult.error.message?.includes('shift') || insertResult.error.message?.includes('medicine_total') || insertResult.error.code === 'PGRST204')) {
+        console.warn('Retrying invoice save with base columns:', insertResult.error.message);
+        const fallbackPayload = { ...invoicePayload };
+        delete fallbackPayload.items;
+        insertResult = await supabase.from('invoices').insert([fallbackPayload]).select();
+      }
+
+      // Retry without appointment_id if foreign key or UUID validation error
+      if (insertResult.error && (insertResult.error.message?.includes('appointment_id') || insertResult.error.code === '22P02' || insertResult.error.code === '23503')) {
+        const withoutApt = { ...invoicePayload };
+        delete withoutApt.appointment_id;
+        insertResult = await supabase.from('invoices').insert([withoutApt]).select();
+      }
+
+      const { data, error } = insertResult;
+
+      if (error) {
+        console.error("Invoice Save Error:", error);
+        alert("Failed to save invoice to Supabase: " + error.message);
+        setErrorMsg("Failed to save invoice to Supabase: " + error.message);
+        return;
+      }
+
+      const savedRecord: Invoice = data && data[0] ? {
+        id: data[0].id,
+        invoice_number: data[0].invoice_number || invoiceNumber,
+        appointment_id: data[0].appointment_id,
+        patient_id: data[0].patient_id || cleanPatientId,
+        patient_name: data[0].patient_name || patientName.trim(),
+        phone: data[0].phone || phone.trim(),
+        consultation_fee: Number(data[0].consultation_fee) || Number(consultationFee),
+        medicine_total: Number(data[0].medicine_total) || Number(medicinesSubtotal),
+        shift: (data[0].shift || currentShift.toLowerCase()) as any,
+        subtotal: Number(data[0].subtotal) || Number(subtotal),
+        discount: Number(data[0].discount) || Number(discount),
+        tax: Number(data[0].tax) || Number(tax),
+        total_amount: Number(data[0].total_amount) || Number(totalAmount),
+        payment_mode: data[0].payment_mode || (paymentMode || 'Cash').toLowerCase(),
+        payment_status: data[0].payment_status || 'paid',
+        items: (data[0].items && Array.isArray(data[0].items)) ? data[0].items : medicineRows,
+        created_at: data[0].created_at || new Date().toISOString(),
+        gstin: gstin.trim() || undefined,
+      } : {
+        id: `inv-${Date.now()}`,
+        invoice_number: invoiceNumber,
+        patient_id: cleanPatientId,
+        patient_name: patientName.trim(),
+        phone: phone.trim(),
+        consultation_fee: Number(consultationFee),
+        medicine_total: Number(medicinesSubtotal),
+        shift: currentShift.toLowerCase() as any,
+        subtotal: Number(subtotal),
+        discount: Number(discount),
+        tax: Number(tax),
+        total_amount: Number(totalAmount),
+        payment_mode: (paymentMode || 'Cash').toLowerCase() as any,
+        payment_status: 'paid',
+        items: medicineRows,
+        created_at: new Date().toISOString(),
+        gstin: gstin.trim() || undefined,
+      };
+
+      // Safely insert into invoice_items table if present
+      if (savedRecord.id && medicineRows.length > 0) {
+        try {
+          const lineItems = medicineRows.map(it => ({
+            invoice_id: savedRecord.id,
+            medicine_name: it.item_description || 'Dispensed Medicine',
+            potency: 'N/A',
+            quantity: it.quantity || 1,
+            unit_price: it.price || 0,
+            total_price: it.price || 0,
+          }));
+          await supabase.from('invoice_items').insert(lineItems);
+        } catch {
+          // Non-blocking
+        }
+      }
+
+      // Instantly register in store and broadcast to all tabs
+      registerCreatedInvoice(savedRecord);
+
+      setSavedInvoice(savedRecord);
       if (onInvoiceCreated) {
-        onInvoiceCreated(newInv);
+        onInvoiceCreated(savedRecord);
       }
     } catch (e: any) {
+      console.error("Invoice Save Exception:", e);
+      alert("Failed to save invoice to Supabase: " + (e.message || String(e)));
       setErrorMsg(e.message || 'Failed to generate invoice');
     } finally {
       setIsSaving(false);
