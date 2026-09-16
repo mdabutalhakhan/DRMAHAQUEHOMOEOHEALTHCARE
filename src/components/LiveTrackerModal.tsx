@@ -38,6 +38,18 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
   const [rescheduleError, setRescheduleError] = useState<string>('');
   const [rescheduleSuccess, setRescheduleSuccess] = useState<string>('');
 
+  // Lock background scroll when modal is active
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen) {
       setAppointments(getAppointments());
@@ -118,8 +130,8 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-[#FAF7EE] dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-emerald-900/20">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm overflow-y-auto animate-fade-in">
+      <div className="relative w-full max-w-2xl my-auto bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-emerald-100 dark:border-slate-800 flex flex-col max-h-[90vh] overflow-hidden">
         
         {/* Modal Header */}
         <div className="shrink-0 p-4 sm:p-5 border-b border-stone-200 dark:border-slate-800 flex justify-between items-center bg-white/80 dark:bg-slate-900/90 backdrop-blur-xs">
@@ -147,7 +159,7 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 overscroll-contain">
+        <div className="overflow-y-auto overscroll-contain flex-1 min-h-0 p-5 md:p-6 space-y-6">
           
           {/* 1. Clean Search Input */}
           <div className="space-y-2">

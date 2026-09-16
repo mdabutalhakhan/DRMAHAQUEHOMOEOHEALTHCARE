@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Lock, Mail, AlertCircle, Loader2, KeyRound, Eye, EyeOff, CheckCircle2, ArrowRight } from 'lucide-react';
 import { UserProfile } from '../types';
 import { setCurrentUser, updateClinicTeamPassword } from '../services/clinicStore';
@@ -28,6 +28,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  // Lock background scroll when modal is active
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -167,16 +179,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md md:max-w-lg flex flex-col bg-[#FAF7EE] dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-emerald-900/20">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm overflow-y-auto animate-fade-in">
+      <div className="relative w-full max-w-lg my-auto bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-emerald-100 dark:border-slate-800 flex flex-col max-h-[90vh] overflow-hidden">
         
         {/* ========================================================= */}
         {/* VIEW 1: FIRST-TIME LOGIN PASSWORD POPUP                   */}
         {/* ========================================================= */}
         {firstLoginUser ? (
-          <div>
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             {/* Header */}
-            <div className="p-4 border-b border-stone-200 dark:border-slate-800 flex justify-between items-center bg-white/80 dark:bg-slate-900/90">
+            <div className="shrink-0 p-4 border-b border-stone-200 dark:border-slate-800 flex justify-between items-center bg-white/80 dark:bg-slate-900/90">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
                   <KeyRound className="w-5 h-5" />
@@ -200,7 +212,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
 
             {/* Form Body */}
-            <div className="p-5 sm:p-6 space-y-4">
+            <div className="overflow-y-auto overscroll-contain flex-1 p-5 md:p-6 space-y-4">
               <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
                 Welcome to Homoeo Health Care! You are currently logging in with an initial temporary password set by the Administrator. You can set your personal password now, or skip to keep your current password.
               </div>
@@ -267,7 +279,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
 
             {/* Footer Actions */}
-            <div className="p-4 border-t border-stone-200 dark:border-slate-800 bg-stone-50/80 dark:bg-slate-900/80 flex items-center justify-between gap-3">
+            <div className="shrink-0 p-4 border-t border-stone-200 dark:border-slate-800 bg-stone-50/80 dark:bg-slate-900/80 flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={handleSkipFirstLogin}
@@ -300,9 +312,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           /* ========================================================= */
           /* VIEW 2: STRICT CREDENTIAL LOGIN FORM                      */
           /* ========================================================= */
-          <div>
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             {/* Modal Header */}
-            <div className="p-4 border-b border-stone-200 dark:border-slate-800 flex justify-between items-center bg-white/70 dark:bg-slate-900/80">
+            <div className="shrink-0 p-4 border-b border-stone-200 dark:border-slate-800 flex justify-between items-center bg-white/70 dark:bg-slate-900/80">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-[#1B4332] text-white flex items-center justify-center shadow-xs">
                   <Lock className="w-5 h-5 text-emerald-300" />
@@ -326,7 +338,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
 
             {/* Modal Scrollable Body */}
-            <div className="p-4 sm:p-6 space-y-4">
+            <div className="overflow-y-auto overscroll-contain flex-1 p-5 md:p-6 space-y-4">
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                 Authorized clinic personnel only. Enter your registered work email and password to open the consultation chamber.
               </p>
@@ -396,7 +408,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
 
             {/* Modal Footer / Actions */}
-            <div className="p-4 border-t border-stone-200 dark:border-slate-800 bg-stone-50/80 dark:bg-slate-900/80 flex items-center justify-end gap-3">
+            <div className="shrink-0 p-4 border-t border-stone-200 dark:border-slate-800 bg-stone-50/80 dark:bg-slate-900/80 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={handleModalClose}

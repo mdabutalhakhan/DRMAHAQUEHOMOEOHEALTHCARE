@@ -54,41 +54,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
             <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium truncate leading-tight">
-              Dr. M. A. Haque, <span className="text-[#2D6A4F] dark:text-emerald-400 font-semibold">M.D. (Homoeo)</span>
+              Dr. M. A. Haque, <span className="text-[#2D6A4F] dark:text-emerald-400 font-semibold">M.D. (Homoeo)</span> • Benachity
             </p>
           </div>
         </div>
 
-        {/* Navigation & Action Controls */}
+        {/* Right Action Controls: Dark/Light Mode Toggle & Staff/Doctor Login */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-          <nav className="hidden md:flex items-center gap-1">
-            <button
-              id="nav-book-btn"
-              onClick={() => setCurrentView('home')}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                currentView === 'home'
-                  ? 'bg-emerald-100/80 text-[#1B4332] dark:bg-emerald-900/40 dark:text-emerald-300 font-semibold'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              Book Appointment
-            </button>
-            <button
-              id="nav-tracker-btn"
-              onClick={() => {
-                if (onOpenTracker) {
-                  onOpenTracker();
-                } else {
-                  setCurrentView('tracker');
-                }
-              }}
-              className="px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-            >
-              <Search className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              Live Queue Tracker
-            </button>
-          </nav>
-
           {/* Quick Clinic Phone link */}
           <a
             href="tel:9933506514"
