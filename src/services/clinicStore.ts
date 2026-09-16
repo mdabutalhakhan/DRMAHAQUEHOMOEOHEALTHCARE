@@ -33,7 +33,7 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
   }
 }
 
-function notifySubscribers(type: string, data?: any) {
+export function notifySubscribers(type: string, data?: any) {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('hhc_store_change', { detail: { type, data } }));
     if (channel) {
@@ -1145,14 +1145,13 @@ export const CLINIC_SETTINGS_KEY = 'hhc_clinic_settings_v1';
 export const DOCTOR_IMAGE_URL_KEY = 'hhc_doctor_image_url';
 
 export async function fetchClinicSettings(): Promise<{ doctor_image_url: string }> {
-  const localUrl = typeof window !== 'undefined' ? localStorage.getItem(DOCTOR_IMAGE_URL_KEY) || '' : '';
   const supabase = getSupabase();
   try {
     const { data, error } = await supabase
       .from('clinic_settings')
       .select('doctor_image_url')
       .eq('id', 'default')
-      .maybeSingle();
+      .single();
 
     if (!error && data?.doctor_image_url) {
       if (typeof window !== 'undefined') {
@@ -1161,97 +1160,70 @@ export async function fetchClinicSettings(): Promise<{ doctor_image_url: string 
       return { doctor_image_url: data.doctor_image_url };
     }
   } catch (e) {
-    console.warn('fetchClinicSettings error, using local fallback:', e);
+    console.warn('fetchClinicSettings error from Supabase:', e);
   }
-  return { doctor_image_url: localUrl };
+  const local = typeof window !== 'undefined' ? localStorage.getItem(DOCTOR_IMAGE_URL_KEY) || '' : '';
+  return { doctor_image_url: local };
 }
 
 export async function uploadDoctorPhotoToSupabase(file: File): Promise<string> {
   const supabase = getSupabase();
   const cleanExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
   const fileName = `doctor_profile_${Date.now()}.${cleanExt}`;
-  let uploadedUrl = '';
 
-  try {
-    // 1. Try uploading to Supabase Storage bucket 'clinic-assets'
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('clinic-assets')
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: true,
-      });
-
-    if (!uploadError && uploadData) {
-      const { data: publicData } = supabase.storage
-        .from('clinic-assets')
-        .getPublicUrl(fileName);
-      if (publicData?.publicUrl) {
-        uploadedUrl = publicData.publicUrl;
-      }
-    } else if (uploadError) {
-      console.warn('Storage upload note:', uploadError.message);
-      try {
-        await supabase.storage.createBucket('clinic-assets', { public: true });
-        const retry = await supabase.storage.from('clinic-assets').upload(fileName, file, { upsert: true });
-        if (!retry.error) {
-          uploadedUrl = supabase.storage.from('clinic-assets').getPublicUrl(fileName).data.publicUrl;
-        }
-      } catch {
-        // continue
-      }
-    }
-  } catch (err) {
-    console.warn('Storage upload exception:', err);
-  }
-
-  // Fallback to Data URL if storage bucket fails/not permitted so user is never blocked
-  if (!uploadedUrl) {
-    uploadedUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+  // 1. Upload to Supabase Storage bucket 'clinic-assets'
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('clinic-assets')
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: true,
     });
+
+  if (uploadError) {
+    throw new Error(`Supabase Storage upload failed: ${uploadError.message}`);
   }
 
-  // 2. Upsert into Supabase 'clinic_settings' table
-  try {
-    const payload = {
-      id: 'default',
-      doctor_image_url: uploadedUrl,
-      doctor_name: 'Dr. M. A. Haque, M.D. (Homoeo)',
-      updated_at: new Date().toISOString(),
-    };
-    const { error: dbError } = await supabase
-      .from('clinic_settings')
-      .upsert(payload, { onConflict: 'id' });
+  // 2. Get the public URL
+  const { data: publicUrlData } = supabase.storage
+    .from('clinic-assets')
+    .getPublicUrl(fileName);
+  const publicUrl = publicUrlData?.publicUrl;
 
-    if (dbError) {
-      console.warn('clinic_settings db note:', dbError.message);
-    }
-  } catch (dbErr) {
-    console.warn('DB upsert error:', dbErr);
+  if (!publicUrl) {
+    throw new Error('Failed to obtain public URL from Supabase Storage.');
   }
 
-  // 3. Update doctor's avatar_url in clinic_team table if available
+  // 3. Explicitly update the Supabase database table clinic_settings
+  const { error: dbError } = await supabase
+    .from('clinic_settings')
+    .upsert({ 
+      id: 'default', 
+      doctor_image_url: publicUrl, 
+      updated_at: new Date().toISOString() 
+    });
+
+  if (dbError) {
+    console.error('Database update error on clinic_settings:', dbError);
+    throw new Error(`Database error saving to clinic_settings: ${dbError.message}`);
+  }
+
+  // Update doctor's avatar_url in clinic_team table if available
   try {
     await supabase
       .from('clinic_team')
-      .update({ avatar_url: uploadedUrl })
+      .update({ avatar_url: publicUrl })
       .eq('role', 'doctor');
   } catch {
     // optional
   }
 
-  // 4. Save to localStorage for instant local access
+  // Save to localStorage and notify subscribers for instant UI update
   if (typeof window !== 'undefined') {
-    localStorage.setItem(DOCTOR_IMAGE_URL_KEY, uploadedUrl);
+    localStorage.setItem(DOCTOR_IMAGE_URL_KEY, publicUrl);
   }
+  notifySubscribers('clinic_settings', { doctor_image_url: publicUrl });
 
-  // 5. Broadcast real-time change across tabs & components
-  notifySubscribers('clinic_settings', { doctor_image_url: uploadedUrl });
-
-  return uploadedUrl;
+  return publicUrl;
 }
 
 export async function resetDoctorPhoto(): Promise<void> {

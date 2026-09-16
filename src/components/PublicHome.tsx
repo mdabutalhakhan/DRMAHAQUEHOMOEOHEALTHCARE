@@ -21,8 +21,9 @@ import {
   X
 } from 'lucide-react';
 import { Appointment, ShiftType } from '../types';
-import { createAppointment, getAppointments, fetchClinicSettings, subscribeToStore } from '../services/clinicStore';
+import { createAppointment, getAppointments, subscribeToStore } from '../services/clinicStore';
 import { BookingModal } from './BookingModal';
+import { getSupabase } from '../services/supabase';
 
 interface PublicHomeProps {
   onAppointmentBooked?: (appointment: Appointment) => void;
@@ -34,30 +35,31 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
   const [age, setAge] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [doctorImageUrl, setDoctorImageUrl] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('hhc_doctor_image_url') || '/doctor.jpg';
-    }
-    return '/doctor.jpg';
-  });
+  const [doctorPhotoUrl, setDoctorPhotoUrl] = useState<string>('');
   
-  // Real-time Supabase clinic_settings fetch & dynamic sync
+  // Directly query Supabase clinic_settings on mount
   useEffect(() => {
-    let isMounted = true;
-    fetchClinicSettings().then((settings) => {
-      if (isMounted && settings.doctor_image_url) {
-        setDoctorImageUrl(settings.doctor_image_url);
+    async function fetchDoctorPhoto() {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('clinic_settings')
+        .select('doctor_image_url')
+        .eq('id', 'default')
+        .single();
+      if (data?.doctor_image_url) {
+        setDoctorPhotoUrl(data.doctor_image_url);
       }
-    });
+    }
+    fetchDoctorPhoto();
 
+    // Listen for real-time updates across open tabs
     const unsubscribe = subscribeToStore((event) => {
       if (event.type === 'clinic_settings' && event.data) {
-        setDoctorImageUrl(event.data.doctor_image_url || '/doctor.jpg');
+        setDoctorPhotoUrl(event.data.doctor_image_url || '');
       }
     });
 
     return () => {
-      isMounted = false;
       unsubscribe();
     };
   }, []);
@@ -237,13 +239,13 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
               <div className="p-6 sm:p-8 rounded-2xl bg-white dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xl shadow-emerald-950/5 relative">
                 <div className="flex items-center gap-4 pb-6 border-b border-slate-100 dark:border-slate-700">
                   <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white flex items-center justify-center font-bold text-2xl shadow-inner shrink-0 border border-emerald-500/20">
-                    {doctorImageUrl ? (
+                    {doctorPhotoUrl ? (
                       <img
-                        src={doctorImageUrl}
+                        src={doctorPhotoUrl}
                         alt="Dr. M. A. Haque"
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
-                        onError={() => setDoctorImageUrl('')}
+                        onError={() => setDoctorPhotoUrl('')}
                       />
                     ) : (
                       <span>MH</span>

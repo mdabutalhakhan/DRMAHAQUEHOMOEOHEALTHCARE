@@ -20,7 +20,8 @@ import {
   fetchClinicSettings, 
   uploadDoctorPhotoToSupabase, 
   resetDoctorPhoto, 
-  subscribeToStore 
+  subscribeToStore,
+  notifySubscribers
 } from '../services/clinicStore';
 import { getSupabase } from '../services/supabase';
 
@@ -44,12 +45,17 @@ export const ChamberSettings: React.FC<ChamberSettingsProps> = ({ currentUser })
     async function loadSettings() {
       setLoading(true);
       try {
-        const settings = await fetchClinicSettings();
-        if (isMounted) {
-          setDoctorImageUrl(settings.doctor_image_url || '');
+        const supabase = getSupabase();
+        const { data, error } = await supabase
+          .from('clinic_settings')
+          .select('doctor_image_url')
+          .eq('id', 'default')
+          .single();
+        if (data?.doctor_image_url && isMounted) {
+          setDoctorImageUrl(data.doctor_image_url);
         }
       } catch (err) {
-        console.warn('Error loading clinic settings:', err);
+        console.warn('Error loading clinic settings from Supabase:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -90,8 +96,54 @@ export const ChamberSettings: React.FC<ChamberSettingsProps> = ({ currentUser })
     setUploadProgressText('Uploading to Supabase Storage (clinic-assets)...');
 
     try {
-      const newUrl = await uploadDoctorPhotoToSupabase(file);
-      setDoctorImageUrl(newUrl);
+      const supabase = getSupabase();
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `doctor_profile_${Date.now()}.${fileExt}`;
+
+      // 1. Upload to Supabase Storage bucket clinic-assets
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('clinic-assets')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw new Error(`Supabase Storage upload failed: ${uploadError.message}`);
+      }
+
+      // 2. Get the public URL
+      const { data: publicUrlData } = supabase.storage
+        .from('clinic-assets')
+        .getPublicUrl(fileName);
+      const publicUrl = publicUrlData?.publicUrl;
+
+      if (!publicUrl) {
+        throw new Error('Failed to retrieve public URL from Supabase Storage.');
+      }
+
+      // 3. Explicitly update the Supabase database table clinic_settings
+      const { error: dbError } = await supabase
+        .from('clinic_settings')
+        .upsert({ 
+          id: 'default', 
+          doctor_image_url: publicUrl, 
+          updated_at: new Date().toISOString() 
+        });
+
+      if (dbError) {
+        console.error('Supabase clinic_settings upsert error:', dbError);
+        throw new Error(`Database error saving to clinic_settings: ${dbError.message}`);
+      }
+
+      // 4. Update UI state & broadcast sync
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('hhc_doctor_image_url', publicUrl);
+      }
+      notifySubscribers('clinic_settings', { doctor_image_url: publicUrl });
+
+      setDoctorImageUrl(publicUrl);
       setSuccessMessage('Doctor photo updated successfully!');
       
       // Auto-dismiss success message after 4 seconds
@@ -141,7 +193,18 @@ export const ChamberSettings: React.FC<ChamberSettingsProps> = ({ currentUser })
     if (confirm('Are you sure you want to remove the doctor profile photo and revert to the default initials avatar?')) {
       setUploading(true);
       try {
-        await resetDoctorPhoto();
+        const supabase = getSupabase();
+        await supabase
+          .from('clinic_settings')
+          .upsert({
+            id: 'default',
+            doctor_image_url: '',
+            updated_at: new Date().toISOString()
+          });
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('hhc_doctor_image_url');
+        }
+        notifySubscribers('clinic_settings', { doctor_image_url: '' });
         setDoctorImageUrl('');
         setSuccessMessage('Doctor photo reset to default avatar.');
         setTimeout(() => setSuccessMessage(''), 4000);
