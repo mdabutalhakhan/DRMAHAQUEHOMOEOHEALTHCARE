@@ -27,6 +27,7 @@ import {
   updateAppointmentStatus, 
   reassignAppointmentShift,
   reassignAppointmentSlot,
+  autoCancelExpiredAppointments,
   subscribeToStore,
   parseQueueNumberFromTokenOrRow
 } from '../services/clinicStore';
@@ -103,6 +104,10 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
       }));
 
       setAppointments(list);
+      // Run background cancellation for expired pending appointments
+      autoCancelExpiredAppointments(list).catch((err) =>
+        console.warn('[QueueManager] Auto cancel check note:', err)
+      );
     } catch (err: any) {
       console.error('[QueueManager] Direct fetch exception:', err);
       setFetchError(err.message || 'Failed to fetch queue from Supabase');

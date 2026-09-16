@@ -1,9 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Sparkles, Clock, CheckCircle2, User, Phone, MapPin, AlertCircle, ArrowRight } from 'lucide-react';
+import { Search, Sparkles, Clock, CheckCircle2, User, Phone, MapPin, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
 import { getAppointments, subscribeToStore } from '../services/clinicStore';
 import { Appointment } from '../types';
 
-export const LiveTracker: React.FC = () => {
+interface LiveTrackerProps {
+  onBackHome?: () => void;
+}
+
+export const LiveTracker: React.FC<LiveTrackerProps> = ({ onBackHome }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [appointments, setAppointments] = useState<Appointment[]>(getAppointments());
 
@@ -42,6 +46,17 @@ export const LiveTracker: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+      {onBackHome && (
+        <button
+          type="button"
+          onClick={onBackHome}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:text-emerald-950 dark:hover:text-emerald-200 transition mb-2 cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Homepage</span>
+        </button>
+      )}
+
       {/* Title */}
       <div className="text-center space-y-2">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-xs font-bold">

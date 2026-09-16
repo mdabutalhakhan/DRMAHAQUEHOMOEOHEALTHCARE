@@ -506,7 +506,35 @@ export async function reassignAppointmentSlot(
   newDate: string,
   newShift: ShiftType
 ): Promise<Appointment | null> {
-  const target = inMemoryAppointments.find((a) => a.id === id);
+  const supabase = getSupabase();
+  let target = inMemoryAppointments.find((a) => a.id === id);
+  if (!target) {
+    const { data: dbTarget } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (dbTarget) {
+      target = {
+        id: dbTarget.id,
+        token_number: dbTarget.token_number,
+        patient_id: dbTarget.patient_id || `PAT-${(dbTarget.phone || '1000').slice(-4)}`,
+        patient_name: dbTarget.patient_name,
+        age: dbTarget.age != null && dbTarget.age !== '' && !isNaN(Number(dbTarget.age)) ? Number(dbTarget.age) : undefined,
+        phone: dbTarget.phone,
+        address: dbTarget.address,
+        booking_date: dbTarget.booking_date,
+        shift: dbTarget.shift,
+        queue_position: parseQueueNumberFromTokenOrRow(dbTarget),
+        status: dbTarget.status,
+        symptoms: dbTarget.symptoms,
+        symptoms_summary: dbTarget.symptoms || dbTarget.symptoms_summary,
+        doctor_notes: dbTarget.doctor_notes,
+        created_at: dbTarget.created_at,
+        updated_at: dbTarget.updated_at,
+      };
+    }
+  }
   if (!target) return null;
 
   // Validate Friday clinic closed
@@ -515,7 +543,6 @@ export async function reassignAppointmentSlot(
     throw new Error('Clinic is closed on Fridays. Please select Saturday to Thursday.');
   }
 
-  const supabase = getSupabase();
   const { data: slotApts } = await supabase
     .from('appointments')
     .select('id')
@@ -536,6 +563,7 @@ export async function reassignAppointmentSlot(
       shift: newShift,
       token_number: newTokenNumber,
       status: 'pending',
+      updated_at: new Date().toISOString(),
     })
     .eq('id', id);
 
@@ -544,25 +572,70 @@ export async function reassignAppointmentSlot(
     throw new Error(`Failed to reassign appointment slot: ${error.message}`);
   }
 
-  let updatedTarget: Appointment | null = null;
-  inMemoryAppointments = inMemoryAppointments.map((a) => {
-    if (a.id === id) {
-      updatedTarget = {
-        ...a,
-        booking_date: newDate,
-        shift: newShift,
-        queue_position: newQueuePos,
-        token_number: newTokenNumber,
-        status: 'pending' as AppointmentStatus,
-        updated_at: new Date().toISOString(),
-      };
-      return updatedTarget;
-    }
-    return a;
-  });
+  const updatedTarget: Appointment = {
+    ...target,
+    booking_date: newDate,
+    shift: newShift,
+    queue_position: newQueuePos,
+    token_number: newTokenNumber,
+    status: 'pending' as AppointmentStatus,
+    updated_at: new Date().toISOString(),
+  };
+
+  const foundIndex = inMemoryAppointments.findIndex((a) => a.id === id);
+  if (foundIndex >= 0) {
+    inMemoryAppointments[foundIndex] = updatedTarget;
+  } else {
+    inMemoryAppointments.push(updatedTarget);
+  }
 
   notifySubscribers('appointments', inMemoryAppointments);
   return updatedTarget;
+}
+
+// Auto-cancel expired pending appointments (past date or concluded shift)
+export async function autoCancelExpiredAppointments(apts?: Appointment[]): Promise<number> {
+  const currentList = apts || inMemoryAppointments;
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const currentHour = now.getHours();
+
+  const isExpired = (a: Appointment) => {
+    if (a.status !== 'pending') return false;
+    // 1. Past date
+    if (a.booking_date < todayStr) return true;
+    // 2. Today's date with concluded shift
+    if (a.booking_date === todayStr) {
+      if (a.shift === 'morning' && currentHour >= 14) return true; // past 2:00 PM
+      if (a.shift === 'evening' && currentHour >= 22) return true; // past 10:00 PM
+    }
+    return false;
+  };
+
+  const expiredList = currentList.filter(isExpired);
+  if (expiredList.length === 0) return 0;
+
+  const expiredIds = expiredList.map((a) => a.id);
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('appointments')
+    .update({
+      status: 'cancelled',
+      updated_at: new Date().toISOString(),
+    })
+    .in('id', expiredIds);
+
+  if (error) {
+    console.error('Failed to auto-cancel expired appointments in Supabase:', error);
+  }
+
+  inMemoryAppointments = inMemoryAppointments.map((a) =>
+    expiredIds.includes(a.id)
+      ? { ...a, status: 'cancelled' as AppointmentStatus, updated_at: new Date().toISOString() }
+      : a
+  );
+  notifySubscribers('appointments', inMemoryAppointments);
+  return expiredIds.length;
 }
 
 // ==========================================

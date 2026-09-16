@@ -6,7 +6,7 @@ import { LiveTracker } from './components/LiveTracker';
 import { Dashboard } from './components/Dashboard';
 import { LoginModal } from './components/LoginModal';
 import { UserProfile } from './types';
-import { getCurrentUser, setCurrentUser } from './services/clinicStore';
+import { getCurrentUser, setCurrentUser, autoCancelExpiredAppointments } from './services/clinicStore';
 import { initSupabaseSync } from './services/clinicStore';
 import { getSupabase } from './services/supabase';
 
@@ -115,7 +115,18 @@ export default function App() {
   // Initialize Supabase realtime listeners & cross-tab sync
   useEffect(() => {
     const cleanup = initSupabaseSync();
+    // Run auto-cancel check on mount and every 5 minutes
+    autoCancelExpiredAppointments().catch((err) =>
+      console.warn('Auto cancel initial check warning:', err)
+    );
+    const interval = setInterval(() => {
+      autoCancelExpiredAppointments().catch((err) =>
+        console.warn('Auto cancel interval check warning:', err)
+      );
+    }, 5 * 60 * 1000);
+
     return () => {
+      clearInterval(interval);
       if (cleanup) cleanup();
     };
   }, []);
@@ -179,11 +190,11 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-8">
         {currentView === 'home' && (
-          <PublicHome />
+          <PublicHome onOpenTracker={() => setCurrentView('tracker')} />
         )}
 
         {currentView === 'tracker' && (
-          <LiveTracker />
+          <LiveTracker onBackHome={() => setCurrentView('home')} />
         )}
 
         {currentView === 'dashboard' && (

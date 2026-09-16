@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Receipt, 
   Plus, 
@@ -45,6 +45,22 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
     initialPrescriptionUrl || initialAppointment?.prescription_url || ''
   );
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+
+  // Sync props when initialAppointment or initialPrescriptionUrl changes
+  useEffect(() => {
+    if (initialAppointment) {
+      setPatientName(initialAppointment.patient_name || '');
+      setPatientId(
+        initialAppointment.patient_id ||
+          `PAT-${(initialAppointment.phone || '1000').slice(-4)}`
+      );
+      setPhone(initialAppointment.phone || '');
+    }
+    const newPresc = initialPrescriptionUrl || initialAppointment?.prescription_url || '';
+    if (newPresc) {
+      setPrescriptionUrl(newPresc);
+    }
+  }, [initialAppointment, initialPrescriptionUrl]);
   
   // Clinic & Tax Credentials
   const [gstin, setGstin] = useState('GSTIN: [To be added / Optional]');

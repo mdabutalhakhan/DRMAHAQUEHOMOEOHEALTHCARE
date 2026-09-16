@@ -27,21 +27,17 @@ import { getSupabase } from '../services/supabase';
 
 interface PublicHomeProps {
   onAppointmentBooked?: (appointment: Appointment) => void;
+  onOpenTracker?: () => void;
 }
 
-export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) => {
-  // Booking Form State
-  const [patientName, setPatientName] = useState('');
-  const [age, setAge] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
+export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked, onOpenTracker }) => {
   const [doctorPhotoUrl, setDoctorPhotoUrl] = useState<string>('');
   
   // Directly query Supabase clinic_settings on mount
   useEffect(() => {
     async function fetchDoctorPhoto() {
       const supabase = getSupabase();
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('clinic_settings')
         .select('doctor_image_url')
         .eq('id', 'default')
@@ -67,106 +63,13 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
   // Popup Booking Modal state
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   
-  // Set default booking date to tomorrow or next non-Friday
-  const getDefaultDate = () => {
-    const d = new Date();
-    // If today is Friday or past consultation hours, default to next day
-    if (d.getDay() === 5) {
-      d.setDate(d.getDate() + 1);
-    }
-    return d.toISOString().split('T')[0];
-  };
-
-  const [bookingDate, setBookingDate] = useState(getDefaultDate());
-  const [shift, setShift] = useState<ShiftType>('morning');
-  const [symptoms, setSymptoms] = useState('');
-  
   // Confirmation Modal State
   const [confirmedAppointment, setConfirmedAppointment] = useState<{
     appointment: Appointment;
     queuePosition: number;
   } | null>(null);
   
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
   const [copiedToken, setCopiedToken] = useState(false);
-
-  // Live Queue metrics for selected date
-  const appointments = getAppointments();
-  
-  const isFriday = useMemo(() => {
-    if (!bookingDate) return false;
-    const d = new Date(bookingDate + 'T00:00:00');
-    return d.getDay() === 5;
-  }, [bookingDate]);
-
-  const existingInSlotCount = useMemo(() => {
-    if (!bookingDate) return 0;
-    return appointments.filter(
-      (a) => a.booking_date === bookingDate && a.shift === shift && a.status !== 'cancelled'
-    ).length;
-  }, [appointments, bookingDate, shift]);
-
-  const totalForDateCount = useMemo(() => {
-    if (!bookingDate) return 0;
-    return appointments.filter(
-      (a) => a.booking_date === bookingDate && a.status !== 'cancelled'
-    ).length;
-  }, [appointments, bookingDate]);
-
-  const estimatedQueuePos = existingInSlotCount + 1;
-
-  const handleBookingSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-
-    if (!patientName.trim()) {
-      setErrorMsg('Please provide your full name.');
-      return;
-    }
-    if (!phone.trim() || phone.trim().length < 10) {
-      setErrorMsg('Please provide a valid 10-digit phone number for appointment confirmation SMS / WhatsApp.');
-      return;
-    }
-    if (!address.trim()) {
-      setErrorMsg('Please specify your residential town or area (e.g., Benachity, Durgapur).');
-      return;
-    }
-    if (isFriday) {
-      setErrorMsg('Clinic is closed on Fridays. Please select Saturday through Thursday.');
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      const parsedAge = age ? parseInt(age, 10) : undefined;
-      const result = await createAppointment({
-        patient_name: patientName,
-        age: parsedAge,
-        phone,
-        address,
-        booking_date: bookingDate,
-        shift,
-        symptoms_summary: symptoms,
-      });
-
-      setConfirmedAppointment(result);
-      if (onAppointmentBooked) {
-        onAppointmentBooked(result.appointment);
-      }
-
-      // Reset form
-      setPatientName('');
-      setAge('');
-      setPhone('');
-      setAddress('');
-      setSymptoms('');
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to book appointment. Please try again or call 9933506514.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const copyTokenToClipboard = (token: string) => {
     navigator.clipboard.writeText(token);
@@ -175,7 +78,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
   };
 
   return (
-    <div className="space-y-16 pb-12">
+    <div className="space-y-12 sm:space-y-16 pb-12">
       {/* 1. HERO & WELCOME SECTION */}
       <section className="relative overflow-hidden pt-4 sm:pt-8 pb-8 sm:pb-16 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-emerald-50/70 via-white to-[#F8FAF9] dark:from-slate-900 dark:via-[#0F172A] dark:to-slate-900/60 border border-emerald-900/5 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -195,7 +98,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
                 Personalized, gentle, and lasting healing for acute and chronic conditions. Experience genuine holistic recovery with zero side-effects under expert clinical supervision.
               </p>
 
-              {/* Trust Badges - Ultra Compact on Mobile */}
+              {/* Trust Badges - Compact on Mobile */}
               <div className="flex flex-wrap sm:grid sm:grid-cols-3 gap-1.5 sm:gap-3 pt-1">
                 <div className="px-2.5 py-1.5 sm:p-3 rounded-lg sm:rounded-xl bg-white dark:bg-slate-800/80 border border-emerald-950/10 dark:border-slate-700 shadow-xs sm:shadow-sm flex items-center gap-1.5 sm:gap-2.5">
                   <Shield className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -211,7 +114,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
                 </div>
               </div>
 
-              {/* Call to Action buttons - Pulled up above the fold on mobile */}
+              {/* Call to Action buttons */}
               <div className="pt-1 sm:pt-2 flex flex-wrap items-center gap-2.5 sm:gap-4">
                 <button
                   type="button"
@@ -222,6 +125,19 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
                   <CalendarCheck className="w-4 h-4" />
                   <span>Book Appointment Now</span>
                 </button>
+
+                {onOpenTracker && (
+                  <button
+                    type="button"
+                    id="hero-live-tracker-btn"
+                    onClick={onOpenTracker}
+                    className="px-3.5 py-2.5 sm:px-5 sm:py-3.5 rounded-xl bg-white dark:bg-slate-800 border border-emerald-950/15 dark:border-slate-700 text-[#1B4332] dark:text-emerald-300 font-bold text-xs sm:text-sm flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-slate-700 shadow-xs transition cursor-pointer"
+                  >
+                    <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Live Queue Tracker</span>
+                  </button>
+                )}
+
                 <a
                   href="https://wa.me/919933506514"
                   target="_blank"
@@ -289,72 +205,101 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
         </div>
       </section>
 
-      {/* 2. CLINIC INFO & TIMINGS BANNER */}
+      {/* 2. CLINIC LOCATION & TIMINGS BANNER (Single unified clean section) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="rounded-2xl bg-[#1B4332] text-white p-6 sm:p-8 shadow-xl shadow-emerald-950/15">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Address */}
-            <a
-              href="https://maps.google.com/?q=Salbagan+Road,+Benachity,+Durgapur,+713213"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-start gap-4 group p-2 -m-2 rounded-xl hover:bg-emerald-800/40 transition-colors"
-              title="Open Clinic Location in Google Maps"
-            >
-              <div className="w-11 h-11 rounded-xl bg-emerald-700/60 border border-emerald-500/30 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 transition">
-                <MapPin className="w-5 h-5 text-emerald-300" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-base text-white tracking-wide group-hover:text-emerald-200 transition">
-                    Clinic Location
-                  </h3>
-                  <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-700/80 text-emerald-200">
-                    Google Maps ↗
-                  </span>
+        <div className="rounded-2xl sm:rounded-3xl bg-[#1B4332] text-white p-6 sm:p-8 shadow-xl shadow-emerald-950/15">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+            {/* Card 1: Clinic Location with full Google Maps destination */}
+            <div className="flex flex-col justify-between p-6 rounded-2xl bg-emerald-900/50 border border-emerald-700/40">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-700/70 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                  <MapPin className="w-6 h-6 text-emerald-300" />
                 </div>
-                <p className="text-sm text-emerald-100/90 mt-1 leading-relaxed underline-offset-2 group-hover:underline">
-                  Dr. M. A. Haque Homoeo Health Care,<br />
-                  Salbagan Road, Benachity, Durgapur,<br />
-                  PIN: 713213, West Bengal
-                </p>
-                <p className="text-xs text-emerald-300 mt-1">Landmark: Salbagan Road, Benachity (Click to view map)</p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-lg text-white tracking-wide">
+                      Clinic Location
+                    </h3>
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-700 text-emerald-200">
+                      Durgapur, WB
+                    </span>
+                  </div>
+                  <p className="text-sm text-emerald-100/90 mt-2 leading-relaxed">
+                    <strong>Dr. M. A. Haque Homoeo Health Care</strong><br />
+                    Salbagan Road, Benachity, Durgapur,<br />
+                    PIN: 713213, West Bengal
+                  </p>
+                  <p className="text-xs text-emerald-300 mt-2 font-medium">
+                    Landmark: Salbagan Road, Benachity (Near Market Centre)
+                  </p>
+                </div>
               </div>
-            </a>
 
-            {/* Clinic Opening Hours */}
-            <div className="flex items-start gap-4">
-              <div className="w-11 h-11 rounded-xl bg-emerald-700/60 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                <Clock className="w-5 h-5 text-emerald-300" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-base text-white tracking-wide">Clinic Hours</h3>
-                  <span className="text-[11px] px-2 py-0.5 rounded bg-red-800 text-red-100 font-semibold">
-                    Friday Closed
-                  </span>
-                </div>
-                <p className="text-xs text-emerald-200 font-semibold mt-1">Saturday to Thursday:</p>
-                <ul className="text-xs text-emerald-100/90 mt-1 space-y-0.5">
-                  <li>• Morning: 9:00 AM – 2:00 PM</li>
-                  <li>• Evening: 5:00 PM – 10:00 PM</li>
-                </ul>
+              <div className="mt-5 pt-4 border-t border-emerald-700/50">
+                <a
+                  href="https://maps.google.com/?q=Dr.+M.+A.+Haque+Homoeo+Health+Care,+Salbagan+Road,+Benachity,+Durgapur,+713213"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-[#1B4332] hover:bg-emerald-100 font-bold text-xs sm:text-sm shadow-sm transition"
+                  title="Open exact clinic location on Google Maps"
+                >
+                  <MapPin className="w-4 h-4 text-emerald-700" />
+                  <span>Open Clinic in Google Maps ↗</span>
+                </a>
               </div>
             </div>
 
-            {/* Doctor Consultation Hours */}
-            <div className="flex items-start gap-4">
-              <div className="w-11 h-11 rounded-xl bg-emerald-700/60 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                <Calendar className="w-5 h-5 text-emerald-300" />
+            {/* Card 2: Clinic & Doctor Timings (Unified) */}
+            <div className="flex flex-col justify-between p-6 rounded-2xl bg-emerald-900/50 border border-emerald-700/40 space-y-4">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-700/70 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                  <Clock className="w-6 h-6 text-emerald-300" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-bold text-lg text-white tracking-wide">
+                      Clinic & Doctor Timings
+                    </h3>
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-red-800 text-red-100 font-bold">
+                      Friday Closed
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    {/* Chamber Consultation Hours */}
+                    <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-700/40">
+                      <span className="text-emerald-300 font-bold block text-xs">
+                        Dr. M. A. Haque Consultations
+                      </span>
+                      <ul className="mt-1.5 space-y-1 text-emerald-100">
+                        <li>• <strong>Morning Slot:</strong> 10:00 AM – 12:30 PM</li>
+                        <li>• <strong>Evening Slot:</strong> 6:00 PM – 8:30 PM</li>
+                      </ul>
+                      <span className="block text-[10px] text-emerald-300/80 mt-1">
+                        Days: Saturday to Thursday
+                      </span>
+                    </div>
+
+                    {/* Pharmacy & Clinic Working Hours */}
+                    <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-700/40">
+                      <span className="text-emerald-300 font-bold block text-xs">
+                        Clinic & Dispensary Hours
+                      </span>
+                      <ul className="mt-1.5 space-y-1 text-emerald-100">
+                        <li>• <strong>Morning:</strong> 9:00 AM – 2:00 PM</li>
+                        <li>• <strong>Evening:</strong> 5:00 PM – 10:00 PM</li>
+                      </ul>
+                      <span className="block text-[10px] text-emerald-300/80 mt-1">
+                        Pharmacy open throughout shifts
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-base text-white tracking-wide">Doctor Consultations</h3>
-                <p className="text-xs text-emerald-200 font-semibold mt-1">Dr. M. A. Haque Chamber Timings:</p>
-                <ul className="text-xs text-emerald-100/90 mt-1 space-y-0.5">
-                  <li>• <strong className="text-white">Morning Slot:</strong> 10:00 AM – 12:30 PM</li>
-                  <li>• <strong className="text-white">Evening Slot:</strong> 6:00 PM – 8:30 PM</li>
-                </ul>
-                <p className="text-xs text-emerald-300/80 mt-1">Phone / WhatsApp: 9933506514</p>
+
+              <div className="pt-3 border-t border-emerald-700/50 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-200">
+                <span>Helpline / WhatsApp: <strong className="text-white">9933506514</strong></span>
+                <span className="text-[11px] text-emerald-300/80">Token-based digitized queue</span>
               </div>
             </div>
           </div>
@@ -418,288 +363,74 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
         </div>
       </section>
 
-      {/* 4. APPOINTMENT BOOKING FLOW WITH LIVE QUEUE PREVIEW */}
-      <section id="booking-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Column: Booking Form */}
-          <div className="lg:col-span-8 bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl border border-emerald-950/10 dark:border-slate-700 p-4 sm:p-8 lg:p-10 shadow-lg">
-            <div className="mb-4 sm:mb-6">
-              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-                Patient Self-Registration
-              </span>
-              <h2 className="text-xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1">
-                Book Your Doctor Consultation
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-0.5 sm:mt-1">
-                Fill your details below to generate your unique Token Number and live queue position.
-              </p>
+      {/* 4. STREAMLINED QUICK ACTIONS & LIVE QUEUE PORTAL (No duplicate form) */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="p-6 sm:p-10 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-lg">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+            {/* Action 1: Book Consultation */}
+            <div className="p-6 sm:p-8 rounded-2xl bg-emerald-50/70 dark:bg-slate-900/60 border border-emerald-200 dark:border-slate-700 flex flex-col justify-between h-full space-y-6">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold">
+                  <CalendarCheck className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
+                  Book Doctor Consultation
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Reserve your consultation slot with Dr. M. A. Haque. Get an instant Token ID and guaranteed queue position with zero advance fees.
+                </p>
+                <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                  <p>• Morning Slot: 10:00 AM – 12:30 PM</p>
+                  <p>• Evening Slot: 6:00 PM – 8:30 PM (Sat–Thu)</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                id="portal-book-appointment-btn"
+                onClick={() => setIsBookingModalOpen(true)}
+                className="w-full py-3.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-sm shadow-md shadow-emerald-900/20 flex items-center justify-center gap-2 transition cursor-pointer"
+              >
+                <CalendarCheck className="w-4 h-4 text-emerald-300" />
+                <span>Book Appointment (Instant Token)</span>
+              </button>
             </div>
 
-            {errorMsg && (
-              <div className="mb-4 p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs sm:text-sm flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="font-semibold block">Booking Alert:</strong>
-                  <span>{errorMsg}</span>
+            {/* Action 2: Live Queue & Token Tracker */}
+            <div className="p-6 sm:p-8 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 flex flex-col justify-between h-full space-y-6">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold">
+                  <Sparkles className="w-6 h-6" />
                 </div>
-              </div>
-            )}
-
-            <form onSubmit={handleBookingSubmit} className="space-y-4 sm:space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-5">
-                {/* Patient Name */}
-                <div className="sm:col-span-1">
-                  <label htmlFor="patient-name-input" className="block text-[11px] sm:text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
-                    Patient Full Name *
-                  </label>
-                  <div className="relative">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                    <input
-                      id="patient-name-input"
-                      type="text"
-                      required
-                      placeholder="e.g. Ramesh Sen"
-                      value={patientName}
-                      onChange={(e) => setPatientName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
-                    />
-                  </div>
-                </div>
-
-                {/* Age (Years) */}
-                <div>
-                  <label htmlFor="patient-age-input" className="block text-[11px] sm:text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
-                    Age (Years) <span className="text-slate-400 font-normal lowercase">(optional)</span>
-                  </label>
-                  <input
-                    id="patient-age-input"
-                    type="number"
-                    min="1"
-                    max="125"
-                    placeholder="e.g. 32"
-                    value={age}
-                    onChange={(e) => setAge(e.target.value)}
-                    className="w-full px-3.5 py-2.5 sm:py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
-                  />
-                </div>
-
-                {/* Phone Number */}
-                <div>
-                  <label htmlFor="phone-number-input" className="block text-[11px] sm:text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1 sm:mb-1.5">
-                    Mobile / WhatsApp *
-                  </label>
-                  <div className="relative">
-                    <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                    <input
-                      id="phone-number-input"
-                      type="tel"
-                      required
-                      placeholder="e.g. 9832100000"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Residential Address */}
-              <div>
-                <label htmlFor="patient-address-input" className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
-                  Residential Area / Address *
-                </label>
-                <div className="relative">
-                  <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                  <input
-                    id="patient-address-input"
-                    type="text"
-                    required
-                    placeholder="e.g. Salbagan Road, Benachity, Durgapur"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
-                  />
-                </div>
-              </div>
-
-              {/* Date & Shift Selectors */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div>
-                  <label htmlFor="booking-date-picker" className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
-                    Booking Date (Sat - Thu) *
-                  </label>
-                  <input
-                    id="booking-date-picker"
-                    type="date"
-                    required
-                    min={new Date().toISOString().split('T')[0]}
-                    value={bookingDate}
-                    onChange={(e) => setBookingDate(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
-                  />
-                  {isFriday && (
-                    <p className="text-xs text-red-600 dark:text-red-400 font-semibold mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      Clinic is closed on Fridays. Please pick another date.
-                    </p>
-                  )}
-                </div>
-
-                {/* Shift Selector */}
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
-                    Consultation Shift Slot *
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      id="shift-morning-btn"
-                      onClick={() => setShift('morning')}
-                      className={`p-3 rounded-xl border text-left transition-all ${
-                        shift === 'morning'
-                          ? 'border-[#1B4332] bg-emerald-50 dark:bg-emerald-950/60 text-[#1B4332] dark:text-emerald-300 font-bold ring-2 ring-[#1B4332]'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                      }`}
-                    >
-                      <span className="block text-xs font-semibold">Morning Slot</span>
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400">10:00 AM – 12:30 PM</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      id="shift-evening-btn"
-                      onClick={() => setShift('evening')}
-                      className={`p-3 rounded-xl border text-left transition-all ${
-                        shift === 'evening'
-                          ? 'border-[#1B4332] bg-emerald-50 dark:bg-emerald-950/60 text-[#1B4332] dark:text-emerald-300 font-bold ring-2 ring-[#1B4332]'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                      }`}
-                    >
-                      <span className="block text-xs font-semibold">Evening Slot</span>
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400">6:00 PM – 8:30 PM</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Symptoms brief note */}
-              <div>
-                <label htmlFor="symptoms-summary-input" className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
-                  Chief Health Complaints / Symptoms (Optional)
-                </label>
-                <textarea
-                  id="symptoms-summary-input"
-                  rows={2}
-                  placeholder="Describe your symptoms (e.g. chronic cough, knee joint stiffness, skin rash)..."
-                  value={symptoms}
-                  onChange={(e) => setSymptoms(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
-                />
-              </div>
-
-              {/* Submit Button */}
-              <div>
-                <button
-                  type="submit"
-                  id="btn-confirm-appointment"
-                  disabled={submitting || isFriday}
-                  className={`w-full py-3.5 sm:py-4 rounded-xl text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-md shadow-emerald-950/20 transition-all cursor-pointer ${
-                    isFriday
-                      ? 'bg-slate-400 cursor-not-allowed'
-                      : 'bg-[#1B4332] hover:bg-[#2D6A4F] active:scale-[0.98]'
-                  }`}
-                >
-                  {submitting ? (
-                    <span>Registering Patient...</span>
-                  ) : (
-                    <>
-                      <CalendarCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-300" />
-                      <span>Confirm Appointment & Get Token</span>
-                    </>
-                  )}
-                </button>
-                <p className="text-center text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-2">
-                  Instant token assigned with real-time queue position. No advance payment required online.
+                <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
+                  Live Queue & Token Tracker
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Already registered or holding a Token ID? Check your real-time position in Dr. M. A. Haque's chamber queue and track waiting time live.
                 </p>
-              </div>
-            </form>
-          </div>
-
-          {/* Right Column: Live Queue Status & Clinic Summary */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="rounded-3xl bg-emerald-50/80 dark:bg-slate-800/80 border border-emerald-200 dark:border-slate-700 p-6 shadow-sm">
-              <h3 className="font-bold text-base text-[#1B4332] dark:text-emerald-300 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Live Queue Preview</span>
-              </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
-                Appointments confirmed for {bookingDate}:
-              </p>
-
-              {totalForDateCount === 0 ? (
-                <div className="mt-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-dashed border-emerald-300 dark:border-slate-700 text-center space-y-1">
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    No appointments booked for this date
-                  </p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Be the first patient to register and receive Token #001!
-                  </p>
-                </div>
-              ) : null}
-
-              <div className="mt-4 space-y-3">
-                <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-100 dark:border-slate-700 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 block font-medium">Selected Slot</span>
-                    <span className="text-sm font-bold text-slate-900 dark:text-white capitalize">
-                      {shift} Shift
-                    </span>
-                  </div>
-                  <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                    {shift === 'morning' ? '10 AM – 12:30 PM' : '6 PM – 8:30 PM'}
-                  </span>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-100 dark:border-slate-700 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 block font-medium">Patients Before You</span>
-                    <span className="text-sm font-bold text-slate-900 dark:text-white">
-                      {existingInSlotCount} {existingInSlotCount === 1 ? 'patient' : 'patients'}
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    in {shift} queue
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-xl bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white flex items-center justify-between shadow-sm">
-                  <div>
-                    <span className="text-xs text-emerald-200 block font-medium">Your Estimated Position</span>
-                    <span className="text-2xl font-extrabold tracking-tight">#{estimatedQueuePos}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] text-emerald-200 block">Status</span>
-                    <span className="text-xs font-semibold text-emerald-100">Immediate Sync</span>
-                  </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                  <p>• Track by registered 10-digit Phone Number</p>
+                  <p>• Or search directly by Token ID (e.g. TK-2026...)</p>
                 </div>
               </div>
 
-              <div className="mt-5 pt-4 border-t border-emerald-200/60 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 space-y-2">
-                <div className="flex items-start gap-2">
-                  <Info className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                  <span>Please arrive 15 minutes before your shift time to complete vital check-in.</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Phone className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                  <span>Helpline & Rescheduling: <strong>9933506514</strong></span>
-                </div>
-              </div>
+              {onOpenTracker && (
+                <button
+                  type="button"
+                  id="portal-live-tracker-btn"
+                  onClick={onOpenTracker}
+                  className="w-full py-3.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-700 text-[#1B4332] dark:text-emerald-300 border border-emerald-900/20 dark:border-slate-600 font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Open Live Queue Tracker →</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
       </section>
 
-      {/* 5. CONFIRMATION POPUP / MODAL (Strict modal viewport pattern) */}
+      {/* 5. CONFIRMATION POPUP / MODAL */}
       {confirmedAppointment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-lg md:max-w-xl max-h-[90vh] md:max-h-[88vh] flex flex-col bg-[#FAF7EE] dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-emerald-900/20">
@@ -797,7 +528,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
               {/* Instructions notice */}
               <div className="p-3.5 rounded-xl bg-stone-100/90 dark:bg-slate-800/80 border border-stone-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 leading-relaxed space-y-1">
                 <p>
-                  <strong>Notice:</strong> Token <strong>{confirmedAppointment.appointment.token_number}</strong> (# {confirmedAppointment.queuePosition} in queue). Date: <strong>{confirmedAppointment.appointment.booking_date}</strong> ({confirmedAppointment.appointment.shift.toUpperCase()} Shift).
+                  <strong>Notice:</strong> Token <strong>{confirmedAppointment.appointment.token_number}</strong> (#{confirmedAppointment.queuePosition} in queue). Date: <strong>{confirmedAppointment.appointment.booking_date}</strong> ({confirmedAppointment.appointment.shift.toUpperCase()} Shift).
                 </p>
                 <p className="text-emerald-800 dark:text-emerald-300 font-medium">
                   Please visit the clinic on time. For assistance, contact 9933506514.
