@@ -121,22 +121,39 @@ export async function fetchInvoicesFromSupabase(): Promise<Invoice[]> {
     throw new Error(`Supabase invoices query failed: ${error.message}`);
   }
 
-  const list: Invoice[] = (data || []).map((row: any) => ({
-    id: row.id,
-    invoice_number: row.invoice_number,
-    patient_id: row.patient_uid || row.patient_id || 'PAT-1001',
-    patient_name: row.patient_name,
-    phone: row.phone || '',
-    consultation_fee: Number(row.consultation_fee) || 200,
-    subtotal: Number(row.total_amount) + Number(row.discount || 0),
-    discount: Number(row.discount) || 0,
-    tax: 0,
-    total_amount: Number(row.total_amount),
-    payment_mode: (row.payment_mode || 'cash').toLowerCase() as any,
-    payment_status: 'paid',
-    items: Array.isArray(row.items) ? row.items : [],
-    created_at: row.created_at,
-  }));
+  const list: Invoice[] = (data || []).map((row: any) => {
+    const consFee = row.consultation_fee !== undefined && row.consultation_fee !== null ? Number(row.consultation_fee) : 200;
+    const totAmount = Number(row.total_amount) || 0;
+    const medTotal = row.medicine_total !== undefined && row.medicine_total !== null
+      ? Number(row.medicine_total)
+      : Math.max(0, totAmount - consFee);
+    
+    const createdDate = new Date(row.created_at || Date.now());
+    const hour = createdDate.getHours();
+    const shift: ShiftType = row.shift === 'evening' || row.shift === 'morning' 
+      ? row.shift 
+      : (hour < 14 ? 'morning' : 'evening');
+
+    return {
+      id: row.id,
+      invoice_number: row.invoice_number,
+      appointment_id: row.appointment_id,
+      patient_id: row.patient_uid || row.patient_id || 'PAT-1001',
+      patient_name: row.patient_name,
+      phone: row.phone || '',
+      consultation_fee: consFee,
+      medicine_total: medTotal,
+      shift,
+      subtotal: Number(row.subtotal) || (totAmount + Number(row.discount || 0)),
+      discount: Number(row.discount) || 0,
+      tax: Number(row.tax) || 0,
+      total_amount: totAmount,
+      payment_mode: (row.payment_mode || 'cash').toLowerCase() as any,
+      payment_status: (row.payment_status || 'paid') as any,
+      items: Array.isArray(row.items) ? row.items : [],
+      created_at: row.created_at || new Date().toISOString(),
+    };
+  });
 
   inMemoryInvoices = list;
   notifySubscribers('invoices', inMemoryInvoices);
@@ -222,8 +239,18 @@ export function initSupabaseSync(): () => void {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'invoices' },
+        (payload) => {
+          console.log('[Realtime] Supabase invoices change event:', payload.eventType);
+          fetchInvoicesFromSupabase().catch((err) => {
+            console.warn('[Realtime] Auto-refetch invoices note:', err.message);
+          });
+        }
+      )
       .subscribe((status) => {
-        console.log('[Realtime] Appointments channel status:', status);
+        console.log('[Realtime] Channel status:', status);
       });
   } catch (err) {
     console.warn('[Realtime] Failed to initialize Supabase channel:', err);
@@ -236,6 +263,15 @@ export function initSupabaseSync(): () => void {
       supabase.removeChannel(realtimeChannel);
     }
   };
+}
+
+export async function refreshInvoices(): Promise<Invoice[]> {
+  try {
+    return await fetchInvoicesFromSupabase();
+  } catch (e) {
+    console.warn('refreshInvoices error, returning memory cache:', e);
+    return inMemoryInvoices;
+  }
 }
 
 // ==========================================
@@ -589,12 +625,19 @@ export async function createInvoice(invoiceData: Omit<Invoice, 'id' | 'invoice_n
       }))
     : [];
 
+  const invoiceShift: ShiftType = invoiceData.shift || (new Date().getHours() < 14 ? 'morning' : 'evening');
+  const medicineTotal = invoiceData.medicine_total !== undefined 
+    ? Number(invoiceData.medicine_total) 
+    : (invoiceData.items || []).reduce((sum: number, it: any) => sum + (Number(it.price || it.total_price) || 0), 0);
+
   const basePayload: Record<string, any> = {
     invoice_number,
     patient_name: invoiceData.patient_name.trim(),
     phone: invoiceData.phone?.trim() || null,
     patient_id: invoiceData.patient_id ? String(invoiceData.patient_id) : `PAT-${Math.floor(1000 + Math.random() * 9000)}`,
     consultation_fee: Number(invoiceData.consultation_fee) || 0,
+    medicine_total: medicineTotal,
+    shift: invoiceShift,
     subtotal: Number(invoiceData.subtotal) || Number(invoiceData.total_amount),
     discount: Number(invoiceData.discount) || 0,
     tax: Number(invoiceData.tax) || 0,
@@ -606,7 +649,7 @@ export async function createInvoice(invoiceData: Omit<Invoice, 'id' | 'invoice_n
   let inserted: any = null;
 
   if (supabase) {
-    // Attempt 1: Full payload with appointment_id and serialized items
+    // Attempt 1: Full payload with appointment_id, shift, medicine_total and serialized items
     const fullPayload: Record<string, any> = {
       ...basePayload,
       items: serializedItems,
@@ -617,14 +660,26 @@ export async function createInvoice(invoiceData: Omit<Invoice, 'id' | 'invoice_n
 
     let res = await supabase.from('invoices').insert([fullPayload]).select();
 
-    // If schema error because 'items' column does not exist on invoices table
-    if (res.error && (res.error.message?.includes('items') || res.error.code === 'PGRST204')) {
-      console.warn('Retrying invoice save without items column in invoices table:', res.error.message);
-      const withoutItemsPayload = { ...basePayload };
+    // Fallback if schema does not have 'shift' or 'medicine_total' or 'items' column yet
+    if (res.error && (res.error.message?.includes('shift') || res.error.message?.includes('medicine_total') || res.error.message?.includes('items') || res.error.code === 'PGRST204')) {
+      console.warn('Retrying invoice save with sanitized payload columns:', res.error.message);
+      const safePayload: Record<string, any> = {
+        invoice_number,
+        patient_name: invoiceData.patient_name.trim(),
+        phone: invoiceData.phone?.trim() || null,
+        patient_id: invoiceData.patient_id ? String(invoiceData.patient_id) : `PAT-${Math.floor(1000 + Math.random() * 9000)}`,
+        consultation_fee: Number(invoiceData.consultation_fee) || 0,
+        subtotal: Number(invoiceData.subtotal) || Number(invoiceData.total_amount),
+        discount: Number(invoiceData.discount) || 0,
+        tax: Number(invoiceData.tax) || 0,
+        total_amount: Number(invoiceData.total_amount),
+        payment_mode: (invoiceData.payment_mode || 'cash').toLowerCase(),
+        payment_status: 'paid',
+      };
       if (safeAppointmentId) {
-        withoutItemsPayload.appointment_id = safeAppointmentId;
+        safePayload.appointment_id = safeAppointmentId;
       }
-      res = await supabase.from('invoices').insert([withoutItemsPayload]).select();
+      res = await supabase.from('invoices').insert([safePayload]).select();
     }
 
     // If schema error because appointment_id UUID syntax or foreign key

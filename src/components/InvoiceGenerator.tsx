@@ -118,12 +118,17 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
       // Safe appointment_id handling: convert UUID or Token to string, or omit if null/empty
       const safeAptId = initialAppointment?.id ? String(initialAppointment.id).trim() : undefined;
 
+      // Determine shift: Morning / Evening based on appointment or current hour (< 14:00 is Morning)
+      const invoiceShift = initialAppointment?.shift || (new Date().getHours() < 14 ? 'morning' : 'evening');
+
       const newInv = await createInvoice({
         appointment_id: safeAptId,
         patient_id: patientId,
         patient_name: patientName.trim(),
         phone: phone.trim(),
         consultation_fee: Number(consultationFee) || 0,
+        medicine_total: medicinesSubtotal,
+        shift: invoiceShift,
         subtotal,
         discount: Number(discount) || 0,
         tax: Number(tax) || 0,

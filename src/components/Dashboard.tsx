@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   FolderClock,
-  Camera
+  Camera,
+  TrendingUp
 } from 'lucide-react';
 import { Appointment, Invoice, UserProfile } from '../types';
 import { QueueManager } from './QueueManager';
@@ -25,6 +26,7 @@ import { ConsultationModal } from './ConsultationModal';
 import { TeamManagement } from './TeamManagement';
 import { PatientsHistory } from './PatientsHistory';
 import { ChamberSettings } from './ChamberSettings';
+import { SalesSummary } from './SalesSummary';
 
 interface DashboardProps {
   currentUser: UserProfile;
@@ -38,13 +40,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onReturnToHome,
 }) => {
   // Persist and restore active tab from URL hash or sessionStorage
-  const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'ai' | 'billing' | 'patients' | 'team' | 'settings'>(() => {
+  const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'ai' | 'billing' | 'sales' | 'patients' | 'team' | 'settings'>(() => {
     if (typeof window === 'undefined') return 'queue';
 
     // 1. Check URL hash first
     const hash = window.location.hash.toLowerCase().replace('#', '');
     if (hash === 'inventory') return 'inventory';
     if (hash === 'billing') return 'billing';
+    if (hash === 'sales' || hash === 'sales-summary' || hash === 'revenue') return 'sales';
     if (hash === 'patients' || hash === 'history' || hash === 'patients-history') return 'patients';
     if (hash === 'ai' || hash === 'ai-consultant') return 'ai';
     if (hash === 'team' && currentUser.role === 'admin') return 'team';
@@ -53,7 +56,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
     // 2. Check sessionStorage
     const saved = sessionStorage.getItem('hhc_active_tab') as any;
-    if (saved && ['queue', 'inventory', 'ai', 'billing', 'patients', 'team', 'settings'].includes(saved)) {
+    if (saved && ['queue', 'inventory', 'ai', 'billing', 'sales', 'patients', 'team', 'settings'].includes(saved)) {
       if ((saved === 'team' || saved === 'settings') && currentUser.role !== 'admin') {
         return 'queue';
       }
@@ -68,7 +71,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // Sync activeTab to sessionStorage and URL hash
   useEffect(() => {
     sessionStorage.setItem('hhc_active_tab', activeTab);
-    const hashVal = activeTab === 'ai' ? 'ai-consultant' : activeTab;
+    const hashVal = activeTab === 'ai' ? 'ai-consultant' : activeTab === 'sales' ? 'sales-summary' : activeTab;
     if (window.location.hash !== `#${hashVal}`) {
       window.history.replaceState(null, '', `#${hashVal}`);
     }
@@ -80,6 +83,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       const hash = window.location.hash.toLowerCase().replace('#', '');
       if (hash === 'inventory') setActiveTab('inventory');
       else if (hash === 'billing') setActiveTab('billing');
+      else if (hash === 'sales' || hash === 'sales-summary' || hash === 'revenue') setActiveTab('sales');
       else if (hash === 'patients' || hash === 'history' || hash === 'patients-history') setActiveTab('patients');
       else if (hash === 'ai' || hash === 'ai-consultant') setActiveTab('ai');
       else if (hash === 'team' && currentUser.role === 'admin') setActiveTab('team');
@@ -152,6 +156,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
       shortLabel: 'Billing',
       icon: Receipt,
       description: '2-column manual billing & thermal POS receipt'
+    },
+    {
+      id: 'sales' as const,
+      label: 'Sales Summary & Analytics',
+      shortLabel: 'Sales Summary',
+      icon: TrendingUp,
+      description: 'Revenue KPI metrics, shift collection & financial reports'
     },
     ...(currentUser.role === 'admin'
       ? [
@@ -429,6 +440,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <InvoiceGenerator
             initialAppointment={billingAppointment}
             onBackToDashboard={() => setActiveTab('queue')}
+          />
+        )}
+
+        {activeTab === 'sales' && (
+          <SalesSummary
+            currentUser={currentUser}
           />
         )}
 

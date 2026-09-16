@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS public.invoices (
   patient_name TEXT NOT NULL,
   phone TEXT NOT NULL,
   consultation_fee NUMERIC(10, 2) DEFAULT 200.00,
+  medicine_total NUMERIC(10, 2) DEFAULT 0.00,
+  shift TEXT DEFAULT 'morning' CHECK (shift IN ('morning', 'evening')),
   subtotal NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
   discount NUMERIC(10, 2) DEFAULT 0.00,
   tax NUMERIC(10, 2) DEFAULT 0.00,
