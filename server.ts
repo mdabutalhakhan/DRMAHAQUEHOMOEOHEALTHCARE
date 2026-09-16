@@ -13,8 +13,8 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Initialize Google GenAI client (lazy or guarded)
-const getGenAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
+const getGenAI = (customKey?: string) => {
+  const apiKey = customKey || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return null;
   }
@@ -41,13 +41,13 @@ app.get('/api/health', (req, res) => {
 // Gemini AI Clinical Consultant Endpoint
 app.post('/api/gemini/consult', async (req, res) => {
   try {
-    const { symptoms, modalities, system, patientAge, duration } = req.body;
+    const { symptoms, modalities, system, patientAge, duration, apiKey } = req.body;
 
     if (!symptoms && !modalities) {
       return res.status(400).json({ error: 'Symptoms or modalities are required.' });
     }
 
-    const ai = getGenAI();
+    const ai = getGenAI(apiKey);
     if (!ai) {
       // Fallback intelligent clinical homoeopathic responses if API key is not yet set in environment
       return res.json({

@@ -12,7 +12,8 @@ import {
   ChevronRight,
   HeartHandshake,
   Menu,
-  X
+  X,
+  FolderClock
 } from 'lucide-react';
 import { Appointment, Invoice, UserProfile } from '../types';
 import { QueueManager } from './QueueManager';
@@ -21,6 +22,7 @@ import { AIConsultant } from './AIConsultant';
 import { InvoiceGenerator } from './InvoiceGenerator';
 import { ConsultationModal } from './ConsultationModal';
 import { TeamManagement } from './TeamManagement';
+import { PatientsHistory } from './PatientsHistory';
 
 interface DashboardProps {
   currentUser: UserProfile;
@@ -34,20 +36,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onReturnToHome,
 }) => {
   // Persist and restore active tab from URL hash or sessionStorage
-  const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'ai' | 'billing' | 'team'>(() => {
+  const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'ai' | 'billing' | 'patients' | 'team'>(() => {
     if (typeof window === 'undefined') return 'queue';
 
     // 1. Check URL hash first
     const hash = window.location.hash.toLowerCase().replace('#', '');
     if (hash === 'inventory') return 'inventory';
     if (hash === 'billing') return 'billing';
+    if (hash === 'patients' || hash === 'history' || hash === 'patients-history') return 'patients';
     if (hash === 'ai' || hash === 'ai-consultant') return 'ai';
     if (hash === 'team' && currentUser.role === 'admin') return 'team';
     if (hash === 'queue') return 'queue';
 
     // 2. Check sessionStorage
     const saved = sessionStorage.getItem('hhc_active_tab') as any;
-    if (saved && ['queue', 'inventory', 'ai', 'billing', 'team'].includes(saved)) {
+    if (saved && ['queue', 'inventory', 'ai', 'billing', 'patients', 'team'].includes(saved)) {
       if (saved === 'team' && currentUser.role !== 'admin') {
         return 'queue';
       }
@@ -74,6 +77,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       const hash = window.location.hash.toLowerCase().replace('#', '');
       if (hash === 'inventory') setActiveTab('inventory');
       else if (hash === 'billing') setActiveTab('billing');
+      else if (hash === 'patients' || hash === 'history' || hash === 'patients-history') setActiveTab('patients');
       else if (hash === 'ai' || hash === 'ai-consultant') setActiveTab('ai');
       else if (hash === 'team' && currentUser.role === 'admin') setActiveTab('team');
       else if (hash === 'queue') setActiveTab('queue');
@@ -116,6 +120,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
       shortLabel: 'Queue',
       icon: Users,
       description: 'Live patient queue, tokens & consultations'
+    },
+    {
+      id: 'patients' as const,
+      label: 'Patients & History',
+      shortLabel: 'Patients',
+      icon: FolderClock,
+      description: 'Patient directory, visits, dispensed remedies & invoice records'
     },
     {
       id: 'inventory' as const,
@@ -363,6 +374,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
           />
         )}
 
+        {activeTab === 'patients' && (
+          <PatientsHistory
+            currentUser={currentUser}
+            onStartWalkInVisit={() => setActiveTab('queue')}
+            onOpenBillingForPatient={(patient) => {
+              setBillingAppointment({
+                id: `walkin-${Date.now()}`,
+                patient_name: patient.name,
+                patient_phone: patient.phone,
+                patient_id: patient.id,
+                token_number: `TK-${Date.now().toString().slice(-4)}`,
+                appointment_date: new Date().toISOString().split('T')[0],
+                slot: 'walkin',
+                status: 'in-consultation',
+                symptoms: '',
+                fee: 200,
+                is_paid: false,
+                created_at: new Date().toISOString(),
+              });
+              setActiveTab('billing');
+            }}
+          />
+        )}
+
         {activeTab === 'inventory' && (
           <InventoryManager currentUser={currentUser} />
         )}
@@ -372,6 +407,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             initialSymptoms={aiInitialSymptoms}
             onAddRemedyToBilling={(remedy) => {
               setActiveTab('billing');
+            }}
+            onNavigateToInventory={() => {
+              setActiveTab('inventory');
             }}
           />
         )}
