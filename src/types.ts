@@ -164,3 +164,13 @@ export interface AIConsultResult {
 
 export type AIConsultationResponse = AIConsultResult;
 export type AIRemedyRecommendation = RemedySuggestion;
+
+export interface ClinicSettings {
+  id: string;
+  doctor_image_url?: string;
+  doctor_name?: string;
+  clinic_name?: string;
+  phone?: string;
+  address?: string;
+  updated_at?: string;
+}

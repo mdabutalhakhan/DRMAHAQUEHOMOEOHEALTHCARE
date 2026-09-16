@@ -18,7 +18,8 @@ import {
   Loader2, 
   ShieldCheck, 
   X,
-  AlertTriangle
+  AlertTriangle,
+  Camera
 } from 'lucide-react';
 import { UserProfile, UserRole } from '../types';
 import { 
@@ -204,6 +205,17 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ currentUser }) =
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Sync Live</span>
+          </button>
+
+          <button
+            onClick={() => {
+              window.location.hash = '#settings';
+            }}
+            className="px-3.5 py-2 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-950/50 hover:bg-emerald-100 text-[#1B4332] dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            title="Update Doctor Photo and Chamber Settings"
+          >
+            <Camera className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden sm:inline">Doctor Photo</span>
           </button>
 
           <button

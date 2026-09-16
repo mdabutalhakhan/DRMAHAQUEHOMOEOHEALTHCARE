@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -21,7 +21,7 @@ import {
   X
 } from 'lucide-react';
 import { Appointment, ShiftType } from '../types';
-import { createAppointment, getAppointments } from '../services/clinicStore';
+import { createAppointment, getAppointments, fetchClinicSettings, subscribeToStore } from '../services/clinicStore';
 import { BookingModal } from './BookingModal';
 
 interface PublicHomeProps {
@@ -34,7 +34,33 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
   const [age, setAge] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [doctorImageUrl, setDoctorImageUrl] = useState('');
+  const [doctorImageUrl, setDoctorImageUrl] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('hhc_doctor_image_url') || '/doctor.jpg';
+    }
+    return '/doctor.jpg';
+  });
+  
+  // Real-time Supabase clinic_settings fetch & dynamic sync
+  useEffect(() => {
+    let isMounted = true;
+    fetchClinicSettings().then((settings) => {
+      if (isMounted && settings.doctor_image_url) {
+        setDoctorImageUrl(settings.doctor_image_url);
+      }
+    });
+
+    const unsubscribe = subscribeToStore((event) => {
+      if (event.type === 'clinic_settings' && event.data) {
+        setDoctorImageUrl(event.data.doctor_image_url || '/doctor.jpg');
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
   
   // Popup Booking Modal state
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -216,6 +242,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
                         src={doctorImageUrl}
                         alt="Dr. M. A. Haque"
                         className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
                         onError={() => setDoctorImageUrl('')}
                       />
                     ) : (
@@ -242,7 +269,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked }) =
                   </div>
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                    <span>Pure Hahnemannian Homoeopathy with high-grade European & Indian pharmacopoeia remedies.</span>
+                    <span>Pure Hahnemannian Homeopathy with high-grade German, European & Indian pharmacopoeia remedies.</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />

@@ -212,10 +212,38 @@ CREATE POLICY "Admins can manage team profiles" ON public.profiles
   );
 
 -- ====================================================================
--- SUPABASE STORAGE BUCKET FOR PRESCRIPTION SCANS
+-- 9. Clinic Settings & Doctor Branding Table
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS public.clinic_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  doctor_image_url TEXT,
+  doctor_name TEXT DEFAULT 'Dr. M. A. Haque, M.D. (Homoeo)',
+  clinic_name TEXT DEFAULT 'Homoeo Health Care',
+  phone TEXT DEFAULT '9933506514',
+  address TEXT DEFAULT 'Salbagan Road, Benachity, Durgapur-713213',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed initial default clinic settings
+INSERT INTO public.clinic_settings (id, doctor_image_url, doctor_name, clinic_name, phone, address)
+VALUES (
+  'default',
+  '/doctor.jpg',
+  'Dr. M. A. Haque, M.D. (Homoeo)',
+  'Homoeo Health Care',
+  '9933506514',
+  'Salbagan Road, Benachity, Durgapur-713213'
+) ON CONFLICT (id) DO NOTHING;
+
+-- ====================================================================
+-- SUPABASE STORAGE BUCKET FOR PRESCRIPTION SCANS & CLINIC ASSETS
 -- ====================================================================
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('prescriptions', 'prescriptions', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('clinic-assets', 'clinic-assets', true)
 ON CONFLICT (id) DO NOTHING;
 
 CREATE POLICY "Allow authenticated uploads to prescriptions" ON storage.objects
@@ -224,9 +252,25 @@ CREATE POLICY "Allow authenticated uploads to prescriptions" ON storage.objects
 CREATE POLICY "Allow public read access to prescriptions" ON storage.objects
   FOR SELECT USING (bucket_id = 'prescriptions');
 
+CREATE POLICY "Allow public read access to clinic-assets" ON storage.objects
+  FOR SELECT USING (bucket_id = 'clinic-assets');
+
+CREATE POLICY "Allow uploads to clinic-assets" ON storage.objects
+  FOR ALL USING (bucket_id = 'clinic-assets') WITH CHECK (bucket_id = 'clinic-assets');
+
+-- Enable RLS and policies for clinic_settings
+ALTER TABLE public.clinic_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can view clinic settings" ON public.clinic_settings
+  FOR SELECT USING (true);
+
+CREATE POLICY "Public or authenticated can update clinic settings" ON public.clinic_settings
+  FOR ALL USING (true) WITH CHECK (true);
+
 -- ====================================================================
 -- REALTIME REPLICATION ENABLEMENT
 -- ====================================================================
 ALTER PUBLICATION supabase_realtime ADD TABLE public.appointments;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.inventory;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.invoices;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.clinic_settings;

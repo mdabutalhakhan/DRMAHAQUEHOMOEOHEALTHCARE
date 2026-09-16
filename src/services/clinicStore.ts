@@ -947,10 +947,10 @@ export function getProfiles(): UserProfile[] {
   }
   try {
     const list: UserProfile[] = JSON.parse(stored);
-    // Ensure Md Abu Talha Khan name is updated from any legacy Taher name
+    // Ensure Md Abutalha Khan name is updated from any legacy name
     const updated = list.map((p) => {
-      if (p.full_name === 'Md Abu Taher Khan') {
-        return { ...p, full_name: 'Md Abu Talha Khan', email: p.email.replace('homeo', 'homoeo') };
+      if (p.full_name === 'Md Abu Taher Khan' || p.full_name === 'Md Abu Talha Khan') {
+        return { ...p, full_name: 'Md Abutalha Khan', email: p.email.replace('homeo', 'homoeo') };
       }
       return p;
     });
@@ -990,8 +990,8 @@ export function getCurrentUser(): UserProfile | null {
 
   try {
     const user: UserProfile = JSON.parse(stored);
-    if (user.full_name === 'Md Abu Taher Khan') {
-      user.full_name = 'Md Abu Talha Khan';
+    if (user.full_name === 'Md Abu Taher Khan' || user.full_name === 'Md Abu Talha Khan') {
+      user.full_name = 'Md Abutalha Khan';
       localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
     }
     return user;
@@ -1136,3 +1136,137 @@ export function createTeamMember(profile: Omit<UserProfile, 'id'>) {
 export const addProfile = (profile: UserProfile) => {
   return createTeamMember(profile);
 };
+
+// ==========================================
+// CLINIC SETTINGS & DOCTOR BRANDING PHOTO (SUPABASE clinic_settings & STORAGE)
+// ==========================================
+
+export const CLINIC_SETTINGS_KEY = 'hhc_clinic_settings_v1';
+export const DOCTOR_IMAGE_URL_KEY = 'hhc_doctor_image_url';
+
+export async function fetchClinicSettings(): Promise<{ doctor_image_url: string }> {
+  const localUrl = typeof window !== 'undefined' ? localStorage.getItem(DOCTOR_IMAGE_URL_KEY) || '' : '';
+  const supabase = getSupabase();
+  try {
+    const { data, error } = await supabase
+      .from('clinic_settings')
+      .select('doctor_image_url')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    if (!error && data?.doctor_image_url) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(DOCTOR_IMAGE_URL_KEY, data.doctor_image_url);
+      }
+      return { doctor_image_url: data.doctor_image_url };
+    }
+  } catch (e) {
+    console.warn('fetchClinicSettings error, using local fallback:', e);
+  }
+  return { doctor_image_url: localUrl };
+}
+
+export async function uploadDoctorPhotoToSupabase(file: File): Promise<string> {
+  const supabase = getSupabase();
+  const cleanExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const fileName = `doctor_profile_${Date.now()}.${cleanExt}`;
+  let uploadedUrl = '';
+
+  try {
+    // 1. Try uploading to Supabase Storage bucket 'clinic-assets'
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('clinic-assets')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (!uploadError && uploadData) {
+      const { data: publicData } = supabase.storage
+        .from('clinic-assets')
+        .getPublicUrl(fileName);
+      if (publicData?.publicUrl) {
+        uploadedUrl = publicData.publicUrl;
+      }
+    } else if (uploadError) {
+      console.warn('Storage upload note:', uploadError.message);
+      try {
+        await supabase.storage.createBucket('clinic-assets', { public: true });
+        const retry = await supabase.storage.from('clinic-assets').upload(fileName, file, { upsert: true });
+        if (!retry.error) {
+          uploadedUrl = supabase.storage.from('clinic-assets').getPublicUrl(fileName).data.publicUrl;
+        }
+      } catch {
+        // continue
+      }
+    }
+  } catch (err) {
+    console.warn('Storage upload exception:', err);
+  }
+
+  // Fallback to Data URL if storage bucket fails/not permitted so user is never blocked
+  if (!uploadedUrl) {
+    uploadedUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // 2. Upsert into Supabase 'clinic_settings' table
+  try {
+    const payload = {
+      id: 'default',
+      doctor_image_url: uploadedUrl,
+      doctor_name: 'Dr. M. A. Haque, M.D. (Homoeo)',
+      updated_at: new Date().toISOString(),
+    };
+    const { error: dbError } = await supabase
+      .from('clinic_settings')
+      .upsert(payload, { onConflict: 'id' });
+
+    if (dbError) {
+      console.warn('clinic_settings db note:', dbError.message);
+    }
+  } catch (dbErr) {
+    console.warn('DB upsert error:', dbErr);
+  }
+
+  // 3. Update doctor's avatar_url in clinic_team table if available
+  try {
+    await supabase
+      .from('clinic_team')
+      .update({ avatar_url: uploadedUrl })
+      .eq('role', 'doctor');
+  } catch {
+    // optional
+  }
+
+  // 4. Save to localStorage for instant local access
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(DOCTOR_IMAGE_URL_KEY, uploadedUrl);
+  }
+
+  // 5. Broadcast real-time change across tabs & components
+  notifySubscribers('clinic_settings', { doctor_image_url: uploadedUrl });
+
+  return uploadedUrl;
+}
+
+export async function resetDoctorPhoto(): Promise<void> {
+  const supabase = getSupabase();
+  try {
+    await supabase
+      .from('clinic_settings')
+      .upsert({ id: 'default', doctor_image_url: '', updated_at: new Date().toISOString() }, { onConflict: 'id' });
+  } catch (err) {
+    console.warn('resetDoctorPhoto error:', err);
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(DOCTOR_IMAGE_URL_KEY);
+  }
+  notifySubscribers('clinic_settings', { doctor_image_url: '' });
+}
+

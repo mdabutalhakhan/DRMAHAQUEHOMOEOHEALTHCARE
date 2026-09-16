@@ -13,7 +13,8 @@ import {
   HeartHandshake,
   Menu,
   X,
-  FolderClock
+  FolderClock,
+  Camera
 } from 'lucide-react';
 import { Appointment, Invoice, UserProfile } from '../types';
 import { QueueManager } from './QueueManager';
@@ -23,6 +24,7 @@ import { InvoiceGenerator } from './InvoiceGenerator';
 import { ConsultationModal } from './ConsultationModal';
 import { TeamManagement } from './TeamManagement';
 import { PatientsHistory } from './PatientsHistory';
+import { ChamberSettings } from './ChamberSettings';
 
 interface DashboardProps {
   currentUser: UserProfile;
@@ -36,7 +38,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onReturnToHome,
 }) => {
   // Persist and restore active tab from URL hash or sessionStorage
-  const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'ai' | 'billing' | 'patients' | 'team'>(() => {
+  const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'ai' | 'billing' | 'patients' | 'team' | 'settings'>(() => {
     if (typeof window === 'undefined') return 'queue';
 
     // 1. Check URL hash first
@@ -46,12 +48,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
     if (hash === 'patients' || hash === 'history' || hash === 'patients-history') return 'patients';
     if (hash === 'ai' || hash === 'ai-consultant') return 'ai';
     if (hash === 'team' && currentUser.role === 'admin') return 'team';
+    if ((hash === 'settings' || hash === 'chamber-settings' || hash === 'doctor-profile') && currentUser.role === 'admin') return 'settings';
     if (hash === 'queue') return 'queue';
 
     // 2. Check sessionStorage
     const saved = sessionStorage.getItem('hhc_active_tab') as any;
-    if (saved && ['queue', 'inventory', 'ai', 'billing', 'patients', 'team'].includes(saved)) {
-      if (saved === 'team' && currentUser.role !== 'admin') {
+    if (saved && ['queue', 'inventory', 'ai', 'billing', 'patients', 'team', 'settings'].includes(saved)) {
+      if ((saved === 'team' || saved === 'settings') && currentUser.role !== 'admin') {
         return 'queue';
       }
       return saved;
@@ -80,6 +83,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       else if (hash === 'patients' || hash === 'history' || hash === 'patients-history') setActiveTab('patients');
       else if (hash === 'ai' || hash === 'ai-consultant') setActiveTab('ai');
       else if (hash === 'team' && currentUser.role === 'admin') setActiveTab('team');
+      else if ((hash === 'settings' || hash === 'chamber-settings' || hash === 'doctor-profile') && currentUser.role === 'admin') setActiveTab('settings');
       else if (hash === 'queue') setActiveTab('queue');
     };
 
@@ -157,6 +161,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
             shortLabel: 'Team',
             icon: ShieldAlert,
             description: 'Staff roles, doctor accounts & access control'
+          },
+          {
+            id: 'settings' as const,
+            label: 'Doctor Profile & Settings',
+            shortLabel: 'Settings',
+            icon: Camera,
+            description: 'Doctor photo upload, chamber branding & storage assets'
           }
         ]
       : [])
@@ -423,6 +434,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {activeTab === 'team' && (
           <TeamManagement currentUser={currentUser} />
+        )}
+
+        {activeTab === 'settings' && currentUser.role === 'admin' && (
+          <ChamberSettings currentUser={currentUser} />
         )}
       </div>
 

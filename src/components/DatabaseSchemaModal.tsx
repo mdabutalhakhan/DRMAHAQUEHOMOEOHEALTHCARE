@@ -170,9 +170,13 @@ CREATE POLICY "Clinic Staff full access to inventory"
 CREATE POLICY "Clinic Staff full access to stock logs"
     ON public.stock_logs FOR ALL TO authenticated USING (true);
 
--- 13. STORAGE BUCKET FOR PRESCRIPTION IMAGES
+-- 13. STORAGE BUCKET FOR PRESCRIPTION IMAGES & CLINIC ASSETS
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('prescriptions', 'prescriptions', true)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('clinic-assets', 'clinic-assets', true)
 ON CONFLICT (id) DO NOTHING;
 
 CREATE POLICY "Public Access to Prescription Images"
@@ -182,9 +186,35 @@ CREATE POLICY "Authenticated users can upload prescriptions"
     ON storage.objects FOR INSERT TO authenticated
     WITH CHECK (bucket_id = 'prescriptions');
 
--- 14. REALTIME REPLICATION FOR CROSS-DEVICE LIVE QUEUE SYNC
+CREATE POLICY "Public read access to clinic-assets"
+    ON storage.objects FOR SELECT USING (bucket_id = 'clinic-assets');
+
+CREATE POLICY "Allow uploads to clinic-assets"
+    ON storage.objects FOR ALL USING (bucket_id = 'clinic-assets') WITH CHECK (bucket_id = 'clinic-assets');
+
+-- 14. CLINIC SETTINGS TABLE (Doctor Photo & Branding)
+CREATE TABLE IF NOT EXISTS public.clinic_settings (
+    id TEXT PRIMARY KEY DEFAULT 'default',
+    doctor_image_url TEXT,
+    doctor_name TEXT DEFAULT 'Dr. M. A. Haque, M.D. (Homoeo)',
+    clinic_name TEXT DEFAULT 'Homoeo Health Care',
+    phone TEXT DEFAULT '9933506514',
+    address TEXT DEFAULT 'Salbagan Road, Benachity, Durgapur-713213',
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+ALTER TABLE public.clinic_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can view clinic settings"
+    ON public.clinic_settings FOR SELECT USING (true);
+
+CREATE POLICY "Public or authenticated can update clinic settings"
+    ON public.clinic_settings FOR ALL USING (true) WITH CHECK (true);
+
+-- 15. REALTIME REPLICATION FOR CROSS-DEVICE LIVE SYNC
 -- Run this in Supabase SQL Editor to enable instant multi-screen appointment synchronization:
 ALTER PUBLICATION supabase_realtime ADD TABLE public.appointments;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.clinic_settings;
 ALTER TABLE public.appointments REPLICA IDENTITY FULL;
 `;
 

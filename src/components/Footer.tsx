@@ -143,7 +143,7 @@ export const Footer: React.FC<FooterProps> = ({
           </p>
           <div className="flex items-center gap-2 font-medium text-emerald-100 bg-emerald-900/80 px-3.5 py-1.5 rounded-full border border-emerald-700/60 shadow-inner">
             <span>Created by</span>
-            <strong className="text-white font-semibold">Md Abu Talha Khan</strong>
+            <strong className="text-white font-semibold">Md Abutalha Khan</strong>
           </div>
         </div>
       </div>

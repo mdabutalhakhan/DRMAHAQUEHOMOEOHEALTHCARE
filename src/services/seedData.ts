@@ -4,14 +4,14 @@ export const INITIAL_PROFILES: UserProfile[] = [
   {
     id: 'user-admin-default',
     email: 'admin@homoeo.com',
-    full_name: 'Md Abu Talha Khan',
+    full_name: 'Md Abutalha Khan',
     role: 'admin',
     phone: '9933506514',
   },
   {
     id: 'user-admin-1',
     email: 'admin@homoeohealthcare.com',
-    full_name: 'Md Abu Talha Khan',
+    full_name: 'Md Abutalha Khan',
     role: 'admin',
     phone: '9933506514',
   },
