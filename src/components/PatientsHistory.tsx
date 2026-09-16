@@ -12,6 +12,7 @@ import {
   FolderClock,
   UserCheck,
   ChevronRight,
+  ChevronDown,
   ExternalLink,
   ShieldCheck,
   Stethoscope,
@@ -62,6 +63,7 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [mobileExpandedPatientId, setMobileExpandedPatientId] = useState<string | null>(null);
 
   // Print modal state
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
@@ -138,10 +140,25 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
       const invDate = inv.created_at || new Date().toISOString();
       const patientId = inv.patient_id || `HHC-${(inv.phone || '9448').slice(-4)}`;
 
-      if (existing) {
-        existing.invoices.push(inv);
-        existing.totalSpent += Number(inv.total_amount) || 0;
+      if (!existing) {
+        map.set(key, {
+          id: patientId,
+          name: inv.patient_name || 'Anonymous Patient',
+          phone: inv.phone || '',
+          address: inv.address,
+          age: inv.age,
+          totalVisits: 1,
+          totalSpent: inv.total_amount || 0,
+          lastVisitDate: invDate,
+          firstVisitDate: invDate,
+          invoices: [inv],
+          appointments: [],
+        });
+      } else {
         existing.totalVisits += 1;
+        existing.totalSpent += inv.total_amount || 0;
+        existing.invoices.push(inv);
+
         if (new Date(invDate) > new Date(existing.lastVisitDate)) {
           existing.lastVisitDate = invDate;
         }
@@ -149,18 +166,8 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
           existing.firstVisitDate = invDate;
         }
         if (!existing.phone && inv.phone) existing.phone = inv.phone;
-      } else {
-        map.set(key, {
-          id: patientId,
-          name: inv.patient_name || 'Patient',
-          phone: inv.phone || '',
-          totalVisits: 1,
-          totalSpent: Number(inv.total_amount) || 0,
-          firstVisitDate: invDate,
-          lastVisitDate: invDate,
-          invoices: [inv],
-          appointments: [],
-        });
+        if (!existing.address && inv.address) existing.address = inv.address;
+        if (!existing.age && inv.age) existing.age = inv.age;
       }
     }
 
@@ -168,62 +175,65 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
     for (const apt of appointments) {
       const key = getPatientKey(apt.patient_name, apt.phone, apt.patient_id);
       const existing = map.get(key);
-      const aptDate = apt.booking_date || apt.created_at || new Date().toISOString();
+
+      const aptDate = apt.created_at || new Date().toISOString();
       const patientId = apt.patient_id || `HHC-${(apt.phone || '9448').slice(-4)}`;
 
-      if (existing) {
-        existing.appointments.push(apt);
-        if (apt.address && !existing.address) existing.address = apt.address;
-        if (apt.age && !existing.age) existing.age = apt.age;
-        if (new Date(aptDate) > new Date(existing.lastVisitDate)) {
-          existing.lastVisitDate = aptDate;
-        }
-      } else {
+      if (!existing) {
         map.set(key, {
           id: patientId,
-          name: apt.patient_name || 'Patient',
+          name: apt.patient_name || 'Anonymous Patient',
           phone: apt.phone || '',
           address: apt.address,
           age: apt.age,
           totalVisits: 1,
           totalSpent: 0,
-          firstVisitDate: aptDate,
           lastVisitDate: aptDate,
+          firstVisitDate: aptDate,
           invoices: [],
           appointments: [apt],
         });
+      } else {
+        existing.appointments.push(apt);
+        if (new Date(aptDate) > new Date(existing.lastVisitDate)) {
+          existing.lastVisitDate = aptDate;
+        }
+        if (new Date(aptDate) < new Date(existing.firstVisitDate)) {
+          existing.firstVisitDate = aptDate;
+        }
+        if (!existing.phone && apt.phone) existing.phone = apt.phone;
+        if (!existing.address && apt.address) existing.address = apt.address;
+        if (!existing.age && apt.age) existing.age = apt.age;
       }
     }
 
-    // Sort patients by most recent visit date descending
-    const list = Array.from(map.values());
-    list.sort((a, b) => new Date(b.lastVisitDate).getTime() - new Date(a.lastVisitDate).getTime());
-
-    return list;
+    // Sort patients by most recent activity descending
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.lastVisitDate).getTime() - new Date(a.lastVisitDate).getTime()
+    );
   }, [invoices, appointments]);
 
-  // Filter patients by search query
+  // Filter patients by real-time query
   const filteredPatients = useMemo(() => {
     if (!searchQuery.trim()) return patients;
     const q = searchQuery.toLowerCase().trim();
-    return patients.filter((p) => {
-      const matchName = p.name.toLowerCase().includes(q);
-      const matchPhone = p.phone.includes(q);
-      const matchId = p.id.toLowerCase().includes(q);
-      return matchName || matchPhone || matchId;
-    });
+    return patients.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.phone.includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        (p.address && p.address.toLowerCase().includes(q))
+    );
   }, [patients, searchQuery]);
 
-  // Auto-select first patient if none selected
-  useEffect(() => {
-    if (!selectedPatientId && filteredPatients.length > 0) {
-      setSelectedPatientId(filteredPatients[0].id);
-    }
-  }, [filteredPatients, selectedPatientId]);
-
+  // Active patient selection for Desktop
   const activePatient = useMemo(() => {
-    return patients.find((p) => p.id === selectedPatientId) || filteredPatients[0] || null;
-  }, [patients, selectedPatientId, filteredPatients]);
+    if (selectedPatientId) {
+      const found = patients.find((p) => p.id === selectedPatientId);
+      if (found) return found;
+    }
+    return filteredPatients[0] || null;
+  }, [selectedPatientId, patients, filteredPatients]);
 
   const handleCopyPatientId = (id: string) => {
     navigator.clipboard.writeText(id);
@@ -231,40 +241,284 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
     setTimeout(() => setCopiedId(false), 2000);
   };
 
+  const handlePatientSelect = (patientId: string) => {
+    setSelectedPatientId(patientId);
+    setMobileExpandedPatientId(prev => (prev === patientId ? null : patientId));
+  };
+
   const triggerPrint = () => {
     window.print();
+  };
+
+  // Reusable Patient Timeline / Visit History component
+  const renderPatientChart = (patient: PatientGroup, isMobile = false) => {
+    return (
+      <div className="space-y-4">
+        {/* Patient Header Card */}
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white">
+                  {patient.name}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => handleCopyPatientId(patient.id)}
+                  className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 transition flex items-center gap-1 cursor-pointer"
+                  title="Click to copy Patient ID"
+                >
+                  <span>{patient.id}</span>
+                  {copiedId ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-emerald-600" />}
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-500 dark:text-slate-400">
+                {patient.phone && (
+                  <span className="flex items-center gap-1 font-mono font-medium text-slate-700 dark:text-slate-300">
+                    <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                    {patient.phone}
+                  </span>
+                )}
+                {patient.age && <span>Age: {patient.age} yrs</span>}
+                {patient.address && <span>• {patient.address}</span>}
+              </div>
+            </div>
+
+            {/* Actions for this patient */}
+            {onOpenBillingForPatient && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpenBillingForPatient({
+                      id: patient.id,
+                      name: patient.name,
+                      phone: patient.phone,
+                    })
+                  }
+                  className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                >
+                  <Receipt className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>+ Dispense / Bill</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Patient Summary Stat Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 dark:border-slate-700 text-xs">
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900">
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Visits</span>
+              <span className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
+                {patient.totalVisits} Recorded
+              </span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900">
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Billing</span>
+              <span className="font-extrabold text-emerald-700 dark:text-emerald-400 text-sm font-mono">
+                ₹{patient.totalSpent}
+              </span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900">
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">First Consultation</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] truncate block">
+                {new Date(patient.firstVisitDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900">
+              <span className="text-[10px] text-slate-400 uppercase font-bold block">Most Recent</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] truncate block">
+                {new Date(patient.lastVisitDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Chronological Visit History Cards */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="font-extrabold text-xs sm:text-sm uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Chronological Visit Timeline ({patient.invoices.length} Invoices)</span>
+            </h4>
+            <span className="text-[11px] text-slate-400">Dr. M. A. Haque Chamber</span>
+          </div>
+
+          {patient.invoices.length === 0 ? (
+            <div className="p-6 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center space-y-2.5">
+              <FileText className="w-7 h-7 mx-auto text-slate-400 opacity-50" />
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                No invoices recorded yet for {patient.name}.
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Generate an invoice in the Billing module to populate this visit timeline.
+              </p>
+              {onOpenBillingForPatient && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpenBillingForPatient({
+                      id: patient.id,
+                      name: patient.name,
+                      phone: patient.phone,
+                    })
+                  }
+                  className="px-4 py-2 rounded-xl bg-[#1B4332] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Generate First Invoice</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            patient.invoices.map((inv) => {
+              const visitDate = inv.created_at ? new Date(inv.created_at) : new Date();
+              return (
+                <div
+                  key={inv.id}
+                  className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-xs space-y-3"
+                >
+                  {/* Visit Header: Date, Doctor, Invoice No & Print Button */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100 dark:border-slate-700">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-xs sm:text-sm text-slate-900 dark:text-white">
+                          {visitDate.toLocaleDateString('en-IN', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          {visitDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          {inv.payment_mode || 'Cash'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 mt-0.5 flex items-center gap-1">
+                        <Stethoscope className="w-3 h-3" />
+                        <span>Attending: Dr. M. A. Haque, M.D. (Homoeo)</span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                      <span className="text-xs font-mono text-slate-500 font-bold">
+                        {inv.invoice_number}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setViewingInvoice(inv)}
+                        className="px-3 py-1.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                        title="View & Print Thermal / A4 Voucher"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-emerald-300" />
+                        <span>View & Print</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Prescribed & Dispensed Medicines Table */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                      Dispensed Remedies & Line Items:
+                    </span>
+                    <div className="rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden text-xs">
+                      <div className="bg-slate-50 dark:bg-slate-900 p-2 flex justify-between font-bold text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700 text-[11px]">
+                        <span>Description</span>
+                        <span>Amount</span>
+                      </div>
+
+                      <div className="divide-y divide-slate-100 dark:divide-slate-700/60 bg-white dark:bg-slate-800">
+                        {/* Consultation fee */}
+                        <div className="p-2 flex justify-between items-center text-xs">
+                          <span className="font-medium text-slate-800 dark:text-slate-200">
+                            Dr. Consultation & Clinical Review Fee
+                          </span>
+                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                            ₹{inv.consultation_fee || 200}
+                          </span>
+                        </div>
+
+                        {/* Dispensed Items */}
+                        {inv.items && inv.items.length > 0 ? (
+                          inv.items.map((item, idx) => (
+                            <div key={idx} className="p-2 flex justify-between items-center text-xs">
+                              <div className="flex items-center gap-2 min-w-0 pr-2">
+                                <Pill className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span className="text-slate-700 dark:text-slate-300 font-medium truncate">
+                                  {item.item_description || item.medicine_name}
+                                </span>
+                              </div>
+                              <span className="font-mono font-bold text-slate-800 dark:text-slate-200 shrink-0">
+                                ₹{item.price || item.total_price}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-2 text-slate-400 italic text-[11px]">No dispensed medicines recorded.</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Totals Strip */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700 text-xs">
+                    <div className="text-slate-500 font-medium text-[11px]">
+                      Status: <strong className="text-emerald-700 dark:text-emerald-400 uppercase">Paid</strong>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      {inv.discount > 0 && (
+                        <span className="text-slate-400 text-[11px]">
+                          Discount: <strong className="text-slate-600 dark:text-slate-300">-₹{inv.discount}</strong>
+                        </span>
+                      )}
+                      <div className="text-xs sm:text-sm font-extrabold text-[#1B4332] dark:text-emerald-300 font-mono">
+                        Total: ₹{inv.total_amount}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="space-y-6">
       {/* Top Banner / Header */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-3 rounded-2xl bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white shadow-md shrink-0">
-            <FolderClock className="w-6 h-6 text-emerald-300" />
+          <div className="p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white shadow-xs shrink-0">
+            <FolderClock className="w-5 h-5 sm:w-6 h-6 text-emerald-300" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white">
                 Patients & Clinical Visit History
               </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
-                {patients.length} Active Profiles
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
+                {patients.length} Profiles
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Electronic Health Records • Chronological Invoices • Dispensed Homoeopathic Medicines
             </p>
           </div>
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             id="btn-new-walkin-visit"
             type="button"
             onClick={onStartWalkInVisit}
-            className="px-4 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center gap-2 shadow-sm transition cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer"
           >
             <PlusCircle className="w-4 h-4 text-emerald-300" />
             <span>+ New Walk-in Visit</span>
@@ -275,9 +529,9 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
       {/* 2-COLUMN SPLIT VIEW LAYOUT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* ========================================================================= */}
-        {/* LEFT COLUMN: Patient Directory & Search */}
+        {/* LEFT COLUMN: Patient Directory & Search (With Mobile Inline Accordion)    */}
         {/* ========================================================================= */}
-        <div className="lg:col-span-4 bg-white dark:bg-slate-800 rounded-3xl border border-emerald-950/10 dark:border-slate-700 p-4 sm:p-5 shadow-sm space-y-4">
+        <div className="lg:col-span-4 bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl border border-emerald-950/10 dark:border-slate-700 p-3.5 sm:p-5 shadow-xs space-y-3.5">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
               Patient Directory ({filteredPatients.length})
@@ -291,20 +545,20 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
 
           {/* Search Bar (Real-time Filter by Name, Mobile, Patient ID) */}
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               id="patient-search-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search Name, Mobile, or ID (e.g. 99335, HHC-9448)..."
-              className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
+              className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -312,7 +566,7 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
           </div>
 
           {/* Patient Cards List */}
-          <div className="space-y-2 max-h-[620px] overflow-y-auto pr-1">
+          <div className="space-y-2 lg:max-h-[620px] lg:overflow-y-auto pr-0.5">
             {filteredPatients.length === 0 ? (
               <div className="py-12 text-center text-slate-400 space-y-2">
                 <Users className="w-8 h-8 mx-auto opacity-40" />
@@ -322,55 +576,82 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
             ) : (
               filteredPatients.map((patient) => {
                 const isSelected = activePatient?.id === patient.id;
+                const isMobileExpanded = mobileExpandedPatientId === patient.id;
+
                 return (
-                  <button
+                  <div
                     key={patient.id}
-                    id={`patient-card-${patient.id}`}
-                    type="button"
-                    onClick={() => setSelectedPatientId(patient.id)}
-                    className={`w-full text-left p-3.5 rounded-2xl transition cursor-pointer flex items-center justify-between gap-3 border ${
+                    className={`rounded-2xl transition border overflow-hidden ${
                       isSelected
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500/50 dark:border-emerald-600 shadow-xs'
+                        ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-500/50 dark:border-emerald-600 shadow-xs'
                         : 'bg-white dark:bg-slate-900/60 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-slate-900 dark:text-white truncate block">
-                          {patient.name}
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
-                          {patient.id}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                        {patient.phone ? (
-                          <span className="flex items-center gap-1 font-mono">
-                            <Phone className="w-3 h-3 text-slate-400" />
-                            {patient.phone}
+                    {/* Patient Card Header Button */}
+                    <button
+                      id={`patient-card-${patient.id}`}
+                      type="button"
+                      onClick={() => handlePatientSelect(patient.id)}
+                      className="w-full text-left p-3 flex items-center justify-between gap-2.5 cursor-pointer"
+                    >
+                      <div className="min-w-0 space-y-1 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-slate-900 dark:text-white truncate block">
+                            {patient.name}
                           </span>
-                        ) : (
-                          <span className="text-slate-400 italic">No phone</span>
-                        )}
-                        <span>•</span>
-                        <span className="text-[11px]">
-                          {new Date(patient.lastVisitDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                        </span>
-                      </div>
-                    </div>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
+                            {patient.id}
+                          </span>
+                        </div>
 
-                    <div className="text-right shrink-0">
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#1B4332] text-white block">
-                        {patient.totalVisits} {patient.totalVisits === 1 ? 'Visit' : 'Visits'}
-                      </span>
-                      {patient.totalSpent > 0 && (
-                        <span className="text-[10px] text-emerald-800 dark:text-emerald-400 font-bold block mt-1 font-mono">
-                          ₹{patient.totalSpent}
-                        </span>
-                      )}
-                    </div>
-                  </button>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          {patient.phone ? (
+                            <span className="flex items-center gap-1 font-mono text-[11px]">
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              {patient.phone}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">No phone</span>
+                          )}
+                          <span>•</span>
+                          <span className="text-[11px]">
+                            {new Date(patient.lastVisitDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#1B4332] text-white block">
+                            {patient.totalVisits} {patient.totalVisits === 1 ? 'Visit' : 'Visits'}
+                          </span>
+                          {patient.totalSpent > 0 && (
+                            <span className="text-[10px] text-emerald-800 dark:text-emerald-400 font-bold block mt-0.5 font-mono">
+                              ₹{patient.totalSpent}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Mobile Accordion Indicator Arrow */}
+                        <div className="lg:hidden text-stone-400">
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform duration-200 ${
+                              isMobileExpanded ? 'rotate-180 text-emerald-600' : ''
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* ============================================================= */}
+                    {/* MOBILE INLINE ACCORDION: CLINICAL VISITS & INVOICES (lg:hidden) */}
+                    {/* ============================================================= */}
+                    {isMobileExpanded && (
+                      <div className="lg:hidden px-3 pb-3 pt-1 border-t border-emerald-950/10 dark:border-slate-800 bg-stone-50/60 dark:bg-slate-900/60 animate-fade-in">
+                        {renderPatientChart(patient, true)}
+                      </div>
+                    )}
+                  </div>
                 );
               })
             )}
@@ -378,243 +659,11 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
         </div>
 
         {/* ========================================================================= */}
-        {/* RIGHT COLUMN: Active Patient Chart & Chronological Visit History */}
+        {/* RIGHT COLUMN: Active Patient Chart & Chronological Timeline (DESKTOP)     */}
         {/* ========================================================================= */}
-        <div className="lg:col-span-8 space-y-5">
+        <div className="hidden lg:block lg:col-span-8 space-y-5">
           {activePatient ? (
-            <>
-              {/* Patient Header Card */}
-              <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-sm space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2.5">
-                      <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                        {activePatient.name}
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyPatientId(activePatient.id)}
-                        className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 transition flex items-center gap-1 cursor-pointer"
-                        title="Click to copy Patient ID"
-                      >
-                        <span>{activePatient.id}</span>
-                        {copiedId ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-emerald-600" />}
-                      </button>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                      {activePatient.phone && (
-                        <span className="flex items-center gap-1 font-mono font-medium text-slate-700 dark:text-slate-300">
-                          <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                          {activePatient.phone}
-                        </span>
-                      )}
-                      {activePatient.age && <span>Age: {activePatient.age} yrs</span>}
-                      {activePatient.address && <span>• {activePatient.address}</span>}
-                    </div>
-                  </div>
-
-                  {/* Actions for this patient */}
-                  <div className="flex items-center gap-2">
-                    {onOpenBillingForPatient && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onOpenBillingForPatient({
-                            id: activePatient.id,
-                            name: activePatient.name,
-                            phone: activePatient.phone,
-                          })
-                        }
-                        className="px-3.5 py-2 rounded-xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-emerald-900 dark:text-emerald-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                      >
-                        <Receipt className="w-3.5 h-3.5" />
-                        <span>+ Dispense / Bill</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Patient Summary Stat Strip */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 dark:border-slate-700 text-xs">
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Visits</span>
-                    <span className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
-                      {activePatient.totalVisits} Recorded
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Billing</span>
-                    <span className="font-extrabold text-emerald-700 dark:text-emerald-400 text-sm font-mono">
-                      ₹{activePatient.totalSpent}
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">First Consultation</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">
-                      {new Date(activePatient.firstVisitDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Most Recent</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">
-                      {new Date(activePatient.lastVisitDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Chronological Visit History Cards */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-sm uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-emerald-600" />
-                    <span>Chronological Visit Timeline ({activePatient.invoices.length} Invoices / Records)</span>
-                  </h4>
-                  <span className="text-xs text-slate-400">Dr. M. A. Haque Chamber Invoices</span>
-                </div>
-
-                {activePatient.invoices.length === 0 ? (
-                  <div className="p-8 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center space-y-3">
-                    <FileText className="w-8 h-8 mx-auto text-slate-400 opacity-50" />
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      No invoices recorded yet for {activePatient.name}.
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      Generate an invoice in the Billing module to populate this visit timeline with dispensed medicines.
-                    </p>
-                    {onOpenBillingForPatient && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onOpenBillingForPatient({
-                            id: activePatient.id,
-                            name: activePatient.name,
-                            phone: activePatient.phone,
-                          })
-                        }
-                        className="px-4 py-2 rounded-xl bg-[#1B4332] text-white text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer"
-                      >
-                        <PlusCircle className="w-3.5 h-3.5" />
-                        <span>Generate First Invoice</span>
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  activePatient.invoices.map((inv) => {
-                    const visitDate = inv.created_at ? new Date(inv.created_at) : new Date();
-                    return (
-                      <div
-                        key={inv.id}
-                        className="p-5 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-sm space-y-4"
-                      >
-                        {/* Visit Header: Date, Doctor, Invoice No & Print Button */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-700">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-black text-sm text-slate-900 dark:text-white">
-                                {visitDate.toLocaleDateString('en-IN', {
-                                  weekday: 'short',
-                                  day: 'numeric',
-                                  month: 'short',
-                                  year: 'numeric',
-                                })}
-                              </span>
-                              <span className="text-xs text-slate-400 font-mono">
-                                {visitDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                                {inv.payment_mode || 'Cash'}
-                              </span>
-                            </div>
-                            <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 mt-0.5 flex items-center gap-1.5">
-                              <Stethoscope className="w-3.5 h-3.5" />
-                              <span>Attending Physician: Dr. M. A. Haque, M.D. (Homoeo)</span>
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs font-mono text-slate-500 font-bold hidden sm:inline">
-                              {inv.invoice_number}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setViewingInvoice(inv)}
-                              className="px-3 py-1.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                              title="View & Print Thermal / A4 Voucher"
-                            >
-                              <Printer className="w-3.5 h-3.5 text-emerald-300" />
-                              <span>View & Print Invoice</span>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Prescribed & Dispensed Medicines Table */}
-                        <div className="space-y-2">
-                          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                            Dispensed Remedies & Line Items:
-                          </span>
-                          <div className="rounded-2xl border border-slate-100 dark:border-slate-700/80 overflow-hidden text-xs">
-                            <div className="bg-slate-50 dark:bg-slate-900 p-2.5 flex justify-between font-bold text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700">
-                              <span>Description</span>
-                              <span>Amount</span>
-                            </div>
-
-                            <div className="divide-y divide-slate-100 dark:divide-slate-700/60 bg-white dark:bg-slate-800">
-                              {/* Consultation fee */}
-                              <div className="p-2.5 flex justify-between items-center">
-                                <span className="font-medium text-slate-800 dark:text-slate-200">
-                                  Dr. Consultation & Clinical Review Fee
-                                </span>
-                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                                  ₹{inv.consultation_fee || 200}
-                                </span>
-                              </div>
-
-                              {/* Dispensed Items */}
-                              {inv.items && inv.items.length > 0 ? (
-                                inv.items.map((item, idx) => (
-                                  <div key={idx} className="p-2.5 flex justify-between items-center">
-                                    <div className="flex items-center gap-2 min-w-0 pr-2">
-                                      <Pill className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                      <span className="text-slate-700 dark:text-slate-300 font-medium truncate">
-                                        {item.item_description || item.medicine_name}
-                                      </span>
-                                    </div>
-                                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200 shrink-0">
-                                      ₹{item.price || item.total_price}
-                                    </span>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="p-2.5 text-slate-400 italic">No dispensed medicines recorded.</div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Totals Strip */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700 text-xs">
-                          <div className="text-slate-500 font-medium">
-                            Status: <strong className="text-emerald-700 dark:text-emerald-400 uppercase">Paid</strong>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {inv.discount > 0 && (
-                              <span className="text-slate-400">
-                                Discount: <strong className="text-slate-600 dark:text-slate-300">-₹{inv.discount}</strong>
-                              </span>
-                            )}
-                            <div className="text-sm font-extrabold text-[#1B4332] dark:text-emerald-300 font-mono">
-                              Total: ₹{inv.total_amount}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </>
+            renderPatientChart(activePatient, false)
           ) : (
             <div className="p-12 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 text-center space-y-3">
               <Users className="w-12 h-12 text-slate-400 mx-auto opacity-40" />
@@ -630,62 +679,62 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* THERMAL POS & PRINTABLE INVOICE MODAL */}
+      {/* THERMAL POS & PRINTABLE INVOICE MODAL                                     */}
       {/* ========================================================================= */}
       {viewingInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in overflow-y-auto">
           <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[92vh] flex flex-col overflow-hidden">
             {/* Modal Controls Bar */}
-            <div className="shrink-0 p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
+            <div className="shrink-0 p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
               <div className="flex items-center gap-2">
-                <Printer className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
-                <span className="font-black text-sm text-slate-900 dark:text-white">
+                <Printer className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+                <span className="font-black text-xs sm:text-sm text-slate-900 dark:text-white">
                   Receipt: {viewingInvoice.invoice_number}
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
                 {/* Format Toggle Buttons */}
-                <div className="flex items-center bg-slate-200 dark:bg-slate-700 p-1 rounded-xl text-[11px] font-semibold">
+                <div className="flex items-center bg-slate-200 dark:bg-slate-700 p-0.5 rounded-xl text-[10px] sm:text-[11px] font-semibold">
                   <button
                     type="button"
                     onClick={() => setPrintFormat('thermal-80')}
-                    className={`px-2.5 py-1 rounded-lg transition ${
+                    className={`px-2 py-1 rounded-lg transition ${
                       printFormat === 'thermal-80'
                         ? 'bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300 font-bold shadow-xs'
                         : 'text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    80mm Thermal
+                    80mm
                   </button>
                   <button
                     type="button"
                     onClick={() => setPrintFormat('thermal-58')}
-                    className={`px-2.5 py-1 rounded-lg transition ${
+                    className={`px-2 py-1 rounded-lg transition ${
                       printFormat === 'thermal-58'
                         ? 'bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300 font-bold shadow-xs'
                         : 'text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    58mm Thermal
+                    58mm
                   </button>
                   <button
                     type="button"
                     onClick={() => setPrintFormat('a4')}
-                    className={`px-2.5 py-1 rounded-lg transition ${
+                    className={`px-2 py-1 rounded-lg transition ${
                       printFormat === 'a4'
                         ? 'bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-300 font-bold shadow-xs'
                         : 'text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    A4 Voucher
+                    A4
                   </button>
                 </div>
 
                 <button
                   type="button"
                   onClick={triggerPrint}
-                  className="px-3.5 py-1.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                  className="px-3 py-1.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print</span>
@@ -694,7 +743,7 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewingInvoice(null)}
-                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
+                  className="p-1 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -752,36 +801,37 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
 
                   <div className="border-t border-dashed border-black my-2"></div>
 
-                  <div className="text-[11px] space-y-1">
-                    <div className="flex justify-between font-bold pb-1 border-b border-black">
-                      <span>ITEM DESCRIPTION</span>
-                      <span>AMOUNT</span>
+                  <div className="space-y-1 text-[11px]">
+                    <div className="flex justify-between font-bold border-b border-black/20 pb-1">
+                      <span>Item Description</span>
+                      <span>Amount (₹)</span>
                     </div>
 
-                    <div className="py-1 flex justify-between gap-2">
+                    <div className="flex justify-between py-0.5">
                       <span>Dr. Consultation Fee</span>
-                      <span className="font-bold">₹{viewingInvoice.consultation_fee}</span>
+                      <span>{viewingInvoice.consultation_fee || 200}</span>
                     </div>
 
-                    {viewingInvoice.items?.map((it, i) => (
-                      <div key={i} className="py-1 flex justify-between gap-2">
-                        <span className="break-words leading-tight">{it.item_description || it.medicine_name}</span>
-                        <span className="font-bold shrink-0">₹{it.price || it.total_price}</span>
-                      </div>
-                    ))}
+                    {viewingInvoice.items &&
+                      viewingInvoice.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between py-0.5">
+                          <span className="truncate max-w-[190px]">{item.item_description || item.medicine_name}</span>
+                          <span>{item.price || item.total_price}</span>
+                        </div>
+                      ))}
                   </div>
 
                   <div className="border-t border-dashed border-black my-2"></div>
 
-                  <div className="space-y-1 text-[11px]">
+                  <div className="space-y-1 text-[11px] font-bold">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
-                      <span>₹{viewingInvoice.subtotal}</span>
+                      <span>₹{(viewingInvoice.total_amount || 0) + (viewingInvoice.discount || 0)}</span>
                     </div>
                     {viewingInvoice.discount > 0 && (
-                      <div className="flex justify-between font-semibold">
+                      <div className="flex justify-between text-slate-700">
                         <span>Discount:</span>
-                        <span>- ₹{viewingInvoice.discount}</span>
+                        <span>-₹{viewingInvoice.discount}</span>
                       </div>
                     )}
                     <div className="flex justify-between text-sm font-black pt-1 border-t border-black">
@@ -790,83 +840,133 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                     </div>
                   </div>
 
-                  <div className="border-t border-dashed border-black my-3"></div>
+                  <div className="border-t border-dashed border-black my-2"></div>
 
-                  <div className="text-center text-[10px] space-y-1 pt-1">
-                    <p className="font-semibold">Clinic: Sat - Thu (Friday Closed)</p>
-                    <p>Wishing you good health & wellness</p>
-                    <p className="font-bold text-[11px] pt-1">Authorized Signatory</p>
-                    <p>Dr. M. A. Haque, M.D. (Homoeo)</p>
+                  <div className="text-center text-[10px] space-y-0.5 pt-1 text-slate-700">
+                    <p>Attending: Dr. M. A. Haque, M.D. (Homoeo)</p>
+                    <p className="font-bold">Thank you for visiting Homoeo Health Care!</p>
+                    <p>Wishing you speedy health and wellness.</p>
                   </div>
                 </div>
               ) : (
                 /* A4 Voucher Layout */
-                <div className="printable-area w-full max-w-xl p-8 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-xl space-y-6 font-sans">
-                  <div className="flex justify-between items-start pb-5 border-b border-slate-200">
+                <div className="printable-area w-full max-w-[650px] p-8 rounded-2xl bg-white text-slate-900 border border-slate-300 shadow-lg space-y-5 text-xs">
+                  {/* Header */}
+                  <div className="flex justify-between items-start border-b-2 border-emerald-900 pb-4">
                     <div>
-                      <h2 className="text-2xl font-extrabold text-[#1B4332] tracking-tight">Homoeo Health Care</h2>
-                      <p className="text-sm font-semibold text-slate-700">Dr. M. A. Haque, M.D. (Homoeo)</p>
-                      <p className="text-xs text-slate-500 mt-1">Salbagan Road, Benachity, Durgapur, PIN: 713213</p>
-                      <p className="text-xs text-slate-500">Phone / WhatsApp: 9933506514</p>
+                      <h2 className="text-xl font-black text-[#1B4332] uppercase tracking-wide">
+                        Homoeo Health Care
+                      </h2>
+                      <p className="text-sm font-bold text-slate-700">Dr. M. A. Haque, M.D. (Homoeo)</p>
+                      <p className="text-xs text-slate-500">Salbagan Road, Benachity, Durgapur - 713213</p>
+                      <p className="text-xs text-slate-500">Chamber Mobile: +91 99335 06514</p>
                     </div>
-                    <div className="text-right">
-                      <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">Official Receipt</span>
-                      <span className="font-mono font-extrabold text-base text-slate-900 block mt-0.5">
-                        {viewingInvoice.invoice_number}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        {new Date(viewingInvoice.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 text-xs">
-                    <div>
-                      <span className="text-slate-400 font-semibold block uppercase text-[10px]">Patient Information</span>
-                      <span className="font-bold text-sm text-slate-900 block mt-0.5">{viewingInvoice.patient_name}</span>
-                      <span className="text-slate-600 block">ID: {viewingInvoice.patient_id}</span>
-                      <span className="text-slate-600 block">Phone: {viewingInvoice.phone}</span>
-                    </div>
                     <div className="text-right">
-                      <span className="text-slate-400 font-semibold block uppercase text-[10px]">Payment Summary</span>
-                      <span className="font-bold text-slate-900 block uppercase mt-0.5">{viewingInvoice.payment_mode} (PAID)</span>
-                      <span className="text-emerald-700 font-bold block mt-1">Status: Cleared</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between font-bold text-slate-500 uppercase border-b pb-1">
-                      <span>Service / Dispensed Medicine</span>
-                      <span>Amount</span>
-                    </div>
-                    <div className="py-1 flex justify-between">
-                      <span className="font-medium">Dr. Consultation & Assessment Fee</span>
-                      <span className="font-mono font-bold">₹{viewingInvoice.consultation_fee}</span>
-                    </div>
-                    {viewingInvoice.items?.map((it, i) => (
-                      <div key={i} className="py-1 flex justify-between border-t border-slate-100">
-                        <span>{it.item_description || it.medicine_name}</span>
-                        <span className="font-mono font-bold">₹{it.price || it.total_price}</span>
+                      <span className="inline-block px-3 py-1 rounded-lg bg-emerald-100 text-emerald-900 font-extrabold text-xs uppercase tracking-wider mb-1">
+                        Official Cash Receipt
+                      </span>
+                      <div className="text-xs text-slate-500">
+                        Receipt No: <strong className="text-slate-900 font-mono">{viewingInvoice.invoice_number}</strong>
                       </div>
-                    ))}
-                  </div>
-
-                  <div className="border-t border-slate-200 pt-3 space-y-1 text-xs">
-                    <div className="flex justify-between font-extrabold text-base text-slate-900 pt-1 border-t">
-                      <span>Total Paid:</span>
-                      <span className="font-mono text-[#1B4332]">₹{viewingInvoice.total_amount}</span>
+                      <div className="text-xs text-slate-500">
+                        Date:{' '}
+                        <strong className="text-slate-900">
+                          {new Date(viewingInvoice.created_at).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </strong>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="pt-6 border-t border-slate-200 flex justify-between items-end text-xs text-slate-500">
+                  {/* Patient Info Card */}
+                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Patient Details</span>
+                      <div className="font-bold text-sm text-slate-900">{viewingInvoice.patient_name}</div>
+                      {viewingInvoice.phone && (
+                        <div className="text-slate-600 font-mono">Mobile: {viewingInvoice.phone}</div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Registration / Token</span>
+                      <div className="font-bold font-mono text-emerald-800">{viewingInvoice.patient_id}</div>
+                      <div className="text-slate-600">Payment Mode: <strong className="uppercase">{viewingInvoice.payment_mode}</strong></div>
+                    </div>
+                  </div>
+
+                  {/* Line Items Table */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-700 text-[11px] font-bold uppercase border-b border-slate-200">
+                          <th className="py-2.5 px-3">#</th>
+                          <th className="py-2.5 px-3">Service / Dispensed Medicine</th>
+                          <th className="py-2.5 px-3 text-right">Amount (INR)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        <tr>
+                          <td className="py-2.5 px-3 font-mono text-slate-400">1</td>
+                          <td className="py-2.5 px-3 font-medium text-slate-800">
+                            Dr. Consultation & Clinical Review Fee
+                          </td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-right text-slate-800">
+                            ₹{viewingInvoice.consultation_fee || 200}
+                          </td>
+                        </tr>
+                        {viewingInvoice.items &&
+                          viewingInvoice.items.map((item, i) => (
+                            <tr key={i}>
+                              <td className="py-2.5 px-3 font-mono text-slate-400">{i + 2}</td>
+                              <td className="py-2.5 px-3 text-slate-700 font-medium">
+                                {item.item_description || item.medicine_name}
+                              </td>
+                              <td className="py-2.5 px-3 font-mono font-bold text-right text-slate-800">
+                                ₹{item.price || item.total_price}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Totals */}
+                  <div className="flex justify-end pt-2">
+                    <div className="w-56 space-y-1.5 text-xs">
+                      <div className="flex justify-between text-slate-500">
+                        <span>Subtotal:</span>
+                        <span className="font-mono">
+                          ₹{(viewingInvoice.total_amount || 0) + (viewingInvoice.discount || 0)}
+                        </span>
+                      </div>
+                      {viewingInvoice.discount > 0 && (
+                        <div className="flex justify-between text-slate-500">
+                          <span>Discount:</span>
+                          <span className="font-mono text-emerald-700">-₹{viewingInvoice.discount}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm font-black border-t-2 border-slate-900 pt-1 text-slate-900">
+                        <span>Total Paid:</span>
+                        <span className="font-mono text-[#1B4332]">₹{viewingInvoice.total_amount}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signatures */}
+                  <div className="pt-8 flex justify-between items-end text-slate-500 text-[11px]">
                     <div>
                       <p className="font-semibold text-slate-700">Thank you for visiting Homoeo Health Care.</p>
-                      <p>Clinic Hours: Saturday to Thursday (Friday Closed)</p>
+                      <p>This is a computer generated clinical voucher.</p>
                     </div>
-                    <div className="text-right">
-                      <div className="h-10 border-b border-slate-300 w-36 ml-auto mb-1"></div>
-                      <p className="font-bold text-slate-800">Authorized Signatory</p>
-                      <p className="text-[11px]">Dr. M. A. Haque, M.D.</p>
+                    <div className="text-center">
+                      <div className="border-t border-slate-400 w-44 pt-1 font-bold text-slate-800">
+                        Dr. M. A. Haque, M.D. (Homoeo)
+                      </div>
+                      <p className="text-[10px]">Authorized Signature / Seal</p>
                     </div>
                   </div>
                 </div>
