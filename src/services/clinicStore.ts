@@ -7,7 +7,8 @@ import {
   Prescription, 
   ShiftType, 
   StockLog, 
-  UserProfile 
+  UserProfile,
+  UserRole 
 } from '../types';
 import { INITIAL_INVENTORY, INITIAL_PROFILES } from './seedData';
 import { getSupabase } from './supabase';
@@ -1018,6 +1019,100 @@ export function setCurrentUser(user: UserProfile | null) {
     sessionStorage.removeItem('hhc_active_tab');
   }
   notifySubscribers('auth_user', user);
+}
+
+// ==========================================
+// CLINIC TEAM (LIVE SUPABASE clinic_team TABLE)
+// ==========================================
+
+export async function fetchClinicTeamFromSupabase(): Promise<UserProfile[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('clinic_team')
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Failed to fetch clinic_team from Supabase:', error);
+    throw error;
+  }
+  return (data || []) as UserProfile[];
+}
+
+export async function addClinicTeamMemberToSupabase(member: {
+  full_name: string;
+  email: string;
+  role: UserRole;
+  phone?: string;
+  password: string;
+}): Promise<UserProfile> {
+  const supabase = getSupabase();
+  const payload = {
+    full_name: member.full_name.trim(),
+    email: member.email.trim().toLowerCase(),
+    role: member.role,
+    phone: member.phone?.trim() || null,
+    password: member.password.trim(),
+    is_active: true,
+    is_first_login: true,
+    created_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('clinic_team')
+    .insert([payload])
+    .select();
+
+  if (error) {
+    console.error('Failed to insert clinic_team member:', error);
+    throw error;
+  }
+
+  notifySubscribers('clinic_team_change', data?.[0]);
+  return data?.[0] as UserProfile;
+}
+
+export async function toggleClinicTeamMemberStatus(id: string, isActive: boolean): Promise<boolean> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('clinic_team')
+    .update({ is_active: isActive })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Failed to update clinic_team status:', error);
+    throw error;
+  }
+
+  notifySubscribers('clinic_team_change', { id, is_active: isActive });
+  return true;
+}
+
+export async function updateClinicTeamPassword(
+  id: string,
+  newPassword?: string,
+  isFirstLogin: boolean = false
+): Promise<boolean> {
+  const supabase = getSupabase();
+  const updatePayload: Record<string, any> = {
+    is_first_login: isFirstLogin,
+  };
+  if (newPassword && newPassword.trim()) {
+    updatePayload.password = newPassword.trim();
+  }
+
+  const { error } = await supabase
+    .from('clinic_team')
+    .update(updatePayload)
+    .eq('id', id);
+
+  if (error) {
+    console.error('Failed to update clinic_team password:', error);
+    throw error;
+  }
+
+  notifySubscribers('clinic_team_change', { id, ...updatePayload });
+  return true;
 }
 
 export function createTeamMember(profile: Omit<UserProfile, 'id'>) {

@@ -19,6 +19,38 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 2.1 Clinic Team & Security Authentication Table
+CREATE TABLE IF NOT EXISTS public.clinic_team (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'doctor', 'staff')),
+  phone TEXT,
+  password TEXT NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  is_first_login BOOLEAN DEFAULT false,
+  avatar_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index for speedy email lookups during authentication
+CREATE INDEX IF NOT EXISTS idx_clinic_team_email ON public.clinic_team (email);
+CREATE INDEX IF NOT EXISTS idx_clinic_team_active ON public.clinic_team (is_active);
+
+-- Seed Primary Administrator if not already present
+INSERT INTO public.clinic_team (id, full_name, email, role, phone, password, is_active, is_first_login)
+VALUES (
+  '2f37865b-85e8-4134-8064-a57bca6b51a5',
+  'Md Abu Talha Khan',
+  'admin@homoeo.com',
+  'admin',
+  '9933506514',
+  'admin123',
+  true,
+  false
+) ON CONFLICT (email) DO NOTHING;
+
 -- 3. Appointments & Patient Queue Table
 CREATE TABLE IF NOT EXISTS public.appointments (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,

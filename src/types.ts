@@ -7,7 +7,11 @@ export interface UserProfile {
   role: UserRole;
   phone?: string;
   avatar_url?: string;
+  is_active?: boolean;
+  is_first_login?: boolean;
+  password?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export type ShiftType = 'morning' | 'evening';

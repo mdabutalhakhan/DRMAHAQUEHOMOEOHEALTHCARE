@@ -8,6 +8,7 @@ import { LoginModal } from './components/LoginModal';
 import { UserProfile } from './types';
 import { getCurrentUser, setCurrentUser } from './services/clinicStore';
 import { initSupabaseSync } from './services/clinicStore';
+import { getSupabase } from './services/supabase';
 
 export default function App() {
   // Dark mode state: default to false (Medical Bright aesthetic #F8FAF9), supports dark mode #0F172A
@@ -118,6 +119,31 @@ export default function App() {
       if (cleanup) cleanup();
     };
   }, []);
+
+  // Periodic and on-mount verification of active account status against Supabase clinic_team
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const verifyActiveStatus = async () => {
+      try {
+        const supabase = getSupabase();
+        const { data, error } = await supabase
+          .from('clinic_team')
+          .select('is_active')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+
+        if (data && data.is_active === false) {
+          handleLogout();
+          alert('This account has been deactivated by Admin. Access denied.');
+        }
+      } catch {
+        // Silently continue if network check is unavailable
+      }
+    };
+
+    verifyActiveStatus();
+  }, [currentUser]);
 
   const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
