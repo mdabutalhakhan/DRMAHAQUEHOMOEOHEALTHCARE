@@ -69,6 +69,24 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
     if (newPresc) {
       setPrescriptionUrl(newPresc);
     }
+
+    try {
+      const pendingRaw = sessionStorage.getItem('hhc_pending_billing_item');
+      if (pendingRaw) {
+        const pending = JSON.parse(pendingRaw);
+        sessionStorage.removeItem('hhc_pending_billing_item');
+        if (pending && pending.item_description) {
+          setItems((prev) => {
+            if (prev.length === 1 && !prev[0].item_description && !prev[0].price) {
+              return [{ item_description: pending.item_description, price: pending.price || '' }];
+            }
+            return [...prev, { item_description: pending.item_description, price: pending.price || '' }];
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading pending billing item:', e);
+    }
   }, [initialAppointment, initialPrescriptionUrl]);
   
   // Clinic & Tax Credentials

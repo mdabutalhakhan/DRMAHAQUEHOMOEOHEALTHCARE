@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Sparkles, 
   Mic, 
@@ -12,17 +12,33 @@ import {
   Check,
   PackageSearch,
   ShieldAlert,
-  ChevronDown,
-  Info
+  Search,
+  CheckCircle2,
+  AlertTriangle,
+  Flame,
+  Pill,
+  Languages,
+  X,
+  Stethoscope,
+  ExternalLink,
+  Layers
 } from 'lucide-react';
-import { AIConsultationResponse, AIRemedyRecommendation, RemedySuggestion } from '../types';
-import { getRepertoryAnalysis } from '../data/homeopathicRepertory';
+import { ClinicLogo } from './ClinicLogo';
+import { getSupabase } from '../services/supabase';
 import { getInventory } from '../services/clinicStore';
+import { 
+  CLINICAL_REPERTORY_DATABASE, 
+  findRepertoryMatch, 
+  ClinicalCondition, 
+  ClassicalRemedy, 
+  PatentFormulation 
+} from '../data/clinicalRepertoryData';
+import { callGeminiDirectlyFromClient } from '../services/geminiClient';
 
 interface AIConsultantProps {
   initialSymptoms?: string;
-  onAddRemedyToBilling?: (remedy: AIRemedyRecommendation) => void;
-  onNavigateToInventory?: (searchQuery?: string) => void;
+  onAddRemedyToBilling?: (remedy: any) => void;
+  onNavigateToInventory?: (medicineName?: string) => void;
 }
 
 export const AIConsultant: React.FC<AIConsultantProps> = ({
@@ -31,40 +47,100 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   onNavigateToInventory,
 }) => {
   const [symptoms, setSymptoms] = useState(initialSymptoms);
-  const [modalities, setModalities] = useState('');
-  const [mindDisposition, setMindDisposition] = useState('');
+  const [selectedCondition, setSelectedCondition] = useState<ClinicalCondition | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>('all');
+  const [consultSource, setConsultSource] = useState<'repertory' | 'gemini'>('repertory');
   const [errorMsg, setErrorMsg] = useState('');
-  const [result, setResult] = useState<AIConsultationResponse | null>(null);
-  const [engineSource, setEngineSource] = useState<'gemini' | 'repertory'>('repertory');
 
-  // Copy feedback state { [remedyIdx]: boolean }
-  const [copiedStates, setCopiedStates] = useState<{ [key: number]: boolean }>({});
-
-  // Stock check states { [remedyIdx]: { checked: boolean; found: boolean; details?: string; stock?: number; rack?: string } }
-  const [stockStatus, setStockStatus] = useState<{
-    [key: number]: { checked: boolean; found: boolean; details: string; stock?: number; rack?: string };
-  }>({});
-
-  // Web Speech API Voice Recognition
+  // Voice Engine State
+  const [speechLang, setSpeechLang] = useState<'en' | 'bn'>('en');
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(true);
 
+  // Live Inventory State from Supabase & Store
+  const [inventoryItems, setInventoryItems] = useState<
+    Array<{ id: string; name: string; rack_location?: string; stock_qty: number; mrp?: number }>
+  >([]);
+  const [inventoryLoaded, setInventoryLoaded] = useState(false);
+
+  // User Action Feedback
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [addedBillKey, setAddedBillKey] = useState<string | null>(null);
+  const [activeChip, setActiveChip] = useState<string | null>(null);
+
+  // Check Web Speech API support
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       setSpeechSupported(false);
     }
   }, []);
 
+  // Sync initialSymptoms prop if provided
   useEffect(() => {
     if (initialSymptoms) {
       setSymptoms(initialSymptoms);
+      handleAnalyze(initialSymptoms);
     }
   }, [initialSymptoms]);
 
-  const toggleSpeechRecognition = () => {
+  // Load Inventory from Supabase (or clinicStore fallback)
+  useEffect(() => {
+    const fetchInventory = async () => {
+      let items: Array<{ id: string; name: string; rack_location?: string; stock_qty: number; mrp?: number }> = [];
+      const supabase = getSupabase();
+      
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('medicines')
+            .select('id, name, rack_location, stock_qty, mrp');
+          
+          if (!error && data && data.length > 0) {
+            items = data.map((d: any) => ({
+              id: String(d.id),
+              name: String(d.name || ''),
+              rack_location: d.rack_location || undefined,
+              stock_qty: Number(d.stock_qty) || 0,
+              mrp: Number(d.mrp) || 0,
+            }));
+          }
+        } catch (err) {
+          console.warn('Supabase medicines query error, falling back to local inventory:', err);
+        }
+      }
+
+      // Merge / fallback with local clinic store
+      if (items.length === 0) {
+        try {
+          const localInv = getInventory();
+          if (localInv && localInv.length > 0) {
+            items = localInv.map((m) => ({
+              id: m.id,
+              name: m.medicine_name,
+              rack_location: m.rack_location,
+              stock_qty: m.stock_quantity || 0,
+              mrp: m.mrp || 0,
+            }));
+          }
+        } catch (err) {
+          console.warn('Local inventory load error:', err);
+        }
+      }
+
+      setInventoryItems(items);
+      setInventoryLoaded(true);
+    };
+
+    fetchInventory();
+  }, []);
+
+  // Voice Dictation Handler with EN / বাংলা Language Switching
+  const handleToggleVoice = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
+      setErrorMsg('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
       return;
     }
 
@@ -77,19 +153,29 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
       recognition.interimResults = false;
-      recognition.lang = 'en-IN'; // Indian English / Global
+
+      // When বাংলা is active: 'bn-IN'. When EN is active: 'en-IN'
+      recognition.lang = speechLang === 'bn' ? 'bn-IN' : 'en-IN';
 
       recognition.onstart = () => {
+        // Automatically clear previous text upon starting a new speech session to avoid text duplication
+        setSymptoms('');
         setIsListening(true);
+        setErrorMsg('');
       };
 
       recognition.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
-        setSymptoms((prev) => (prev ? `${prev} ${transcript}` : transcript));
-        setIsListening(false);
+        if (transcript) {
+          setSymptoms(transcript);
+          setIsListening(false);
+          // Auto analyze recognized symptoms
+          handleAnalyze(transcript);
+        }
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition error:', event);
         setIsListening(false);
       };
 
@@ -99,539 +185,938 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
 
       recognition.start();
     } catch (err) {
-      console.error('Speech recognition error:', err);
+      console.error('Speech recognition start failed:', err);
       setIsListening(false);
     }
   };
 
-  const handleConsultGemini = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setErrorMsg('');
+  // Stock status resolver for every remedy / patent formulation
+  const getInventoryStatus = (name: string, aliases: string[] = []) => {
+    if (!inventoryItems || inventoryItems.length === 0) {
+      return { found: false, inStock: false, stock: 0, rack: '' };
+    }
 
-    if (!symptoms.trim()) {
-      setErrorMsg('Please enter symptoms or speak via the voice microphone.');
+    const searchTokens = [name, ...aliases]
+      .filter(Boolean)
+      .map((s) => s.toLowerCase().trim().replace(/[^a-z0-9]/g, ' '));
+
+    for (const item of inventoryItems) {
+      const itemName = (item.name || '').toLowerCase().replace(/[^a-z0-9]/g, ' ');
+
+      for (const term of searchTokens) {
+        if (!term || term.length < 2) continue;
+
+        // Direct containment
+        if (itemName.includes(term) || term.includes(itemName)) {
+          return {
+            found: true,
+            inStock: item.stock_qty > 0,
+            stock: item.stock_qty,
+            rack: item.rack_location || 'General Shelf',
+            mrp: item.mrp || 0,
+            catalogName: item.name,
+          };
+        }
+
+        // Token match (e.g., "Berberis Vulgaris" -> ["berberis", "vulgaris"])
+        const words = term.split(/\s+/).filter((w) => w.length >= 3);
+        if (words.length > 1 && words.every((w) => itemName.includes(w))) {
+          return {
+            found: true,
+            inStock: item.stock_qty > 0,
+            stock: item.stock_qty,
+            rack: item.rack_location || 'General Shelf',
+            mrp: item.mrp || 0,
+            catalogName: item.name,
+          };
+        }
+      }
+    }
+
+    return { found: false, inStock: false, stock: 0, rack: '' };
+  };
+
+  // Brand Pill Badge Generator with Country & Styling
+  const getBrandBadge = (brandName: string, company: string, country?: string) => {
+    const b = (brandName || '').toLowerCase();
+    const c = (company || '').toLowerCase();
+
+    if (b.includes('bakson') || c.includes('bakson')) {
+      return { label: "Bakson's 🇮🇳", color: 'bg-purple-100 text-purple-900 dark:bg-purple-950/80 dark:text-purple-200 border-purple-300 dark:border-purple-800' };
+    }
+    if (b.includes('reckeweg') || c.includes('reckeweg')) {
+      return { label: 'Dr. Reckeweg 🇩🇪', color: 'bg-blue-100 text-blue-900 dark:bg-blue-950/80 dark:text-blue-200 border-blue-300 dark:border-blue-800' };
+    }
+    if (b.includes('sbl') || c.includes('sbl')) {
+      return { label: 'SBL 🇮🇳', color: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-200 border-emerald-300 dark:border-emerald-800' };
+    }
+    if (b.includes('adel') || c.includes('adel')) {
+      return { label: 'Adel Pekana 🇩🇪', color: 'bg-rose-100 text-rose-900 dark:bg-rose-950/80 dark:text-rose-200 border-rose-300 dark:border-rose-800' };
+    }
+    if (b.includes('wheezal') || c.includes('wheezal')) {
+      return { label: 'Wheezal 🇮🇳', color: 'bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-200 border-amber-300 dark:border-amber-800' };
+    }
+    if (b.includes('schwabe') || c.includes('schwabe')) {
+      return { label: 'Dr. Willmar Schwabe 🇩🇪', color: 'bg-teal-100 text-teal-900 dark:bg-teal-950/80 dark:text-teal-200 border-teal-300 dark:border-teal-800' };
+    }
+    if (b.includes('medisynth') || c.includes('medisynth')) {
+      return { label: 'Medisynth 🇮🇳', color: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-950/80 dark:text-cyan-200 border-cyan-300 dark:border-cyan-800' };
+    }
+    if (b.includes('allen') || c.includes('allen')) {
+      return { label: 'Allen 🇮🇳', color: 'bg-orange-100 text-orange-900 dark:bg-orange-950/80 dark:text-orange-200 border-orange-300 dark:border-orange-800' };
+    }
+    if (b.includes('lord') || c.includes('lord')) {
+      return { label: "Lord's 🇮🇳", color: 'bg-yellow-100 text-yellow-900 dark:bg-yellow-950/80 dark:text-yellow-200 border-yellow-300 dark:border-yellow-800' };
+    }
+    return {
+      label: country === 'Germany' ? `${brandName || 'German'} 🇩🇪` : `${brandName || 'Patent'} 🇮🇳`,
+      color: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700',
+    };
+  };
+
+  // Available Brands and Filtered Patents
+  const availableBrands = useMemo(() => {
+    if (!selectedCondition?.patentFormulations) return [];
+    const map = new Map<string, number>();
+    selectedCondition.patentFormulations.forEach((p) => {
+      const badge = getBrandBadge(p.brand, p.company, p.country);
+      map.set(badge.label, (map.get(badge.label) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([label, count]) => ({ label, count }));
+  }, [selectedCondition]);
+
+  const filteredPatents = useMemo(() => {
+    if (!selectedCondition?.patentFormulations) return [];
+    if (selectedBrandFilter === 'all') return selectedCondition.patentFormulations;
+    return selectedCondition.patentFormulations.filter((p) => {
+      const badge = getBrandBadge(p.brand, p.company, p.country);
+      return badge.label === selectedBrandFilter;
+    });
+  }, [selectedCondition, selectedBrandFilter]);
+
+  // Analyze symptoms through the Dual-Tier Clinical Repertory Engine (Instant Local)
+  const handleAnalyze = (overrideQuery?: string) => {
+    const query = (overrideQuery !== undefined ? overrideQuery : symptoms).trim();
+    if (!query) {
+      setErrorMsg('Please enter symptoms in English or Bengali, or speak using the voice microphone.');
       return;
     }
 
+    setErrorMsg('');
     setLoading(true);
-    setStockStatus({});
 
-    let consultResult: AIConsultationResponse | null = null;
-    let usedEngine: 'gemini' | 'repertory' = 'repertory';
-
-    // 1. Try Gemini API with safety checks
     try {
-      // Check for client-side or server-side API call
-      const res = await fetch('/api/gemini/consult', {
+      const match = findRepertoryMatch(query);
+      setSelectedCondition(match);
+      setConsultSource('repertory');
+      setSelectedBrandFilter('all');
+    } catch (err) {
+      console.error('Repertory analysis error:', err);
+      setErrorMsg('Failed to process symptoms. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Analyze symptoms through Deep Gemini AI Engine (Multi-Brand Global & Indian Patent Synthesis)
+  const handleGeminiConsult = async (overrideQuery?: string) => {
+    const query = (overrideQuery !== undefined ? overrideQuery : symptoms).trim();
+    if (!query) {
+      setErrorMsg('Please enter symptoms in English or Bengali, or speak using the voice microphone.');
+      return;
+    }
+
+    // 1. READ EXISTING VITE KEY DIRECTLY (works with existing VITE_GEMINI_API_KEY without new Vercel envs)
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+
+    setErrorMsg('');
+    setIsAiLoading(true);
+
+    let data: any = null;
+    let usedClientFallback = false;
+
+    // Step 1: Attempt serverless / server route /api/consult
+    try {
+      const response = await fetch('/api/consult', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          symptoms: symptoms.trim(),
-          modalities: modalities.trim(),
-          mindDisposition: mindDisposition.trim(),
-          apiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
-        }),
+        body: JSON.stringify({ symptoms: query, apiKey }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data && (data.remedies?.length > 0 || data.analysis_summary)) {
-          consultResult = {
-            analysis_summary: data.analysis_summary || `Clinical Homoeopathic Evaluation for: ${symptoms.trim()}`,
-            remedies: data.remedies || [],
-            repertory_keynotes: data.repertory_keynotes || [],
-            diet_and_regimen: data.diet_and_regimen || 'Avoid raw onion, garlic, strong coffee, and camphor within 30 minutes of dose.',
-            warning_notes: data.warning_notes || 'Clinical Reference only. Final prescription must be verified by Dr. M. A. Haque, M.D.',
-          };
-          usedEngine = 'gemini';
-        }
+      if (!response.ok) {
+        throw new Error(`Serverless route /api/consult returned status ${response.status}`);
       }
-    } catch (apiErr) {
-      console.warn('Gemini API call bypassed or unavailable, falling back seamlessly to Materia Medica Repertory:', apiErr);
+
+      data = await response.json();
+    } catch (serverErr: any) {
+      console.warn('Serverless /api/consult unavailable or returned error, triggering direct frontend client fallback:', serverErr.message);
+
+      // Step 2: DIRECT CLIENT CALL FALLBACK if /api/consult returned 500 or is unavailable in preview
+      try {
+        usedClientFallback = true;
+        data = await callGeminiDirectlyFromClient(query);
+      } catch (clientErr: any) {
+        console.warn('Direct Gemini frontend fallback failed:', clientErr);
+        // Fallback to internal verified repertory engine
+        handleAnalyze(query);
+        setErrorMsg(`AI service notice: ${clientErr.message || 'Remote model busy'}. Displaying verified clinical repertory matching.`);
+        setIsAiLoading(false);
+        return;
+      }
     }
 
-    // 2. OFFLINE MATERIA MEDICA FALLBACK
-    // If Gemini API fails, is missing, returns non-OK, or is rate-limited:
-    // DO NOT SHOW RED ERROR! Automatically fallback to internal comprehensive Homeopathic Repertory dictionary.
-    if (!consultResult || consultResult.remedies.length === 0) {
-      consultResult = getRepertoryAnalysis(symptoms, modalities, mindDisposition);
-      usedEngine = 'repertory';
-    }
+    try {
+      if (data && data.remedies && data.patent_formulations) {
+        const aiCondition: ClinicalCondition = {
+          id: 'gemini-ai-consult',
+          nameEn: `AI Consultation: ${query.length > 50 ? query.slice(0, 50) + '...' : query}`,
+          nameBn: 'এআই প্রেসক্রিপশন ও মাল্টি-ব্র্যান্ড পেটেন্ট ফরমুলেশন',
+          chipLabel: usedClientFallback ? 'Gemini AI (Direct Client Fallback)' : 'Gemini Deep AI Consult',
+          pathology: data.analysis_summary || 'Constitutional & Pathological Evaluation',
+          miasm: 'Miasmatic Synthesis (Kent/Boericke & Commercial Patents)',
+          keywords: [query],
+          typicalPresentation: query,
+          classicalRemedies: (data.remedies || []).map((r: any) => ({
+            name: r.remedy_name,
+            commonName: r.common_name || '',
+            potency: r.potency || '30C / 200C',
+            dosage: r.dosage || '4 pills twice daily',
+            keynotes: r.key_indications || [],
+            materiaMedicaNotes: r.materia_medica_notes || '',
+            modalities: r.modalities || { worse: 'Motion/Cold', better: 'Rest/Warmth' },
+            aliases: [r.remedy_name, r.common_name].filter(Boolean),
+          })),
+          patentFormulations: (data.patent_formulations || []).map((p: any) => {
+            const b = (p.brand || '').toLowerCase();
+            const isGerman = b.includes('reckeweg') || b.includes('adel') || (p.company || '').toLowerCase().includes('germany');
+            return {
+              name: p.name,
+              brand: p.brand || "Patent",
+              company: p.company || 'Homeopathic Manufacturer',
+              country: isGerman ? 'Germany' : 'India',
+              bottleSize: p.bottle_size || p.bottleSize || '30 ml Drops',
+              indications: p.indications || '',
+              dosage: p.dosage || '10-15 drops in water 3 times daily.',
+              mrp: p.mrp || 160,
+              aliases: p.aliases || [p.name, p.brand].filter(Boolean),
+            };
+          }),
+          dietAndRegimen: data.diet_and_regimen || 'Sip warm water. Avoid raw onion, garlic, menthol and strong coffee during homoeopathic treatment.',
+          warningNotes: data.warning_notes || 'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo).',
+        };
 
-    setResult(consultResult);
-    setEngineSource(usedEngine);
-    setLoading(false);
-  };
-
-  const handleCopyRemedy = (remedy: RemedySuggestion, idx: number) => {
-    const textToCopy = `${remedy.remedy_name} (${remedy.potency}) - Dosage: ${remedy.dosage}`;
-    navigator.clipboard.writeText(textToCopy);
-    setCopiedStates((prev) => ({ ...prev, [idx]: true }));
-    setTimeout(() => {
-      setCopiedStates((prev) => ({ ...prev, [idx]: false }));
-    }, 2000);
-  };
-
-  const handleCheckStock = (remedy: RemedySuggestion, idx: number) => {
-    const currentMedicines = getInventory();
-    const rawName = remedy.remedy_name.toLowerCase();
-    
-    // Extract key token (e.g. "Rhus Tox", "Bryonia", "Nux Vomica", "Arnica")
-    const words = rawName
-      .replace(/[()]/g, ' ')
-      .split(' ')
-      .filter((w) => w.length > 2 && !['the', 'and', 'extract'].includes(w));
-
-    const matched = currentMedicines.filter((m) => {
-      const medName = m.medicine_name.toLowerCase();
-      return words.some((word) => medName.includes(word));
-    });
-
-    if (matched.length > 0) {
-      const topMatch = matched[0];
-      const totalStock = matched.reduce((acc, m) => acc + (m.stock_quantity || 0), 0);
-      setStockStatus((prev) => ({
-        ...prev,
-        [idx]: {
-          checked: true,
-          found: true,
-          details: `Found in inventory: ${topMatch.medicine_name} (${topMatch.category || 'Dilution'})`,
-          stock: totalStock,
-          rack: topMatch.rack_location || 'Rack General',
-        },
-      }));
-    } else {
-      setStockStatus((prev) => ({
-        ...prev,
-        [idx]: {
-          checked: true,
-          found: false,
-          details: `"${remedy.remedy_name}" not found in current inventory. Can be dispensed from clinic bulk reserve.`,
-        },
-      }));
+        setSelectedCondition(aiCondition);
+        setConsultSource('gemini');
+        setSelectedBrandFilter('all');
+      } else {
+        throw new Error('Unexpected data format from Gemini consultation');
+      }
+    } catch (err: any) {
+      console.warn('Gemini data processing error, falling back to local repertory:', err);
+      handleAnalyze(query);
+      setErrorMsg(`Switched to internal clinical repertory (${err.message || 'Format error'}).`);
+    } finally {
+      setIsAiLoading(false);
     }
   };
 
-  // Quick preset clinical case triggers
-  const loadPresetCase = (type: 'arthritis' | 'rhinitis' | 'gastric' | 'skin' | 'cough' | 'headache' | 'anxiety') => {
-    if (type === 'arthritis') {
-      setSymptoms('Joint pain and stiffness in bilateral knees and lower back. Restless at night.');
-      setModalities('Worse cold damp weather, worse beginning to move; better continued gentle motion and warm dry fomentation.');
-      setMindDisposition('Anxious, restless, irritable when questioned about illness.');
-    } else if (type === 'rhinitis') {
-      setSymptoms('Violent paroxysms of sneezing with watery acrid nasal discharge, burning eyes with bland lachrymation.');
-      setModalities('Worse warm stuffy room, evening; better open fresh cool breeze.');
-      setMindDisposition('Mild, weeping disposition, seeks company and sympathy.');
-    } else if (type === 'gastric') {
-      setSymptoms('Heartburn, acid dyspepsia, sour eructations, heaviness in epigastrium 2 hours after food.');
-      setModalities('Worse morning, sedentary lifestyle, after rich spicy foods and stimulants.');
-      setMindDisposition('Short-tempered, fastidious, sensitive to noise and light.');
-    } else if (type === 'skin') {
-      setSymptoms('Intense voluptuous itching on limbs and skin folds with red vesicular rash followed by burning.');
-      setModalities('Worse warmth of bed, washing with water, evening; better warm dry room.');
-      setMindDisposition('Aversion to bathing, irritable, heated head with burning soles.');
-    } else if (type === 'cough') {
-      setSymptoms('Violent paroxysmal dry spasmodic barking cough, suffocative tickling in larynx.');
-      setModalities('Worse at night lying down flat, after midnight, cold dry winds; better sitting upright, warm drinks.');
-      setMindDisposition('Anxious, holding chest with hands while coughing.');
-    } else if (type === 'headache') {
-      setSymptoms('Sudden throbbing violent congestive headache with flushed red face and sensitivity to light.');
-      setModalities('Worse noise, light, jarring footsteps, afternoon 3 PM; better dark room, tight pressure.');
-      setMindDisposition('Sensitive, agitated, desires quiet and darkness.');
-    } else if (type === 'anxiety') {
-      setSymptoms('Sudden acute panic, rapid heart palpitations, intense restlessness and sleeplessness with racing thoughts.');
-      setModalities('Worse midnight (12-2 AM), solitude, cold air; better warmth, presence of doctor or family.');
-      setMindDisposition('Extreme anguish, fear of disease, pacing the room.');
+  // Preset chip 1-click selection
+  const handlePresetClick = (cond: ClinicalCondition) => {
+    setActiveChip(cond.id);
+    setSymptoms(cond.typicalPresentation);
+    setSelectedCondition(cond);
+    setErrorMsg('');
+  };
+
+  // Copy prescription details
+  const handleCopyText = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  // Add remedy or patent to billing counter
+  const handleAddToBill = (
+    item: {
+      name: string;
+      potency?: string;
+      bottleSize?: string;
+      price?: number;
+      rack?: string;
+    },
+    key: string
+  ) => {
+    const itemDesc = `${item.name}${item.potency ? ` (${item.potency})` : item.bottleSize ? ` [${item.bottleSize}]` : ''}${item.rack ? ` - ${item.rack}` : ''}`;
+    const pendingItem = {
+      item_description: itemDesc,
+      price: item.price || '',
+    };
+
+    try {
+      sessionStorage.setItem('hhc_pending_billing_item', JSON.stringify(pendingItem));
+    } catch (e) {
+      console.warn('Could not write to sessionStorage:', e);
+    }
+
+    setAddedBillKey(key);
+    setTimeout(() => setAddedBillKey(null), 2200);
+
+    if (onAddRemedyToBilling) {
+      onAddRemedyToBilling({
+        remedy_name: item.name,
+        potency: item.potency || item.bottleSize || '',
+        dosage: '',
+        key_indications: [],
+      });
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white shadow-md shrink-0">
-              <Sparkles className="w-6 h-6 text-emerald-300" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                  AI Clinical Homoeopathic Consultant
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
-                  Boericke & Kent Engine
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Classical Similia Repertorization • Modalities Analysis • Real-time Clinic Inventory Lookup
-              </p>
-            </div>
+    <div className="w-full max-w-6xl mx-auto space-y-6 pb-12">
+      {/* Top Header Card */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-800/95 border border-emerald-900/10 dark:border-slate-700 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] flex items-center justify-center text-white shadow-md shrink-0">
+            <ClinicLogo size={28} className="text-white" />
           </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                Clinical Repertory & Prescription Engine
+              </h1>
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                <Sparkles className="w-3 h-3" />
+                Dual-Tier Kent + Patents
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              Classical Kent & Boericke Simillimum Repertory + Renowned German & Indian Patent Formulations
+            </p>
+          </div>
+        </div>
 
-          {/* Mandatory Medical Disclaimer badge */}
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-semibold shadow-2xs">
-            <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span>Clinical Reference only. Final prescription must be verified by Dr. M. A. Haque, M.D.</span>
+        {/* Live Inventory Status Pill */}
+        <div className="flex items-center gap-2 self-end md:self-auto text-xs">
+          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center gap-2 font-medium">
+            <PackageSearch className="w-4 h-4 text-emerald-600" />
+            <span>
+              Live Inventory Sync: <strong>{inventoryLoaded ? `${inventoryItems.length} items` : 'Syncing...'}</strong>
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Main Grid Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Input Form */}
-        <div className="lg:col-span-5 bg-white dark:bg-slate-800 rounded-3xl border border-emerald-950/10 dark:border-slate-700 p-5 sm:p-6 shadow-sm space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
-              Patient Clinical Presentation
-            </span>
-            <span className="text-[11px] text-slate-400">Step 1: Record Keynotes</span>
+      {/* Main Unified Input Section with Dual-Language Voice Engine */}
+      <div className="p-5 sm:p-7 rounded-3xl bg-white dark:bg-slate-800/95 border border-emerald-900/10 dark:border-slate-700 shadow-sm space-y-4">
+        {/* Input Bar Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-slate-100 dark:border-slate-700">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+            <Stethoscope className="w-4 h-4 text-emerald-600" />
+            <span>Clinical Presentation & Symptom Totality</span>
           </div>
 
-          {/* Clinical Presets Chips */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                Quick Clinical Presets:
-              </span>
-              <span className="text-[10px] text-slate-400">One-click populate</span>
+          {/* Language Switcher & Voice Dictation Controls */}
+          <div className="flex items-center gap-2">
+            {/* Language Selector */}
+            <div className="inline-flex items-center rounded-xl bg-slate-100 dark:bg-slate-900 p-0.5 border border-slate-200 dark:border-slate-700 text-xs">
+              <button
+                type="button"
+                onClick={() => setSpeechLang('en')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                  speechLang === 'en'
+                    ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                English (India)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpeechLang('bn')}
+                className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                  speechLang === 'bn'
+                    ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                বাংলা (Bengali)
+              </button>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { id: 'arthritis', label: 'Joint Pain / Arthritis' },
-                { id: 'rhinitis', label: 'Rhinitis / Allergy' },
-                { id: 'gastric', label: 'Acidity / GERD' },
-                { id: 'skin', label: 'Skin Rash / Eczema' },
-                { id: 'cough', label: 'Cough / Bronchial' },
-                { id: 'headache', label: 'Migraine / Headache' },
-                { id: 'anxiety', label: 'Anxiety / Panic' },
-              ].map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => loadPresetCase(p.id as any)}
-                  className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-emerald-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 hover:text-emerald-900 dark:text-slate-300 text-xs font-semibold transition cursor-pointer"
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          <form onSubmit={handleConsultGemini} className="space-y-4">
-            {/* Chief Complaints with Voice Recognition */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Chief Complaints & Physical Sensations *
-                </label>
-                {speechSupported && (
-                  <button
-                    type="button"
-                    onClick={toggleSpeechRecognition}
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
-                      isListening
-                        ? 'bg-red-500 text-white animate-pulse'
-                        : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200'
-                    }`}
-                    title="Speak symptoms using microphone"
-                  >
-                    {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                    <span>{isListening ? 'Listening...' : 'Voice Dictate'}</span>
-                  </button>
+            {/* Microphone Button with Active Listening State */}
+            {speechSupported ? (
+              <button
+                type="button"
+                onClick={handleToggleVoice}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                  isListening
+                    ? 'bg-red-600 text-white animate-pulse shadow-md'
+                    : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800'
+                }`}
+                title={isListening ? 'Click to stop voice dictation' : `Dictate symptoms in ${speechLang === 'bn' ? 'Bengali' : 'English'}`}
+              >
+                {isListening ? (
+                  <>
+                    <MicOff className="w-3.5 h-3.5 text-white" />
+                    <span>Listening ({speechLang === 'bn' ? 'বাংলা' : 'EN'})...</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Voice Input ({speechLang === 'bn' ? 'বাংলা' : 'EN'})</span>
+                  </>
                 )}
-              </div>
-              <textarea
-                rows={4}
-                required
-                id="ai-symptoms-input"
-                placeholder="Describe symptoms, locations, sensation (e.g. stitching pain, burning, heaviness, throbbing)..."
-                value={symptoms}
-                onChange={(e) => setSymptoms(e.target.value)}
-                className="w-full p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 transition font-sans"
-              />
-            </div>
+              </button>
+            ) : null}
 
-            {/* Modalities */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Modalities (Aggravation & Amelioration)
-              </label>
-              <input
-                type="text"
-                id="ai-modalities-input"
-                placeholder="e.g. Worse cold damp, night, movement; Better heat, rest, dry weather"
-                value={modalities}
-                onChange={(e) => setModalities(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
-              />
-            </div>
-
-            {/* Mental Disposition */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-                Mental Disposition & Constitution
-              </label>
-              <input
-                type="text"
-                id="ai-mind-input"
-                placeholder="e.g. Restless, anxious about health, irritable, mild weeping, fastidious"
-                value={mindDisposition}
-                onChange={(e) => setMindDisposition(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
-              />
-            </div>
-
-            {errorMsg && (
-              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                <Info className="w-4 h-4 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
+            {symptoms && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSymptoms('');
+                  setSelectedCondition(null);
+                  setActiveChip(null);
+                }}
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                title="Clear input"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
-
-            <button
-              type="submit"
-              id="btn-run-ai-consult"
-              disabled={loading}
-              className="w-full py-3.5 rounded-2xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4 text-emerald-300" />
-              <span>{loading ? 'Repertorizing Clinical Keynotes...' : 'Analyze Symptoms & Repertorize'}</span>
-            </button>
-          </form>
+          </div>
         </div>
 
-        {/* Right Column: Results & Remedy Cards */}
-        <div className="lg:col-span-7 space-y-5">
-          {!result && !loading && (
-            <div className="p-8 sm:p-10 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 text-center space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center mx-auto">
-                <BookOpen className="w-7 h-7" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-extrabold text-lg text-slate-900 dark:text-white">
-                  Materia Medica Clinical Intelligence Ready
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-                  Enter patient complaints or select a clinical preset to generate classical homoeopathic differential remedies, modalities, potency recommendations, and inventory stock verification.
-                </p>
-              </div>
+        {/* Unified Spacious Textarea */}
+        <div className="relative">
+          <textarea
+            value={symptoms}
+            onChange={(e) => {
+              setSymptoms(e.target.value);
+              if (errorMsg) setErrorMsg('');
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                handleAnalyze();
+              }
+            }}
+            placeholder="Describe symptoms in English or Bengali (e.g. kidney stone severe right side pain, প্রস্রাব আটকে যাওয়া প্রস্টেট সমস্যা, পেটে তীব্র কলিক ব্যথা, acidity heartburn, knee arthritis stiffness, toothache with swollen gums)..."
+            rows={4}
+            className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition resize-none leading-relaxed"
+          />
+
+          {isListening && (
+            <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 text-xs font-bold flex items-center gap-1.5 border border-red-200 dark:border-red-800">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+              <span>Speaking in {speechLang === 'bn' ? 'বাংলা' : 'English'}... Click microphone to finish</span>
             </div>
           )}
+        </div>
 
-          {loading && (
-            <div className="p-10 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 text-center space-y-4 animate-pulse">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 flex items-center justify-center mx-auto animate-spin">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
-                  Repertorizing Symptoms in Boericke & Kent Materia Medica...
-                </p>
-                <p className="text-xs text-slate-500">
-                  Cross-referencing aggravations, ameliorations, and constitutional keynotes...
-                </p>
-              </div>
-            </div>
-          )}
+        {/* 1-Click Quick Preset Chips */}
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              1-Click Clinical Quick Presets:
+            </span>
+            <span className="text-[11px] text-slate-400">Click any preset to instant repertorize</span>
+          </div>
 
-          {result && (
-            <div className="space-y-5">
-              {/* Clinical Assessment Header Box */}
-              <div className="p-5 rounded-3xl bg-emerald-50/80 dark:bg-slate-800 border border-emerald-200 dark:border-slate-700 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-[#1B4332] dark:text-emerald-300 font-bold text-sm">
-                    <HeartPulse className="w-4 h-4" />
-                    <span>Clinical Assessment & Miasmatic Repertory</span>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white dark:bg-slate-700 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-slate-600 shadow-2xs">
-                    {engineSource === 'gemini' ? '✨ Gemini AI Engine' : '📚 Materia Medica Repertory Engine'}
-                  </span>
+          <div className="flex flex-wrap gap-2">
+            {CLINICAL_REPERTORY_DATABASE.map((cond) => {
+              const isSelected = activeChip === cond.id || selectedCondition?.id === cond.id;
+              return (
+                <button
+                  key={cond.id}
+                  type="button"
+                  onClick={() => handlePresetClick(cond)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 border ${
+                    isSelected
+                      ? 'bg-[#1B4332] text-white border-[#1B4332] shadow-sm'
+                      : 'bg-stone-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-stone-200 dark:border-slate-700 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30'
+                  }`}
+                >
+                  <Pill className={`w-3.5 h-3.5 ${isSelected ? 'text-emerald-300' : 'text-emerald-600 dark:text-emerald-400'}`} />
+                  <span>{cond.chipLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Error Message if any */}
+        {errorMsg && (
+          <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        {/* Action Buttons: Instant Repertory & Gemini Deep AI Consult */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+          <span className="text-[11px] text-slate-400 hidden sm:inline">
+            Tip: Press <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Enter</kbd> to repertorize
+          </span>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => handleAnalyze()}
+              disabled={loading || isAiLoading}
+              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
+            >
+              <BookOpen className="w-4 h-4 text-emerald-300" />
+              <span>{loading ? 'Repertorizing...' : 'Instant Repertorize'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleGeminiConsult()}
+              disabled={loading || isAiLoading}
+              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 hover:opacity-90 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
+              title="Query Gemini AI for custom constitutional synthesis & multi-brand patent formulations"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>{isAiLoading ? 'Gemini AI Analyzing...' : 'Gemini Deep AI Consult'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Results Container: Dual-Tier Output */}
+      {selectedCondition && (
+        <div className="space-y-8 animate-in fade-in duration-200">
+          {/* Clinical Overview Summary Card */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-emerald-950 via-[#1B4332] to-[#081C15] text-white shadow-md border border-emerald-800/40">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                  <Stethoscope className="w-4 h-4" />
+                  <span>Clinical Pathology & Miasmatic Evaluation</span>
                 </div>
-                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                  {result.analysis_summary}
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+                  {selectedCondition.nameEn}
+                </h2>
+                <p className="text-sm text-emerald-200/90 font-medium mt-0.5">
+                  {selectedCondition.nameBn}
                 </p>
               </div>
 
-              {/* Remedy Cards List */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                    Recommended Similimum & Differential Remedies ({result.remedies.length})
+              <div className="flex flex-wrap gap-2 text-xs">
+                <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 text-emerald-100">
+                  <span className="opacity-75 block text-[10px] uppercase">Pathology:</span>
+                  <span className="font-bold">{selectedCondition.pathology}</span>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 text-emerald-100">
+                  <span className="opacity-75 block text-[10px] uppercase">Miasm:</span>
+                  <span className="font-bold">{selectedCondition.miasm}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ============================================================ */}
+          {/* SECTION A: CLASSICAL SIMILLIMUM REMEDIES (Kent & Boericke)  */}
+          {/* ============================================================ */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-800 dark:text-emerald-300 font-black text-sm">
+                  A
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                    SECTION A: CLASSICAL SIMILLIMUM REMEDIES
                   </h3>
-                  <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                    Verified Keynotes
-                  </span>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Materia Medica & Repertory Keynotes (Kent & Boericke Classical Prescriptions)
+                  </p>
                 </div>
+              </div>
 
-                {result.remedies.map((remedy, idx) => {
-                  const isCopied = copiedStates[idx];
-                  const stockInfo = stockStatus[idx];
+              <span className="text-xs px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800 self-start sm:self-auto">
+                {selectedCondition.classicalRemedies.length} Classical Simillimum Matches
+              </span>
+            </div>
 
-                  return (
-                    <div
-                      key={idx}
-                      className="p-5 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-sm space-y-4 hover:border-emerald-300 dark:hover:border-emerald-700 transition"
-                    >
-                      {/* Card Header: Remedy Name, Potency, Action Buttons */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-700">
+            {/* Classical Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {selectedCondition.classicalRemedies.map((remedy, idx) => {
+                const stock = getInventoryStatus(remedy.name, remedy.aliases);
+                const cardKey = `classical-${idx}`;
+                const isCopied = copiedKey === cardKey;
+                const isAdded = addedBillKey === cardKey;
+
+                return (
+                  <div
+                    key={cardKey}
+                    className="p-5 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs hover:border-emerald-500/50 transition-all flex flex-col justify-between space-y-4"
+                  >
+                    {/* Top Row: Remedy Name, Common Name & Badges */}
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="flex items-center gap-2">
-                            <h4 className="font-black text-base text-[#1B4332] dark:text-emerald-400">
-                              {remedy.remedy_name}
+                            <span className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <h4 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
+                              {remedy.name}
                             </h4>
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                              {remedy.potency}
-                            </span>
                           </div>
-                          {remedy.common_name && (
-                            <p className="text-[11px] text-slate-500 mt-0.5">
-                              Common: <span className="font-medium text-slate-700 dark:text-slate-300">{remedy.common_name}</span>
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Top Action Buttons: Copy & Add to Billing */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleCopyRemedy(remedy, idx)}
-                            className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                            title="Copy Remedy Name & Potency"
-                          >
-                            {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>{isCopied ? 'Copied!' : 'Copy'}</span>
-                          </button>
-
-                          {onAddRemedyToBilling && (
-                            <button
-                              type="button"
-                              onClick={() => onAddRemedyToBilling(remedy)}
-                              className="px-3 py-1.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-emerald-900 dark:text-emerald-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                              title="Add to Billing Items"
-                            >
-                              <PlusCircle className="w-3.5 h-3.5" />
-                              <span>+ Bill</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Modalities (Aggravation & Amelioration) */}
-                      {remedy.modalities && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                          <div className="p-2.5 rounded-xl bg-red-50/70 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50">
-                            <span className="font-bold text-red-800 dark:text-red-300 block mb-0.5 text-[11px] uppercase tracking-wide">
-                              ⚠️ Aggravation (Worse):
-                            </span>
-                            <p className="text-slate-700 dark:text-slate-300 leading-snug">
-                              {remedy.modalities.worse}
-                            </p>
-                          </div>
-                          <div className="p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50">
-                            <span className="font-bold text-emerald-800 dark:text-emerald-300 block mb-0.5 text-[11px] uppercase tracking-wide">
-                              🌿 Amelioration (Better):
-                            </span>
-                            <p className="text-slate-700 dark:text-slate-300 leading-snug">
-                              {remedy.modalities.better}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Dosage Guide */}
-                      <div className="p-3 rounded-2xl bg-stone-50 dark:bg-slate-900/50 border border-stone-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                        <div>
-                          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                            Potency & Dosage Guide:
-                          </span>
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200">
-                            {remedy.potency} • {remedy.dosage}
+                          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 ml-7">
+                            Common Name: <strong>{remedy.commonName}</strong>
                           </span>
                         </div>
 
-                        {/* Check Inventory Stock Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleCheckStock(remedy, idx)}
-                          className="px-3 py-1.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 shadow-2xs self-start sm:self-auto"
-                        >
-                          <PackageSearch className="w-3.5 h-3.5 text-emerald-300" />
-                          <span>Check Inventory Stock</span>
-                        </button>
+                        {/* Potency Pill */}
+                        <span className="px-2.5 py-1 rounded-xl bg-[#1B4332] text-emerald-200 text-xs font-extrabold shrink-0">
+                          {remedy.potency}
+                        </span>
                       </div>
 
-                      {/* Stock Check Result Banner (Appears when clicked) */}
-                      {stockInfo && stockInfo.checked && (
-                        <div
-                          className={`p-3 rounded-2xl text-xs flex items-center justify-between gap-3 border transition-all ${
-                            stockInfo.found
-                              ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
-                              : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            {stockInfo.found ? (
-                              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                            ) : (
-                              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                            )}
-                            <div className="min-w-0">
-                              <p className="font-bold truncate">{stockInfo.details}</p>
-                              {stockInfo.found && (
-                                <p className="text-[11px] opacity-85">
-                                  Location: <strong className="font-mono">{stockInfo.rack}</strong> • Total Available: <strong>{stockInfo.stock} units</strong>
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {onNavigateToInventory && (
-                            <button
-                              type="button"
-                              onClick={() => onNavigateToInventory(remedy.remedy_name)}
-                              className="text-[11px] underline font-bold shrink-0 hover:opacity-80 cursor-pointer"
-                            >
-                              Go to Inventory →
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Materia Medica Keynote */}
-                      <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 leading-relaxed font-serif">
-                        <strong className="font-sans font-bold text-slate-800 dark:text-slate-200">Materia Medica Keynote: </strong>
-                        {remedy.materia_medica_notes}
-                      </p>
+                      {/* Live Inventory Lookup & Rack Location Badge */}
+                      <div className="pt-1">
+                        {stock.found ? (
+                          stock.inStock ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>
+                                ✔ In Stock: {stock.stock} units • Rack: {stock.rack}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                              <span>⚠ Out of Stock (Rack: {stock.rack})</span>
+                            </span>
+                          )
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-medium bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                            <PackageSearch className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Not in Clinic Catalog (Order Needed)</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Keynote Symptoms & Materia Medica */}
+                    <div className="space-y-2 text-xs">
+                      <div className="space-y-1">
+                        <span className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px] block">
+                          Guiding Keynotes:
+                        </span>
+                        <ul className="space-y-1 text-slate-600 dark:text-slate-300 list-disc list-inside">
+                          {remedy.keynotes.map((note, kIdx) => (
+                            <li key={kIdx} className="leading-relaxed">
+                              {note}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Modalities: Aggravation & Amelioration */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        <div className="p-2.5 rounded-xl bg-red-50/70 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50">
+                          <span className="font-bold text-red-800 dark:text-red-300 block mb-0.5 text-[10px] uppercase tracking-wide">
+                            ⚠️ Aggravation (Worse):
+                          </span>
+                          <p className="text-slate-700 dark:text-slate-300 text-[11px] leading-snug">
+                            {remedy.modalities.worse}
+                          </p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50">
+                          <span className="font-bold text-emerald-800 dark:text-emerald-300 block mb-0.5 text-[10px] uppercase tracking-wide">
+                            🌿 Amelioration (Better):
+                          </span>
+                          <p className="text-slate-700 dark:text-slate-300 text-[11px] leading-snug">
+                            {remedy.modalities.better}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Dosage Guidance */}
+                      <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                          Prescribed Dosage:
+                        </span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                          {remedy.dosage}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card Actions: Add to Bill + Copy */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleCopyText(
+                            `${remedy.name} (${remedy.potency})\nDosage: ${remedy.dosage}\nKeynotes: ${remedy.keynotes.join('; ')}`,
+                            cardKey
+                          )
+                        }
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                      >
+                        {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{isCopied ? 'Copied!' : 'Copy'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleAddToBill(
+                            {
+                              name: remedy.name,
+                              potency: remedy.potency,
+                              price: stock.mrp || 0,
+                              rack: stock.rack,
+                            },
+                            cardKey
+                          )
+                        }
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                      >
+                        {isAdded ? <Check className="w-3.5 h-3.5" /> : <PlusCircle className="w-3.5 h-3.5" />}
+                        <span>{isAdded ? 'Added to Bill!' : '+ Add to Bill'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ============================================================ */}
+          {/* SECTION B: PATENTED CLINICAL COMBINATIONS                     */}
+          {/* ============================================================ */}
+          <div className="space-y-4 pt-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950 flex items-center justify-center text-amber-800 dark:text-amber-300 font-black text-sm">
+                  B
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                      SECTION B: PATENTED CLINICAL COMBINATIONS
+                    </h3>
+                    <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                      Multi-Brand Engine
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Bakson's, Dr. Reckeweg Germany, SBL India, Adel Pekana, Wheezal, Schwabe, Medisynth, Allen & Lord's
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800">
+                  {selectedCondition.patentFormulations.length} Formulations Available
+                </span>
+              </div>
+            </div>
+
+            {/* Brand Filter Chips Row */}
+            {availableBrands.length > 1 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+                  Filter Brand:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBrandFilter('all')}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 border ${
+                    selectedBrandFilter === 'all'
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                      : 'bg-stone-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400'
+                  }`}
+                >
+                  All Brands ({selectedCondition.patentFormulations.length})
+                </button>
+
+                {availableBrands.map(({ label, count }) => {
+                  const isSelected = selectedBrandFilter === label;
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => setSelectedBrandFilter(label)}
+                      className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 border ${
+                        isSelected
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                          : 'bg-stone-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400'
+                      }`}
+                    >
+                      {label} ({count})
+                    </button>
                   );
                 })}
               </div>
+            )}
 
-              {/* Diet & Regimen */}
-              {result.diet_and_regimen && (
-                <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-700 dark:text-slate-300">
-                    <Apple className="w-4 h-4 text-emerald-600" />
-                    <span>Homoeopathic Regimen & Dietary Guidance</span>
+            {/* Patent Formulations Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredPatents.map((patent, pIdx) => {
+                const stock = getInventoryStatus(patent.name, patent.aliases);
+                const brandBadge = getBrandBadge(patent.brand, patent.company, patent.country);
+                const cardKey = `patent-${pIdx}-${patent.name}`;
+                const isCopied = copiedKey === cardKey;
+                const isAdded = addedBillKey === cardKey;
+
+                return (
+                  <div
+                    key={cardKey}
+                    className="p-5 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs hover:border-amber-500/50 transition-all flex flex-col justify-between space-y-3.5"
+                  >
+                    {/* Top Row: Name, Brand Pill & Bottle Size */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <h4 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
+                            {patent.name}
+                          </h4>
+                          {/* Distinctive Brand Badge with Country Flag */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${brandBadge.color}`}
+                            >
+                              {brandBadge.label}
+                            </span>
+                            {patent.country && (
+                              <span className="text-[10px] font-bold text-slate-400">
+                                • {patent.country}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-extrabold shrink-0 border border-slate-200 dark:border-slate-600">
+                          {patent.bottleSize}
+                        </span>
+                      </div>
+
+                      {/* Manufacturer and Approx MRP */}
+                      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700 pb-2">
+                        <span className="truncate pr-2 font-medium">{patent.company}</span>
+                        <span className="font-extrabold text-slate-800 dark:text-slate-200 shrink-0">
+                          MRP: ₹{patent.mrp}
+                        </span>
+                      </div>
+
+                      {/* Live Inventory Lookup & Rack Location Badge */}
+                      <div className="pt-0.5">
+                        {stock.found ? (
+                          stock.inStock ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>
+                                ✔ In Stock: {stock.stock} • Rack: {stock.rack}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                              <span>⚠ Out of Stock (Rack: {stock.rack})</span>
+                            </span>
+                          )
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-medium bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                            <PackageSearch className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Not in Catalog (Order Needed)</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Indications & Dosage */}
+                    <div className="space-y-2 text-xs">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Clinical Indications:
+                        </span>
+                        <p className="text-slate-700 dark:text-slate-300 leading-snug">
+                          {patent.indications}
+                        </p>
+                      </div>
+
+                      <div className="p-2 rounded-xl bg-stone-50 dark:bg-slate-900 border border-stone-200 dark:border-slate-700">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Recommended Dosage:
+                        </span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                          {patent.dosage}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card Actions */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleCopyText(
+                            `${patent.name} - ${patent.brand} (${patent.company})\nBottle: ${patent.bottleSize} | MRP: ₹${patent.mrp}\nDosage: ${patent.dosage}`,
+                            cardKey
+                          )
+                        }
+                        className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                      >
+                        {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleAddToBill(
+                            {
+                              name: patent.name,
+                              bottleSize: patent.bottleSize,
+                              price: stock.mrp || patent.mrp,
+                              rack: stock.rack,
+                            },
+                            cardKey
+                          )
+                        }
+                        className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                      >
+                        {isAdded ? <Check className="w-3.5 h-3.5" /> : <PlusCircle className="w-3.5 h-3.5" />}
+                        <span>{isAdded ? 'Added!' : '+ Add to Bill'}</span>
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {result.diet_and_regimen}
-                  </p>
-                </div>
-              )}
+                );
+              })}
+            </div>
+          </div>
 
-              {/* Mandatory Medical Disclaimer badge at bottom */}
-              <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center gap-2 text-xs text-amber-900 dark:text-amber-200">
-                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
-                <span className="font-medium">
-                  <strong>Prescription Disclaimer:</strong> Clinical Reference only. Final prescription must be verified by Dr. M. A. Haque, M.D.
-                </span>
+          {/* Diet & Hahnemannian Regimen */}
+          {selectedCondition.dietAndRegimen && (
+            <div className="p-5 rounded-3xl bg-white dark:bg-slate-800 border border-emerald-900/10 dark:border-slate-700 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-700 dark:text-slate-300">
+                <Apple className="w-4 h-4 text-emerald-600" />
+                <span>Homoeopathic Regimen & Dietary Guidance</span>
               </div>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                {selectedCondition.dietAndRegimen}
+              </p>
             </div>
           )}
+
+          {/* Mandatory Clinical Disclaimer */}
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center gap-3 text-xs text-amber-900 dark:text-amber-200">
+            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+            <div className="leading-snug">
+              <strong>Prescription Disclaimer: </strong>
+              <span>
+                {selectedCondition.warningNotes} Final prescription and potency selection must be verified by Dr. M. A. Haque, M.D. (Homoeo).
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
