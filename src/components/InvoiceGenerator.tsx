@@ -15,12 +15,14 @@ import {
   Eye,
   X,
   ExternalLink,
-  Download
+  Download,
+  MessageCircle
 } from 'lucide-react';
 import { Appointment, Invoice, InvoiceItem, PaymentMode } from '../types';
 import { createInvoice, getInvoices, registerCreatedInvoice, derivePatientId } from '../services/clinicStore';
 import { getSupabase } from '../services/supabase';
 import { exportInvoicesToCSV } from '../utils/exportUtils';
+import { getWhatsAppReceiptUrl } from '../utils/whatsapp';
 import { ClinicLogo } from './ClinicLogo';
 
 interface InvoiceGeneratorProps {
@@ -710,6 +712,29 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                 New Invoice
               </button>
 
+              <a
+                id="btn-whatsapp-invoice"
+                href={getWhatsAppReceiptUrl({
+                  phone: savedInvoice.phone,
+                  patientName: savedInvoice.patient_name,
+                  invoiceNumber: savedInvoice.invoice_number,
+                  date: new Date(savedInvoice.created_at).toLocaleDateString(),
+                  doctorFee: Number(savedInvoice.consultation_fee ?? savedInvoice.doctor_fee ?? 0),
+                  medicineTotal: savedInvoice.medicine_total !== undefined && savedInvoice.medicine_total !== null
+                    ? Number(savedInvoice.medicine_total)
+                    : (savedInvoice.items?.reduce((acc, it) => acc + (Number(it.total_price) || Number(it.price) || 0), 0) || Math.max(0, (savedInvoice.subtotal || savedInvoice.total_amount) - Number(savedInvoice.consultation_fee ?? savedInvoice.doctor_fee ?? 0))),
+                  totalAmount: Number(savedInvoice.total_amount || 0),
+                  paymentMode: (savedInvoice.payment_mode || 'Cash').toUpperCase(),
+                })}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                title="Send Digital Receipt via WhatsApp Business"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Share on WhatsApp</span>
+              </a>
+
               <button
                 id="btn-print-invoice"
                 onClick={triggerPrint}
@@ -949,6 +974,44 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Quick Action Footer for WhatsApp & Print */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3 no-print shadow-sm">
+            <div className="text-xs text-slate-600 dark:text-slate-300">
+              Receipt ready for <strong className="text-slate-900 dark:text-white">{savedInvoice.patient_name}</strong> {savedInvoice.phone ? `(${savedInvoice.phone})` : ''}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href={getWhatsAppReceiptUrl({
+                  phone: savedInvoice.phone,
+                  patientName: savedInvoice.patient_name,
+                  invoiceNumber: savedInvoice.invoice_number,
+                  date: new Date(savedInvoice.created_at).toLocaleDateString(),
+                  doctorFee: Number(savedInvoice.consultation_fee ?? savedInvoice.doctor_fee ?? 0),
+                  medicineTotal: savedInvoice.medicine_total !== undefined && savedInvoice.medicine_total !== null
+                    ? Number(savedInvoice.medicine_total)
+                    : (savedInvoice.items?.reduce((acc, it) => acc + (Number(it.total_price) || Number(it.price) || 0), 0) || Math.max(0, (savedInvoice.subtotal || savedInvoice.total_amount) - Number(savedInvoice.consultation_fee ?? savedInvoice.doctor_fee ?? 0))),
+                  totalAmount: Number(savedInvoice.total_amount || 0),
+                  paymentMode: (savedInvoice.payment_mode || 'Cash').toUpperCase(),
+                })}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                title="Send Digital Receipt via WhatsApp Business"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span>Send WhatsApp Receipt</span>
+              </a>
+              <button
+                type="button"
+                onClick={triggerPrint}
+                className="px-4 py-2 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Receipt</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
