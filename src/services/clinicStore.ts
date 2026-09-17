@@ -592,26 +592,31 @@ export async function reassignAppointmentSlot(
   return updatedTarget;
 }
 
+// Helper to check if an appointment has expired past its shift cutoff
+export function isAppointmentExpired(a: Appointment): boolean {
+  if (a.status !== 'pending') return false;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const localTodayStr = `${year}-${month}-${day}`;
+  const currentHour = now.getHours();
+
+  // 1. Past date
+  if (a.booking_date < localTodayStr) return true;
+  // 2. Today's date with concluded shift
+  // Morning shift ends at 14:00 (2 PM), Evening shift ends at 22:00 (10 PM)
+  if (a.booking_date === localTodayStr) {
+    if (a.shift === 'morning' && currentHour >= 14) return true;
+    if (a.shift === 'evening' && currentHour >= 22) return true;
+  }
+  return false;
+}
+
 // Auto-cancel expired pending appointments (past date or concluded shift)
 export async function autoCancelExpiredAppointments(apts?: Appointment[]): Promise<number> {
   const currentList = apts || inMemoryAppointments;
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const currentHour = now.getHours();
-
-  const isExpired = (a: Appointment) => {
-    if (a.status !== 'pending') return false;
-    // 1. Past date
-    if (a.booking_date < todayStr) return true;
-    // 2. Today's date with concluded shift
-    if (a.booking_date === todayStr) {
-      if (a.shift === 'morning' && currentHour >= 14) return true; // past 2:00 PM
-      if (a.shift === 'evening' && currentHour >= 22) return true; // past 10:00 PM
-    }
-    return false;
-  };
-
-  const expiredList = currentList.filter(isExpired);
+  const expiredList = currentList.filter(isAppointmentExpired);
   if (expiredList.length === 0) return 0;
 
   const expiredIds = expiredList.map((a) => a.id);

@@ -16,7 +16,13 @@ import {
   CalendarCheck
 } from 'lucide-react';
 import { Appointment, ShiftType } from '../types';
-import { getAppointments, subscribeToStore, reassignAppointmentSlot } from '../services/clinicStore';
+import { 
+  getAppointments, 
+  subscribeToStore, 
+  reassignAppointmentSlot, 
+  isAppointmentExpired, 
+  autoCancelExpiredAppointments 
+} from '../services/clinicStore';
 
 interface LiveTrackerModalProps {
   isOpen: boolean;
@@ -55,6 +61,10 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
       setAppointments(getAppointments());
       setRescheduleError('');
       setRescheduleSuccess('');
+      // Check and auto-cancel expired pending appointments
+      autoCancelExpiredAppointments().catch((err) =>
+        console.warn('[LiveTrackerModal] Auto-cancel note:', err)
+      );
     }
     const unsubscribe = subscribeToStore((event) => {
       if (event.type === 'appointments') {
@@ -64,8 +74,12 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
     return () => unsubscribe();
   }, [isOpen]);
 
-  // Today's live date
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Today's live local date
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const todayStr = `${year}-${month}-${day}`;
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -80,7 +94,7 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
   }, [appointments, searchQuery]);
 
   const todayAppointments = useMemo(() => {
-    return appointments.filter((a) => a.booking_date === todayStr && a.status !== 'cancelled');
+    return appointments.filter((a) => a.booking_date === todayStr && a.status !== 'cancelled' && !isAppointmentExpired(a));
   }, [appointments, todayStr]);
 
   const morningQueue = todayAppointments.filter((a) => a.shift === 'morning');
@@ -226,7 +240,9 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
                 </div>
               ) : (
                 searchResults.map((apt) => {
-                  const isPending = apt.status === 'pending';
+                  const isExpired = isAppointmentExpired(apt);
+                  const isCancelled = apt.status === 'cancelled' || isExpired;
+                  const isPending = apt.status === 'pending' && !isExpired;
                   const isEditingThis = reschedulingAptId === apt.id;
 
                   // Ahead in line calculation for the same shift
@@ -235,6 +251,7 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
                       a.booking_date === apt.booking_date &&
                       a.shift === apt.shift &&
                       a.status === 'pending' &&
+                      !isAppointmentExpired(a) &&
                       a.queue_position < apt.queue_position
                   ).length;
 
@@ -271,8 +288,8 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               Consulted & Done
                             </span>
-                          ) : apt.status === 'cancelled' ? (
-                            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
+                          ) : isCancelled ? (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 dark:bg-red-950/80 dark:text-red-300 border border-red-200 dark:border-red-800">
                               Cancelled
                             </span>
                           ) : (
@@ -301,7 +318,7 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
                         <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-slate-900/60 border border-stone-100 dark:border-slate-800">
                           <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Ahead in Line</span>
                           <span className="font-bold text-xs sm:text-sm text-emerald-700 dark:text-emerald-400 block mt-0.5">
-                            {apt.status === 'completed' ? '0 (Done)' : `${priorInShift} patient(s)`}
+                            {apt.status === 'completed' ? '0 (Done)' : isCancelled ? '0 (Cancelled)' : `${priorInShift} patient(s)`}
                           </span>
                         </div>
                         <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-slate-900/60 border border-stone-100 dark:border-slate-800">
@@ -312,8 +329,8 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
                         </div>
                       </div>
 
-                      {/* Reschedule Button / Inline Reschedule Drawer */}
-                      {isPending && (
+                      {/* Reschedule Button / Inline Reschedule Drawer (Only for non-cancelled/non-expired pending) */}
+                      {isPending && !isCancelled && (
                         <div className="pt-2 border-t border-stone-100 dark:border-slate-700">
                           {!isEditingThis ? (
                             <button
@@ -402,6 +419,16 @@ export const LiveTrackerModal: React.FC<LiveTrackerModalProps> = ({
                               </button>
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {/* When Cancelled or Expired: Hide Reschedule button and show notice */}
+                      {isCancelled && (
+                        <div className="pt-2 border-t border-stone-100 dark:border-slate-700">
+                          <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 shrink-0 text-red-500 dark:text-red-400" />
+                            <span className="font-medium">Clinic hours passed. Please book a fresh appointment.</span>
+                          </div>
                         </div>
                       )}
                     </div>
