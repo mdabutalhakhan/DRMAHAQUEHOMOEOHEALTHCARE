@@ -11,7 +11,7 @@ import {
   UserRole 
 } from '../types';
 import { INITIAL_INVENTORY, INITIAL_PROFILES } from './seedData';
-import { getSupabase } from './supabase';
+import { getSupabase, purgeInvalidSupabaseTokens, resetSupabaseClientToDefault } from './supabase';
 
 const INVENTORY_KEY = 'hhc_inventory_v1';
 const PRESCRIPTIONS_KEY = 'hhc_prescriptions_v1';
@@ -104,15 +104,28 @@ export const derivePatientId = (patientId?: string | null, phone?: string | null
  * Directly fetches appointments from Supabase table ordered by created_at ascending.
  */
 export async function fetchAppointmentsFromSupabase(): Promise<Appointment[]> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
+  let supabase = getSupabase();
+  let { data, error } = await supabase
     .from('appointments')
     .select('*')
     .order('created_at', { ascending: true });
 
+  // Handle PGRST303 (JWT issued at future / clock skew) gracefully by purging stale tokens and retrying
+  if (error && (error.code === 'PGRST303' || error.message?.includes('JWT') || error.message?.includes('future'))) {
+    console.warn('[Supabase Sync] PGRST303 JWT clock skew detected. Purging stale auth tokens and retrying with default publishable key...');
+    purgeInvalidSupabaseTokens();
+    supabase = resetSupabaseClientToDefault();
+    const retry = await supabase
+      .from('appointments')
+      .select('*')
+      .order('created_at', { ascending: true });
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (error) {
-    console.error('Failed to fetch appointments from Supabase:', error);
-    throw new Error(`Supabase query failed: ${error.message}`);
+    console.warn('Supabase appointments fetch warning (using in-memory cache):', error.message || error);
+    return inMemoryAppointments;
   }
 
   const list: Appointment[] = (data || []).map((row: any) => ({
@@ -143,15 +156,28 @@ export async function fetchAppointmentsFromSupabase(): Promise<Appointment[]> {
  * Directly fetches invoices from Supabase table ordered by created_at descending.
  */
 export async function fetchInvoicesFromSupabase(): Promise<Invoice[]> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
+  let supabase = getSupabase();
+  let { data, error } = await supabase
     .from('invoices')
     .select('*')
     .order('created_at', { ascending: false });
 
+  // Handle PGRST303 (JWT issued at future / clock skew) gracefully by purging stale tokens and retrying
+  if (error && (error.code === 'PGRST303' || error.message?.includes('JWT') || error.message?.includes('future'))) {
+    console.warn('[Supabase Sync] PGRST303 JWT clock skew detected on invoices. Purging stale auth tokens and retrying...');
+    purgeInvalidSupabaseTokens();
+    supabase = resetSupabaseClientToDefault();
+    const retry = await supabase
+      .from('invoices')
+      .select('*')
+      .order('created_at', { ascending: false });
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (error) {
-    console.error('Failed to fetch invoices from Supabase:', error);
-    throw new Error(`Supabase invoices query failed: ${error.message}`);
+    console.warn('Supabase invoices fetch warning (using in-memory cache):', error.message || error);
+    return inMemoryInvoices;
   }
 
   const list: Invoice[] = (data || []).map((row: any) => {

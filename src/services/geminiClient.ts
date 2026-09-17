@@ -49,8 +49,8 @@ export function getGeminiApiKey(): string {
   return apiKey;
 }
 
-export const STABLE_GEMINI_MODEL = 'gemini-2.5-flash';
-export const FALLBACK_GEMINI_MODEL = 'gemini-1.5-flash';
+export const STABLE_GEMINI_MODEL = 'gemini-3.6-flash';
+export const FALLBACK_GEMINI_MODEL = 'gemini-3.8-flash';
 
 /**
  * Builds the authoritative clinical prompt for Dr. M. A. Haque, M.D. (Homoeo)
@@ -110,9 +110,9 @@ export async function callGeminiDirectlyFromClient(
   try {
     const ai = new GoogleGenAI({ apiKey });
     
-    // Primary: gemini-2.5-flash, Secondary: gemini-1.5-flash, Tertiary safety: gemini-3.6-flash
+    // Primary: gemini-3.6-flash, Secondary: gemini-3.8-flash
     let responseText = '';
-    const modelsToTry = [STABLE_GEMINI_MODEL, FALLBACK_GEMINI_MODEL, 'gemini-3.6-flash'];
+    const modelsToTry = [STABLE_GEMINI_MODEL, FALLBACK_GEMINI_MODEL];
     for (const m of modelsToTry) {
       try {
         const response = await ai.models.generateContent({

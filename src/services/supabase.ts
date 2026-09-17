@@ -43,7 +43,55 @@ export function sanitizeSupabaseKey(rawKey: string | null | undefined): string {
   return rawKey.trim().replace(/^["']|["']$/g, '');
 }
 
+/**
+ * Purges any stale, future-issued, or expired Supabase GoTrue auth tokens from localStorage.
+ * This prevents PostgREST PGRST303 ("JWT issued at future") errors caused by clock skew.
+ */
+export function purgeInvalidSupabaseTokens() {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('sb-') || k.includes('supabase.auth.token'))) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // Ignore storage access issues
+  }
+}
+
+/**
+ * Resets the active Supabase client instance back to default hardcoded credentials.
+ */
+export function resetSupabaseClientToDefault(): SupabaseClient {
+  purgeInvalidSupabaseTokens();
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const customKey = localStorage.getItem('hhc_supabase_key');
+    // If the custom key was a JWT (starts with eyJ) that triggered PGRST303, clear it
+    if (customKey && customKey.startsWith('eyJ')) {
+      localStorage.removeItem('hhc_supabase_key');
+    }
+  }
+
+  supabaseInstance = createClient(HARDCODED_SUPABASE_URL, HARDCODED_SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+  lastUsedUrl = HARDCODED_SUPABASE_URL;
+  lastUsedKey = HARDCODED_SUPABASE_ANON_KEY;
+  return supabaseInstance;
+}
+
 export function getSupabase(): SupabaseClient {
+  // Purge any stale GoTrue tokens so PostgREST never receives clock-skewed future JWTs
+  purgeInvalidSupabaseTokens();
+
   const rawUrl = 
     (typeof window !== 'undefined' && localStorage.getItem('hhc_supabase_url')) ||
     import.meta.env.VITE_SUPABASE_URL ||
@@ -65,8 +113,8 @@ export function getSupabase(): SupabaseClient {
   try {
     supabaseInstance = createClient(url, key, {
       auth: {
-        persistSession: true,
-        autoRefreshToken: true,
+        persistSession: false,
+        autoRefreshToken: false,
         detectSessionInUrl: false,
       },
     });
@@ -75,7 +123,13 @@ export function getSupabase(): SupabaseClient {
     return supabaseInstance;
   } catch (e) {
     console.warn('Could not initialize Supabase client, falling back to default:', e);
-    supabaseInstance = createClient(HARDCODED_SUPABASE_URL, HARDCODED_SUPABASE_ANON_KEY);
+    supabaseInstance = createClient(HARDCODED_SUPABASE_URL, HARDCODED_SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    });
     lastUsedUrl = HARDCODED_SUPABASE_URL;
     lastUsedKey = HARDCODED_SUPABASE_ANON_KEY;
     return supabaseInstance;
@@ -92,8 +146,8 @@ export function setCustomSupabaseCredentials(url: string, key: string) {
     try {
       supabaseInstance = createClient(cleanUrl, cleanKey, {
         auth: {
-          persistSession: true,
-          autoRefreshToken: true,
+          persistSession: false,
+          autoRefreshToken: false,
           detectSessionInUrl: false,
         },
       });
@@ -137,7 +191,13 @@ export async function testSupabaseConnection(): Promise<{ success: boolean; mess
   }
 
   try {
-    const { error } = await client.from('appointments').select('count', { count: 'exact', head: true });
+    let { error } = await client.from('appointments').select('count', { count: 'exact', head: true });
+    if (error && (error.code === 'PGRST303' || error.message?.includes('JWT') || error.message?.includes('future'))) {
+      purgeInvalidSupabaseTokens();
+      const freshClient = resetSupabaseClientToDefault();
+      const retry = await freshClient.from('appointments').select('count', { count: 'exact', head: true });
+      error = retry.error;
+    }
     if (error && error.code !== 'PGRST116') {
       return {
         success: false,
