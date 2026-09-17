@@ -77,6 +77,7 @@ export interface Invoice {
   patient_name: string;
   phone: string;
   consultation_fee: number;
+  doctor_fee?: number;
   medicine_total?: number;
   shift?: ShiftType;
   subtotal: number;

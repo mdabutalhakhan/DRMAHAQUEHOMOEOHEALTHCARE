@@ -45,6 +45,7 @@ interface PatientsHistoryProps {
 
 export interface PatientGroup {
   id: string; // e.g. "PAT-1001" or "HHC-9448"
+  key: string; // Guaranteed unique key for grouping and React identity
   name: string;
   phone: string;
   address?: string;
@@ -218,12 +219,31 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
   const patients = useMemo<PatientGroup[]>(() => {
     const map = new Map<string, PatientGroup>();
 
-    // Helper to generate normalized key
+    // Helper to generate normalized grouping key
     const getPatientKey = (name: string, phone: string, pid?: string) => {
       const cleanPhone = (phone || '').replace(/[^0-9]/g, '').slice(-10);
       if (cleanPhone && cleanPhone.length >= 7) return `phone-${cleanPhone}`;
       if (pid && pid !== 'PAT-1001' && pid !== 'PAT-AUTO') return `pid-${pid.toLowerCase()}`;
       return `name-${(name || 'unnamed').trim().toLowerCase()}`;
+    };
+
+    // Helper to resolve clean, safe patient display ID
+    const resolvePatientId = (pid?: string, phone?: string, keyHint?: string) => {
+      if (pid && pid.trim() && pid !== 'PAT-1001' && pid !== 'PAT-AUTO') {
+        return pid.trim();
+      }
+      const cleanPhone = (phone || '').replace(/\D/g, '');
+      if (cleanPhone.length >= 6) {
+        return `PAT-${cleanPhone.slice(-6)}`;
+      }
+      if (cleanPhone.length >= 4) {
+        return `PAT-${cleanPhone.slice(-4)}`;
+      }
+      if (keyHint) {
+        const clean = keyHint.replace(/[^a-zA-Z0-9]/g, '').slice(-6).toUpperCase();
+        if (clean) return `PAT-${clean}`;
+      }
+      return 'PAT-1001';
     };
 
     // 1. Process Invoices
@@ -232,11 +252,12 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
       const existing = map.get(key);
 
       const invDate = inv.created_at || new Date().toISOString();
-      const patientId = inv.patient_id || `HHC-${(inv.phone || '9448').slice(-4)}`;
+      const patientId = resolvePatientId(inv.patient_id, inv.phone, key);
 
       if (!existing) {
         map.set(key, {
           id: patientId,
+          key,
           name: inv.patient_name || 'Anonymous Patient',
           phone: inv.phone || '',
           address: inv.address,
@@ -271,11 +292,12 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
       const existing = map.get(key);
 
       const aptDate = apt.created_at || new Date().toISOString();
-      const patientId = apt.patient_id || `HHC-${(apt.phone || '9448').slice(-4)}`;
+      const patientId = resolvePatientId(apt.patient_id, apt.phone, key);
 
       if (!existing) {
         map.set(key, {
           id: patientId,
+          key,
           name: apt.patient_name || 'Anonymous Patient',
           phone: apt.phone || '',
           address: apt.address,
@@ -302,9 +324,29 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
     }
 
     // Sort patients by most recent activity descending
-    return Array.from(map.values()).sort(
+    const list = Array.from(map.values()).sort(
       (a, b) => new Date(b.lastVisitDate).getTime() - new Date(a.lastVisitDate).getTime()
     );
+
+    // Disambiguate duplicate display patient IDs across distinct patient cards
+    const idCountMap = new Map<string, number>();
+    for (const p of list) {
+      idCountMap.set(p.id, (idCountMap.get(p.id) || 0) + 1);
+    }
+    for (const p of list) {
+      if ((idCountMap.get(p.id) || 0) > 1) {
+        const cleanPhone = (p.phone || '').replace(/\D/g, '');
+        if (cleanPhone.length >= 6) {
+          p.id = `PAT-${cleanPhone.slice(-6)}`;
+        } else if (cleanPhone.length >= 4) {
+          p.id = `PAT-${cleanPhone.slice(-4)}-${p.key.replace(/\D/g, '').slice(-2) || '1'}`;
+        } else {
+          p.id = `${p.id}-${p.key.replace(/[^a-zA-Z0-9]/g, '').slice(-4)}`;
+        }
+      }
+    }
+
+    return list;
   }, [invoices, appointments]);
 
   // Filter patients by real-time query
@@ -323,7 +365,7 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
   // Active patient selection for Desktop
   const activePatient = useMemo(() => {
     if (selectedPatientId) {
-      const found = patients.find((p) => p.id === selectedPatientId);
+      const found = patients.find((p) => p.key === selectedPatientId || p.id === selectedPatientId);
       if (found) return found;
     }
     return filteredPatients[0] || null;
@@ -335,9 +377,9 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  const handlePatientSelect = (patientId: string) => {
-    setSelectedPatientId(patientId);
-    setMobileExpandedPatientId(prev => (prev === patientId ? null : patientId));
+  const handlePatientSelect = (patientIdentifier: string) => {
+    setSelectedPatientId(patientIdentifier);
+    setMobileExpandedPatientId(prev => (prev === patientIdentifier ? null : patientIdentifier));
   };
 
   const triggerPrint = () => {
@@ -482,11 +524,11 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
               )}
             </div>
           ) : (
-            sortedInvoices.map((inv) => {
+            sortedInvoices.map((inv, idx) => {
               const visitDate = inv.created_at ? new Date(inv.created_at) : new Date();
               return (
                 <div
-                  key={inv.id}
+                  key={inv.id || `inv-${inv.invoice_number || idx}`}
                   className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-800 border border-emerald-950/10 dark:border-slate-700 shadow-xs space-y-3"
                 >
                   {/* Visit Header: Date, Doctor, Invoice No & Print Button */}
@@ -545,10 +587,14 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                         {/* Consultation fee */}
                         <div className="p-2 flex justify-between items-center text-xs">
                           <span className="font-medium text-slate-800 dark:text-slate-200">
-                            Dr. Consultation & Clinical Review Fee
+                            {Number(inv.consultation_fee ?? inv.doctor_fee ?? 0) === 0
+                              ? 'Dr. Consultation & Clinical Review Fee (Complimentary / Follow-up)'
+                              : 'Dr. Consultation & Clinical Review Fee'}
                           </span>
                           <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                            ₹{inv.consultation_fee || 200}
+                            ₹{inv.consultation_fee !== undefined && inv.consultation_fee !== null
+                              ? inv.consultation_fee
+                              : (inv.doctor_fee !== undefined && inv.doctor_fee !== null ? inv.doctor_fee : 0)}
                           </span>
                         </div>
 
@@ -736,13 +782,14 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                 <p className="text-[11px]">Try adjusting your search criteria or register a new walk-in.</p>
               </div>
             ) : (
-              filteredPatients.map((patient) => {
-                const isSelected = activePatient?.id === patient.id;
-                const isMobileExpanded = mobileExpandedPatientId === patient.id;
+              filteredPatients.map((patient, index) => {
+                const patientKey = patient.key || `patient-${patient.id}-${patient.phone || index}`;
+                const isSelected = (activePatient?.key || activePatient?.id) === (patient.key || patient.id);
+                const isMobileExpanded = mobileExpandedPatientId === patient.key || mobileExpandedPatientId === patient.id;
 
                 return (
                   <div
-                    key={patient.id}
+                    key={patientKey}
                     className={`rounded-2xl transition border overflow-hidden ${
                       isSelected
                         ? 'bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-500/50 dark:border-emerald-600 shadow-xs'
@@ -751,9 +798,9 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                   >
                     {/* Patient Card Header Button */}
                     <button
-                      id={`patient-card-${patient.id}`}
+                      id={`patient-card-${patientKey}`}
                       type="button"
-                      onClick={() => handlePatientSelect(patient.id)}
+                      onClick={() => handlePatientSelect(patient.key || patient.id)}
                       className="w-full text-left p-3 flex items-center justify-between gap-2.5 cursor-pointer"
                     >
                       <div className="min-w-0 space-y-1 flex-1">
@@ -970,8 +1017,16 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                     </div>
 
                     <div className="flex justify-between py-0.5">
-                      <span>Dr. Consultation Fee</span>
-                      <span>{viewingInvoice.consultation_fee || 200}</span>
+                      <span>
+                        {Number(viewingInvoice.consultation_fee ?? viewingInvoice.doctor_fee ?? 0) === 0
+                          ? 'Dr. Consultation Fee (Complimentary / Follow-up)'
+                          : 'Dr. Consultation Fee'}
+                      </span>
+                      <span>
+                        ₹{viewingInvoice.consultation_fee !== undefined && viewingInvoice.consultation_fee !== null
+                          ? viewingInvoice.consultation_fee
+                          : (viewingInvoice.doctor_fee !== undefined && viewingInvoice.doctor_fee !== null ? viewingInvoice.doctor_fee : 0)}
+                      </span>
                     </div>
 
                     {viewingInvoice.items &&
@@ -1103,10 +1158,14 @@ export const PatientsHistory: React.FC<PatientsHistoryProps> = ({
                         <tr>
                           <td className="py-2.5 px-3 font-mono text-slate-400">1</td>
                           <td className="py-2.5 px-3 font-medium text-slate-800">
-                            Dr. Consultation & Clinical Review Fee
+                            {Number(viewingInvoice.consultation_fee ?? viewingInvoice.doctor_fee ?? 0) === 0
+                              ? 'Dr. Consultation & Clinical Review Fee (Complimentary / Follow-up)'
+                              : 'Dr. Consultation & Clinical Review Fee'}
                           </td>
                           <td className="py-2.5 px-3 font-mono font-bold text-right text-slate-800">
-                            ₹{viewingInvoice.consultation_fee || 200}
+                            ₹{viewingInvoice.consultation_fee !== undefined && viewingInvoice.consultation_fee !== null
+                              ? viewingInvoice.consultation_fee
+                              : (viewingInvoice.doctor_fee !== undefined && viewingInvoice.doctor_fee !== null ? viewingInvoice.doctor_fee : 0)}
                           </td>
                         </tr>
                         {viewingInvoice.items &&

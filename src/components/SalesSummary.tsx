@@ -1175,8 +1175,16 @@ export const SalesSummary: React.FC<SalesSummaryProps> = ({
                       <span>Amount</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>1. Dr. Consultation Fee</span>
-                      <span className="font-bold">₹{selectedInvoice.consultation_fee || 200}</span>
+                      <span>
+                        {Number(selectedInvoice.consultation_fee ?? selectedInvoice.doctor_fee ?? 0) === 0
+                          ? '1. Dr. Consultation Fee (Complimentary / Follow-up)'
+                          : '1. Dr. Consultation Fee'}
+                      </span>
+                      <span className="font-bold">
+                        ₹{selectedInvoice.consultation_fee !== undefined && selectedInvoice.consultation_fee !== null
+                          ? selectedInvoice.consultation_fee
+                          : (selectedInvoice.doctor_fee !== undefined && selectedInvoice.doctor_fee !== null ? selectedInvoice.doctor_fee : 0)}
+                      </span>
                     </div>
                     {selectedInvoice.items &&
                       selectedInvoice.items.map((item, idx) => (
@@ -1268,10 +1276,14 @@ export const SalesSummary: React.FC<SalesSummaryProps> = ({
                         <tr>
                           <td className="py-2 px-3 font-mono text-slate-400">1</td>
                           <td className="py-2 px-3 font-medium text-slate-800">
-                            Dr. Consultation & Clinical Evaluation
+                            {Number(selectedInvoice.consultation_fee ?? selectedInvoice.doctor_fee ?? 0) === 0
+                              ? 'Dr. Consultation & Clinical Evaluation (Complimentary / Follow-up)'
+                              : 'Dr. Consultation & Clinical Evaluation'}
                           </td>
                           <td className="py-2 px-3 font-mono font-bold text-right text-slate-800">
-                            ₹{selectedInvoice.consultation_fee || 200}
+                            ₹{selectedInvoice.consultation_fee !== undefined && selectedInvoice.consultation_fee !== null
+                              ? selectedInvoice.consultation_fee
+                              : (selectedInvoice.doctor_fee !== undefined && selectedInvoice.doctor_fee !== null ? selectedInvoice.doctor_fee : 0)}
                           </td>
                         </tr>
                         {selectedInvoice.items &&

@@ -30,7 +30,8 @@ import {
   autoCancelExpiredAppointments,
   isAppointmentExpired,
   subscribeToStore,
-  parseQueueNumberFromTokenOrRow
+  parseQueueNumberFromTokenOrRow,
+  derivePatientId
 } from '../services/clinicStore';
 import { getSupabase } from '../services/supabase';
 import { exportAppointmentsToCSV } from '../utils/exportUtils';
@@ -171,7 +172,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
       const list: Appointment[] = (data || []).map((row: any) => ({
         id: row.id,
         token_number: row.token_number,
-        patient_id: row.patient_id || `PAT-${(row.phone || '1000').slice(-4)}`,
+        patient_id: derivePatientId(row.patient_id, row.phone, row.id),
         patient_name: row.patient_name,
         age: row.age != null && row.age !== '' && !isNaN(Number(row.age)) ? Number(row.age) : undefined,
         phone: row.phone,
@@ -217,7 +218,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
             const newApt: Appointment = {
               id: row.id,
               token_number: row.token_number,
-              patient_id: row.patient_id || `PAT-${(row.phone || '1000').slice(-4)}`,
+              patient_id: derivePatientId(row.patient_id, row.phone, row.id),
               patient_name: row.patient_name,
               age: row.age != null && row.age !== '' && !isNaN(Number(row.age)) ? Number(row.age) : undefined,
               phone: row.phone,
@@ -669,7 +670,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
                 const isExpanded = !!expandedAptIds[apt.id];
                 return (
                   <div
-                    key={`card-${apt.id}`}
+                    key={`card-${apt.id || apt.token_number || index}`}
                     className={`p-3.5 sm:p-4 transition ${
                       apt.status === 'in_consult'
                         ? 'bg-amber-50/40 dark:bg-amber-950/20'
@@ -870,7 +871,7 @@ export const QueueManager: React.FC<QueueManagerProps> = ({
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                   {filteredQueue.map((apt, index) => (
                     <tr
-                      key={apt.id}
+                      key={apt.id || `row-${apt.token_number || index}`}
                       className={`hover:bg-slate-50/80 dark:hover:bg-slate-750 transition ${
                         apt.status === 'in_consult'
                           ? 'bg-amber-50/50 dark:bg-amber-950/20 font-medium'

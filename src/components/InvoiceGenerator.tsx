@@ -18,7 +18,7 @@ import {
   Download
 } from 'lucide-react';
 import { Appointment, Invoice, InvoiceItem, PaymentMode } from '../types';
-import { createInvoice, getInvoices, registerCreatedInvoice } from '../services/clinicStore';
+import { createInvoice, getInvoices, registerCreatedInvoice, derivePatientId } from '../services/clinicStore';
 import { getSupabase } from '../services/supabase';
 import { exportInvoicesToCSV } from '../utils/exportUtils';
 
@@ -39,7 +39,9 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
 }) => {
   // Patient Info
   const [patientName, setPatientName] = useState(initialAppointment?.patient_name || '');
-  const [patientId, setPatientId] = useState(initialAppointment?.patient_id || `PAT-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [patientId, setPatientId] = useState(
+    derivePatientId(initialAppointment?.patient_id, initialAppointment?.phone, initialAppointment?.id)
+  );
   const [phone, setPhone] = useState(initialAppointment?.phone || '');
   const [prescriptionUrl, setPrescriptionUrl] = useState<string>(
     initialPrescriptionUrl || initialAppointment?.prescription_url || ''
@@ -48,11 +50,15 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
 
   // Sync props when initialAppointment or initialPrescriptionUrl changes
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.getElementById('root')?.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
     if (initialAppointment) {
       setPatientName(initialAppointment.patient_name || '');
       setPatientId(
-        initialAppointment.patient_id ||
-          `PAT-${(initialAppointment.phone || '1000').slice(-4)}`
+        derivePatientId(initialAppointment.patient_id, initialAppointment.phone, initialAppointment.id)
       );
       setPhone(initialAppointment.phone || '');
     }
@@ -154,13 +160,16 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
       // Safe appointment_id handling: convert UUID or Token to string, or omit if null/empty
       const safeAptId = initialAppointment?.id ? String(initialAppointment.id).trim() : undefined;
 
+      const resolvedFee = consultationFee !== '' ? Number(consultationFee) : 0;
+
       // Prepare payload to explicitly write the record into Supabase invoices table
       const invoicePayload: Record<string, any> = {
         invoice_number: invoiceNumber,
         patient_id: cleanPatientId,
         patient_name: patientName.trim(),
         phone: phone.trim(),
-        consultation_fee: Number(consultationFee) || 0,
+        consultation_fee: resolvedFee,
+        doctor_fee: resolvedFee,
         medicine_total: Number(medicinesSubtotal) || 0,
         subtotal: Number(subtotal) || Number(totalAmount),
         discount: Number(discount) || 0,
@@ -207,6 +216,12 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
         return;
       }
 
+      const savedFee = data && data[0]
+        ? (data[0].consultation_fee !== undefined && data[0].consultation_fee !== null
+            ? Number(data[0].consultation_fee)
+            : (data[0].doctor_fee !== undefined && data[0].doctor_fee !== null ? Number(data[0].doctor_fee) : resolvedFee))
+        : resolvedFee;
+
       const savedRecord: Invoice = data && data[0] ? {
         id: data[0].id,
         invoice_number: data[0].invoice_number || invoiceNumber,
@@ -214,7 +229,8 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
         patient_id: data[0].patient_id || cleanPatientId,
         patient_name: data[0].patient_name || patientName.trim(),
         phone: data[0].phone || phone.trim(),
-        consultation_fee: Number(data[0].consultation_fee) || Number(consultationFee),
+        consultation_fee: savedFee,
+        doctor_fee: savedFee,
         medicine_total: Number(data[0].medicine_total) || Number(medicinesSubtotal),
         shift: (data[0].shift || currentShift.toLowerCase()) as any,
         subtotal: Number(data[0].subtotal) || Number(subtotal),
@@ -233,7 +249,8 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
         patient_id: cleanPatientId,
         patient_name: patientName.trim(),
         phone: phone.trim(),
-        consultation_fee: Number(consultationFee),
+        consultation_fee: resolvedFee,
+        doctor_fee: resolvedFee,
         medicine_total: Number(medicinesSubtotal),
         shift: currentShift.toLowerCase() as any,
         subtotal: Number(subtotal),
@@ -762,8 +779,16 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                   <div className="divide-y divide-dotted divide-slate-400 pt-1">
                     {/* Consultation fee */}
                     <div className="py-1 flex justify-between gap-2">
-                      <span className="font-medium">Dr. Consultation Fee</span>
-                      <span className="font-bold shrink-0">₹{savedInvoice.consultation_fee}</span>
+                      <span className="font-medium">
+                        {Number(savedInvoice.consultation_fee ?? savedInvoice.doctor_fee ?? 0) === 0
+                          ? 'Dr. Consultation Fee (Complimentary / Follow-up)'
+                          : 'Dr. Consultation Fee'}
+                      </span>
+                      <span className="font-bold shrink-0">
+                        ₹{savedInvoice.consultation_fee !== undefined && savedInvoice.consultation_fee !== null
+                          ? savedInvoice.consultation_fee
+                          : (savedInvoice.doctor_fee !== undefined && savedInvoice.doctor_fee !== null ? savedInvoice.doctor_fee : 0)}
+                      </span>
                     </div>
 
                     {/* Dispensed items */}
@@ -864,8 +889,16 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     <tr>
-                      <td className="py-2.5 font-medium">Doctor Clinical Consultation Fee</td>
-                      <td className="py-2.5 text-right font-bold">₹{savedInvoice.consultation_fee}</td>
+                      <td className="py-2.5 font-medium">
+                        {Number(savedInvoice.consultation_fee ?? savedInvoice.doctor_fee ?? 0) === 0
+                          ? 'Doctor Clinical Consultation Fee (Complimentary / Follow-up)'
+                          : 'Doctor Clinical Consultation Fee'}
+                      </td>
+                      <td className="py-2.5 text-right font-bold">
+                        ₹{savedInvoice.consultation_fee !== undefined && savedInvoice.consultation_fee !== null
+                          ? savedInvoice.consultation_fee
+                          : (savedInvoice.doctor_fee !== undefined && savedInvoice.doctor_fee !== null ? savedInvoice.doctor_fee : 0)}
+                      </td>
                     </tr>
                     {savedInvoice.items.map((it, i) => (
                       <tr key={i}>

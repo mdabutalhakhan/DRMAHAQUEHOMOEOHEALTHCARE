@@ -117,6 +117,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
       prescription_url: finalPrescriptionUrl,
     });
     setActiveTab('billing');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.getElementById('root')?.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
   };
 
   const handleOpenAIFromConsult = (symptoms: string) => {

@@ -81,6 +81,25 @@ export const parseQueueNumberFromTokenOrRow = (row: any): number => {
   return 1;
 };
 
+// Helper to derive safe and distinct patient ID from phone or row id to prevent collisions
+export const derivePatientId = (patientId?: string | null, phone?: string | null, rowId?: string | null): string => {
+  if (patientId && patientId.trim() && patientId !== 'PAT-1001' && patientId !== 'PAT-AUTO') {
+    return patientId.trim();
+  }
+  const cleanPhone = (phone || '').replace(/\D/g, '');
+  if (cleanPhone.length >= 6) {
+    return `PAT-${cleanPhone.slice(-6)}`;
+  }
+  if (cleanPhone.length >= 4) {
+    return `PAT-${cleanPhone.slice(-4)}`;
+  }
+  if (rowId) {
+    const cleanId = String(rowId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase();
+    if (cleanId) return `PAT-${cleanId}`;
+  }
+  return `PAT-${Math.floor(100000 + Math.random() * 900000)}`;
+};
+
 /**
  * Directly fetches appointments from Supabase table ordered by created_at ascending.
  */
@@ -99,7 +118,7 @@ export async function fetchAppointmentsFromSupabase(): Promise<Appointment[]> {
   const list: Appointment[] = (data || []).map((row: any) => ({
     id: row.id,
     token_number: row.token_number,
-    patient_id: row.patient_id || `PAT-${(row.phone || '1000').slice(-4)}`,
+    patient_id: derivePatientId(row.patient_id, row.phone, row.id),
     patient_name: row.patient_name,
     age: row.age ? Number(row.age) : undefined,
     phone: row.phone,
@@ -136,7 +155,9 @@ export async function fetchInvoicesFromSupabase(): Promise<Invoice[]> {
   }
 
   const list: Invoice[] = (data || []).map((row: any) => {
-    const consFee = row.consultation_fee !== undefined && row.consultation_fee !== null ? Number(row.consultation_fee) : 200;
+    const consFee = row.consultation_fee !== undefined && row.consultation_fee !== null 
+      ? Number(row.consultation_fee) 
+      : (row.doctor_fee !== undefined && row.doctor_fee !== null ? Number(row.doctor_fee) : 0);
     const totAmount = Number(row.total_amount) || 0;
     const medTotal = row.medicine_total !== undefined && row.medicine_total !== null
       ? Number(row.medicine_total)
@@ -156,6 +177,7 @@ export async function fetchInvoicesFromSupabase(): Promise<Invoice[]> {
       patient_name: row.patient_name,
       phone: row.phone || '',
       consultation_fee: consFee,
+      doctor_fee: consFee,
       medicine_total: medTotal,
       shift,
       subtotal: Number(row.subtotal) || (totAmount + Number(row.discount || 0)),
@@ -212,7 +234,7 @@ export function initSupabaseSync(): () => void {
             const newApt: Appointment = {
               id: row.id,
               token_number: row.token_number,
-              patient_id: row.patient_id || `PAT-${(row.phone || '1000').slice(-4)}`,
+              patient_id: derivePatientId(row.patient_id, row.phone, row.id),
               patient_name: row.patient_name,
               age: row.age ? Number(row.age) : undefined,
               phone: row.phone,
@@ -388,7 +410,7 @@ export async function createAppointment(input: BookingInput): Promise<{ appointm
   const confirmedAppointment: Appointment = {
     id: insertedRow.id,
     token_number: insertedRow.token_number,
-    patient_id: `PAT-${insertedRow.phone ? insertedRow.phone.slice(-4) : '1001'}`,
+    patient_id: derivePatientId(insertedRow.patient_id, insertedRow.phone, insertedRow.id),
     patient_name: insertedRow.patient_name,
     age: insertedRow.age ? Number(insertedRow.age) : input.age,
     phone: insertedRow.phone,
@@ -518,7 +540,7 @@ export async function reassignAppointmentSlot(
       target = {
         id: dbTarget.id,
         token_number: dbTarget.token_number,
-        patient_id: dbTarget.patient_id || `PAT-${(dbTarget.phone || '1000').slice(-4)}`,
+        patient_id: derivePatientId(dbTarget.patient_id, dbTarget.phone, dbTarget.id),
         patient_name: dbTarget.patient_name,
         age: dbTarget.age != null && dbTarget.age !== '' && !isNaN(Number(dbTarget.age)) ? Number(dbTarget.age) : undefined,
         phone: dbTarget.phone,
