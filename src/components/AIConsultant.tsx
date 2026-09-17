@@ -27,7 +27,6 @@ import { ClinicLogo } from './ClinicLogo';
 import { getSupabase } from '../services/supabase';
 import { getInventory } from '../services/clinicStore';
 import { 
-  CLINICAL_REPERTORY_DATABASE, 
   findRepertoryMatch, 
   ClinicalCondition, 
   ClassicalRemedy, 
@@ -68,7 +67,6 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   // User Action Feedback
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [addedBillKey, setAddedBillKey] = useState<string | null>(null);
-  const [activeChip, setActiveChip] = useState<string | null>(null);
 
   // Check Web Speech API support
   useEffect(() => {
@@ -265,6 +263,9 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     if (b.includes('allen') || c.includes('allen')) {
       return { label: 'Allen 🇮🇳', color: 'bg-orange-100 text-orange-900 dark:bg-orange-950/80 dark:text-orange-200 border-orange-300 dark:border-orange-800' };
     }
+    if (b.includes('new life') || c.includes('new life')) {
+      return { label: 'New Life 🇮🇳', color: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-200 border-emerald-300 dark:border-emerald-800' };
+    }
     if (b.includes('lord') || c.includes('lord')) {
       return { label: "Lord's 🇮🇳", color: 'bg-yellow-100 text-yellow-900 dark:bg-yellow-950/80 dark:text-yellow-200 border-yellow-300 dark:border-yellow-800' };
     }
@@ -326,8 +327,13 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       return;
     }
 
-    // 1. READ EXISTING VITE KEY DIRECTLY (works with existing VITE_GEMINI_API_KEY without new Vercel envs)
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+    // 1. Direct REST fetch priority (passes API key via URL query param, strictly NO Authorization header)
+    const apiKey = (
+      (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) ||
+      (typeof process !== 'undefined' && process.env && process.env.VITE_GEMINI_API_KEY) ||
+      (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) ||
+      ''
+    ).trim();
 
     setErrorMsg('');
     setIsAiLoading(true);
@@ -335,34 +341,39 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     let data: any = null;
     let usedClientFallback = false;
 
-    // Step 1: Attempt serverless / server route /api/consult
-    try {
-      const response = await fetch('/api/consult', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symptoms: query, apiKey }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Serverless route /api/consult returned status ${response.status}`);
-      }
-
-      data = await response.json();
-    } catch (serverErr: any) {
-      console.warn('Serverless /api/consult unavailable or returned error, triggering direct frontend client fallback:', serverErr.message);
-
-      // Step 2: DIRECT CLIENT CALL FALLBACK if /api/consult returned 500 or is unavailable in preview
+    // Step 1: Direct Client REST call first (strictly avoids OAuth 401 error on Vercel)
+    if (apiKey) {
       try {
         usedClientFallback = true;
         data = await callGeminiDirectlyFromClient(query);
       } catch (clientErr: any) {
-        console.warn('Direct Gemini frontend fallback failed:', clientErr);
-        // Fallback to internal verified repertory engine
-        handleAnalyze(query);
-        setErrorMsg(`AI service notice: ${clientErr.message || 'Remote model busy'}. Displaying verified clinical repertory matching.`);
-        setIsAiLoading(false);
-        return;
+        console.warn('Direct client REST call failed, attempting server route /api/consult:', clientErr);
       }
+    }
+
+    // Step 2: Attempt server route /api/consult if client direct call was not used or failed
+    if (!data) {
+      try {
+        const response = await fetch('/api/consult', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symptoms: query, apiKey }),
+        });
+
+        if (response.ok) {
+          data = await response.json();
+        }
+      } catch (serverErr: any) {
+        console.warn('Serverless /api/consult unavailable or returned error:', serverErr);
+      }
+    }
+
+    // Step 3: If remote AI is offline or model busy, smoothly fall back to internal verified clinical repertory engine
+    if (!data || !data.remedies || data.remedies.length === 0) {
+      handleAnalyze(query);
+      setErrorMsg('Notice: Direct Gemini AI is offline or busy. Displaying verified clinical repertory matching.');
+      setIsAiLoading(false);
+      return;
     }
 
     try {
@@ -371,7 +382,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           id: 'gemini-ai-consult',
           nameEn: `AI Consultation: ${query.length > 50 ? query.slice(0, 50) + '...' : query}`,
           nameBn: 'এআই প্রেসক্রিপশন ও মাল্টি-ব্র্যান্ড পেটেন্ট ফরমুলেশন',
-          chipLabel: usedClientFallback ? 'Gemini AI (Direct Client Fallback)' : 'Gemini Deep AI Consult',
+          chipLabel: usedClientFallback ? 'Gemini AI (Direct Client REST)' : 'Gemini Deep AI Consult',
           pathology: data.analysis_summary || 'Constitutional & Pathological Evaluation',
           miasm: 'Miasmatic Synthesis (Kent/Boericke & Commercial Patents)',
           keywords: [query],
@@ -391,7 +402,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             const isGerman = b.includes('reckeweg') || b.includes('adel') || (p.company || '').toLowerCase().includes('germany');
             return {
               name: p.name,
-              brand: p.brand || "Patent",
+              brand: p.brand || 'Patent',
               company: p.company || 'Homeopathic Manufacturer',
               country: isGerman ? 'Germany' : 'India',
               bottleSize: p.bottle_size || p.bottleSize || '30 ml Drops',
@@ -418,14 +429,6 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     } finally {
       setIsAiLoading(false);
     }
-  };
-
-  // Preset chip 1-click selection
-  const handlePresetClick = (cond: ClinicalCondition) => {
-    setActiveChip(cond.id);
-    setSymptoms(cond.typicalPresentation);
-    setSelectedCondition(cond);
-    setErrorMsg('');
   };
 
   // Copy prescription details
@@ -575,7 +578,6 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
                 onClick={() => {
                   setSymptoms('');
                   setSelectedCondition(null);
-                  setActiveChip(null);
                 }}
                 className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 transition cursor-pointer"
                 title="Clear input"
@@ -595,12 +597,12 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
               if (errorMsg) setErrorMsg('');
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                handleAnalyze();
+                handleAnalyze(symptoms);
               }
             }}
-            placeholder="Describe symptoms in English or Bengali (e.g. kidney stone severe right side pain, প্রস্রাব আটকে যাওয়া প্রস্টেট সমস্যা, পেটে তীব্র কলিক ব্যথা, acidity heartburn, knee arthritis stiffness, toothache with swollen gums)..."
+            placeholder="Describe symptoms in English or Bengali (e.g. fibroid uterus menorrhagia, ক্ষুধামন্দা খিদে নেই, পায়ে তীব্র বাতের ব্যথা, kidney stone severe right side pain, knee arthritis stiffness, toothache with swollen gums)..."
             rows={4}
             className="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition resize-none leading-relaxed"
           />
@@ -611,37 +613,6 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
               <span>Speaking in {speechLang === 'bn' ? 'বাংলা' : 'English'}... Click microphone to finish</span>
             </div>
           )}
-        </div>
-
-        {/* 1-Click Quick Preset Chips */}
-        <div className="space-y-2 pt-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              1-Click Clinical Quick Presets:
-            </span>
-            <span className="text-[11px] text-slate-400">Click any preset to instant repertorize</span>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {CLINICAL_REPERTORY_DATABASE.map((cond) => {
-              const isSelected = activeChip === cond.id || selectedCondition?.id === cond.id;
-              return (
-                <button
-                  key={cond.id}
-                  type="button"
-                  onClick={() => handlePresetClick(cond)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 border ${
-                    isSelected
-                      ? 'bg-[#1B4332] text-white border-[#1B4332] shadow-sm'
-                      : 'bg-stone-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 border-stone-200 dark:border-slate-700 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30'
-                  }`}
-                >
-                  <Pill className={`w-3.5 h-3.5 ${isSelected ? 'text-emerald-300' : 'text-emerald-600 dark:text-emerald-400'}`} />
-                  <span>{cond.chipLabel}</span>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* Error Message if any */}
@@ -655,13 +626,13 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
         {/* Action Buttons: Instant Repertory & Gemini Deep AI Consult */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
           <span className="text-[11px] text-slate-400 hidden sm:inline">
-            Tip: Press <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Enter</kbd> to repertorize
+            Tip: Press <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Enter</kbd> to repertorize, <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Shift</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Enter</kbd> for new line
           </span>
 
           <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto">
             <button
               type="button"
-              onClick={() => handleAnalyze()}
+              onClick={() => handleAnalyze(symptoms)}
               disabled={loading || isAiLoading}
               className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
             >
@@ -1115,6 +1086,21 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
               </span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Clean, Neutral Initial State when no condition is selected */}
+      {!selectedCondition && !loading && !isAiLoading && (
+        <div className="p-8 sm:p-12 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-3">
+          <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 flex items-center justify-center text-emerald-800 dark:text-emerald-300">
+            <BookOpen className="w-6 h-6" />
+          </div>
+          <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-200">
+            Awaiting Patient Symptoms
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+            Enter symptoms or rubrics above in English or Bengali (or click the microphone to dictate), then press <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-[11px]">Enter</kbd> or click <strong>Instant Repertorize</strong>.
+          </p>
         </div>
       )}
     </div>

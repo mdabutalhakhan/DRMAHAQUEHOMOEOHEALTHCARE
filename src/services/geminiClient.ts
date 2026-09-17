@@ -89,97 +89,75 @@ Provide your response in structured JSON format with:
 }
 
 /**
- * Direct Frontend Gemini Client Call Fallback.
- * Executes when /api/consult serverless route returns 500 or is unavailable.
+ * Direct Frontend Gemini Client REST Call.
+ * PERMANENT FIX FOR GEMINI REST 401 (OAUTH ERROR):
+ * - DO NOT send `Authorization: Bearer ...` under any circumstances (this triggers Google OAuth credential check and produces 401 on Vercel).
+ * - Pass the API key strictly as a URL query parameter: ?key=${apiKey}
  */
 export async function callGeminiDirectlyFromClient(
   symptoms: string,
   modalities?: string,
   system?: string
 ): Promise<ClinicalGeminiConsultResponse> {
-  // 1. Read existing key directly
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+  const apiKey = (
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) ||
+    (typeof process !== 'undefined' && process.env && process.env.VITE_GEMINI_API_KEY) ||
+    (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) ||
+    ''
+  ).trim();
 
   if (!apiKey) {
     throw new Error('VITE_GEMINI_API_KEY not found in client environment.');
   }
 
-  const prompt = buildClinicalConsultPrompt(symptoms, modalities, system);
+  const promptText = buildClinicalConsultPrompt(symptoms, modalities, system);
 
-  // Attempt using @google/genai SDK with stable gemini-2.5-flash / gemini-1.5-flash
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    
-    // Primary: gemini-3.6-flash, Secondary: gemini-3.8-flash
-    let responseText = '';
-    const modelsToTry = [STABLE_GEMINI_MODEL, FALLBACK_GEMINI_MODEL];
-    for (const m of modelsToTry) {
-      try {
-        const response = await ai.models.generateContent({
-          model: m,
-          contents: prompt,
-          config: {
+  // Models to try in sequence: user-requested gemini-1.5-flash, gemini-2.5-flash, and stable gemini-3.6-flash
+  const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-3.6-flash'];
+  let lastErrorMsg = '';
+
+  for (const model of modelsToTry) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    try {
+      // Strictly no Authorization header. API key is passed solely in query string.
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: {
             responseMimeType: 'application/json',
           },
-        });
-        responseText = response.text || '';
-        if (responseText) break;
-      } catch (err: any) {
-        console.warn(`Model ${m} call failed:`, err.message || err);
-      }
-    }
+        }),
+      });
 
-    if (responseText) {
-      const parsed = JSON.parse(responseText);
-      if (parsed && parsed.remedies && parsed.patent_formulations) {
+      if (!response.ok) {
+        const errorBody = await response.text();
+        lastErrorMsg = `Model ${model} returned (${response.status}): ${errorBody.slice(0, 160)}`;
+        console.warn(lastErrorMsg);
+        continue;
+      }
+
+      const data = await response.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) {
+        lastErrorMsg = `Model ${model} returned empty content parts`;
+        continue;
+      }
+
+      const cleanJson = rawText.replace(/```json\s*/gi, '').replace(/```\s*$/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      if (parsed && (parsed.remedies || parsed.analysis_summary)) {
         return parsed as ClinicalGeminiConsultResponse;
       }
-    }
-  } catch (sdkErr: any) {
-    console.warn('SDK direct call had an issue, attempting direct Google GenAI REST call:', sdkErr);
-  }
-
-  // Resilient Direct REST API Fallback (using fetch directly from browser)
-  const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/${STABLE_GEMINI_MODEL}:generateContent?key=${apiKey}`;
-  const restPayload = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseMimeType: 'application/json',
-    },
-  };
-
-  const restRes = await fetch(restUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(restPayload),
-  });
-
-  if (!restRes.ok) {
-    // Try fallback model on REST as well
-    const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/${FALLBACK_GEMINI_MODEL}:generateContent?key=${apiKey}`;
-    const fallbackRes = await fetch(fallbackUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(restPayload),
-    });
-
-    if (!fallbackRes.ok) {
-      const errBody = await fallbackRes.text();
-      throw new Error(`Gemini direct REST error (${fallbackRes.status}): ${errBody.slice(0, 150)}`);
-    }
-
-    const fallbackData = await fallbackRes.json();
-    const text = fallbackData?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (text) {
-      return JSON.parse(text) as ClinicalGeminiConsultResponse;
+    } catch (err: any) {
+      lastErrorMsg = `Model ${model} fetch exception: ${err.message || String(err)}`;
+      console.warn(lastErrorMsg);
     }
   }
 
-  const data = await restRes.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) {
-    throw new Error('Empty response received from Gemini direct REST call');
-  }
-
-  return JSON.parse(rawText) as ClinicalGeminiConsultResponse;
+  throw new Error(`Direct Gemini REST call failed: ${lastErrorMsg}`);
 }

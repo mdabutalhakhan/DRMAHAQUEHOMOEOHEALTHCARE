@@ -214,6 +214,17 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
         dosage: '10-15 drops in 1/4 cup water 3 times daily.',
         mrp: 180,
         aliases: ['renal forte', 'medisynth renal', 'aquifolium']
+      },
+      {
+        name: 'New Life NL-12 (Calculi Drops)',
+        brand: 'New Life',
+        company: 'New Life Laboratories',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Effective in renal calculi, sharp pain radiating to thighs, burning urination and red urinary gravel.',
+        dosage: '10-15 drops in warm water 3 times daily.',
+        mrp: 145,
+        aliases: ['nl-12', 'nl 12', 'new life 12', 'calculi drops']
       }
     ],
     dietAndRegimen: 'Drink 3 to 4 liters of filtered water daily. Consume barley water and tender coconut water. Strictly avoid tomatoes, spinach, beetroots, red meat, excessive calcium supplements, and high-oxalate foods.',
@@ -763,12 +774,12 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
     miasm: 'Sycotic Diathesis with Syphilitic Articular Degeneration',
     typicalPresentation: 'Morning stiffness, swollen painful joints, shooting sciatic nerve pain and high uric acid gout',
     keywords: [
-      'joint pain', 'arthritis', 'osteoarthritis', 'gout', 'sciatica', 'rheumatism', 'knee pain',
+      'joint pain', 'arthritis', 'osteoarthritis', 'gout', 'sciatica', 'rheumatism', 'knee pain', 'knee',
       'morning stiffness', 'swollen joint', 'uric acid', 'lumbago', 'backache', 'cervical spondylitis',
-      'ankles', 'shoulder pain', 'rheumatic',
+      'ankles', 'shoulder pain', 'rheumatic', 'leg pain', 'limb pain', 'pain',
       // Bengali
-      'বাতের ব্যথা', 'গাঁটে ব্যথা', 'হাঁটু ব্যথা', 'গাউট', 'কোমর ব্যথা', 'বাতের যন্ত্রণা',
-      'পায়ের জয়েন্টে ব্যথা', 'ইউরিক অ্যাসিড', 'সায়াটিকা', 'সকালের জড়তা'
+      'পায়ে ব্যথা', 'পায়ে ব্যথা', 'ব্যথা', 'বাতের ব্যথা', 'গাঁটে ব্যথা', 'হাঁটু ব্যথা', 'হাঁটু', 'গাউট',
+      'বাত', 'বাতরোগ', 'কোমর ব্যথা', 'বাতের যন্ত্রণা', 'পায়ের জয়েন্টে ব্যথা', 'ইউরিক অ্যাসিড', 'সায়াটিকা', 'সকালের জড়তা'
     ],
     classicalRemedies: [
       {
@@ -862,6 +873,17 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
         dosage: '1 teaspoon syrup 3 times daily + apply oil gently twice daily.',
         mrp: 190,
         aliases: ['orthomuv', 'sbl orthomuv', 'orthomuv oil']
+      },
+      {
+        name: 'New Life NL-1 (Joint Pain & Rheumatic Drops)',
+        brand: 'New Life',
+        company: 'New Life Laboratories',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Severe leg pain, knee stiffness, sciatic nerve irritation, swollen joints, and muscular rheumatism.',
+        dosage: '15-20 drops in warm water 3 times daily.',
+        mrp: 140,
+        aliases: ['nl-1', 'nl 1', 'new life 1', 'new life joint pain', 'joint pain']
       },
       {
         name: 'Dr. Reckeweg R11 (Lumbacon) & R73',
@@ -1465,27 +1487,600 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
     ],
     dietAndRegimen: 'Drink warm water with fresh lemon in the morning. Eat light, fresh, boiled vegetables and fruits (papaya, apples). Strictly eliminate alcohol, heavy oils, fried snacks, and processed sugar.',
     warningNotes: 'Order Liver Function Tests (LFT: Bilirubin, SGPT, SGOT, Alk Phos) and abdominal USG to rule out acute viral hepatitis or choledocholithiasis.'
+  },
+  {
+    id: 'uterine-fibroid-tumor',
+    nameEn: 'Uterine Fibroid, Myoma & Benign Tumors',
+    nameBn: 'জরায়ু ফাইব্রয়েড, টিউমার ও আর্বুদ',
+    chipLabel: 'Fibroid & Tumors / ফাইব্রয়েড',
+    pathology: 'Uterine Leiomyoma, Benign Fibro-Myoma, Glandular Hyperplasia & Pelvic Tumors',
+    miasm: 'Sycotic Miasm with Proliferative Cellular Induration',
+    typicalPresentation: 'Uterine fibroid with lower pelvic dragging, excessive prolonged menses, lower abdominal lump and bearing down pain',
+    keywords: [
+      'fibroid', 'fibroids', 'uterine fibroid', 'uterine fibroids', 'tumor', 'tumour', 'tumors', 'tumours',
+      'myoma', 'leiomyoma', 'uterine tumor', 'uterus lump', 'bulky uterus', 'menorrhagia',
+      'ovarian cyst', 'pelvic mass', 'lump', 'neoplasm', 'induration',
+      // Bengali
+      'ফাইব্রয়েড', 'ফাইব্রয়েড', 'টিউমার', 'জরায়ু টিউমার', 'জরায়ু টিউমার', 'আর্বুদ', 'জরায়ুতে টিউমার',
+      'জরায়ু বৃদ্ধি', 'অতিরিক্ত ঋতুস্রাব', 'পেটে টিউমার', 'মাংসপিণ্ড'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Thuja Occidentalis',
+        commonName: 'Arbor Vitae / White Cedar',
+        potency: '200C',
+        dosage: '4 pills once weekly in the morning on empty stomach',
+        keynotes: [
+          'King of sycotic remedies; specific for fleshy growths, condylomata, fibroids, polypi and glandular indurations',
+          'Left ovarian and uterine hyper-sensitiveness; pelvic fullness and bearing down sensation',
+          'Vaginal and cervical hypertrophy; copious thick greenish leucorrhoea and sycotic diathesis'
+        ],
+        materiaMedicaNotes: 'Kent Repertory: Pre-eminent anti-sycotic constitutional remedy for all benign neo-formations, polypi, and uterine fibromyomata.',
+        modalities: {
+          worse: 'Cold, damp air, periodic aggravation at 3 AM and 3 PM, after vaccination',
+          better: 'Warmth, dry weather, gentle movement, drawing limbs up'
+        },
+        aliases: ['thuja', 'thuja occidentalis', 'thuja occ']
+      },
+      {
+        name: 'Calcarea Fluorica',
+        commonName: 'Fluoride of Lime',
+        potency: '6X / 12X',
+        dosage: '4 tablets dissolved in warm water 3 times daily',
+        keynotes: [
+          'Specific tissue salt for stony-hard fibroids, glandular enlargements, and inelastic connective tissues',
+          'Hard, knotty lumps and bulky, indurated fibrous tumors in the uterus',
+          'Bearing-down sensation in pelvic floor accompanied by chronic dragging lumbar backache'
+        ],
+        materiaMedicaNotes: 'Boericke Materia Medica: Powerful tissue remedy for hard fibroid tumors, enlarged veins, and tissue indurations of stony hardness.',
+        modalities: {
+          worse: 'During rest, cold, drafts of air, changes of weather',
+          better: 'Heat, warm applications, rubbing, continuous motion'
+        },
+        aliases: ['calc fluor', 'calcarea fluorica', 'calcarea fluor', 'calc-fluor']
+      },
+      {
+        name: 'Fraxinus Americana',
+        commonName: 'White Ash',
+        potency: 'Q (Mother Tincture)',
+        dosage: '10-15 drops in 1/4 cup water, 3 times daily before meals',
+        keynotes: [
+          'Renowned organopathic remedy specifically for uterine enlargement, subinvolution, and fibrous growth',
+          'Enlarged, heavy uterus dragging down into the pelvis, dysmenorrhoea with uterine cramps',
+          'Prolonged, profuse watery or clotted menses directly associated with uterine fibroid formation'
+        ],
+        materiaMedicaNotes: 'Boericke Materia Medica: Specifically indicated for uterine tumors, fibroids with pelvic dragging. A genuine homoeopathic organ remedy.',
+        modalities: {
+          worse: 'Standing, walking, menstrual periods',
+          better: 'Lying flat on back, rest'
+        },
+        aliases: ['fraxinus americana', 'fraxinus', 'white ash']
+      },
+      {
+        name: 'Aurum Muriaticum Natronatum',
+        commonName: 'Sodium Chloroaurate',
+        potency: '3X / 6X',
+        dosage: '2 tablets twice daily after meals',
+        keynotes: [
+          'Pre-eminent remedy for chronic indurated uterine fibromyomata, chronic metritis, and ovarian cysts',
+          'Ulceration of cervix, burning sensation in pelvic cavity, coldness in abdomen',
+          'Mental depression accompanied by chronic organic pelvic pathology in females'
+        ],
+        materiaMedicaNotes: 'Boericke Materia Medica: Has the most pronounced action on female pelvic organs, chronic induration of uterus, and fibroid tumors of enormous size.',
+        modalities: {
+          worse: 'Cold weather, rest, mental depression',
+          better: 'Warm dry weather, open air'
+        },
+        aliases: ['aurum mur nat', 'aurum muriaticum natronatum', 'aurum mur']
+      },
+      {
+        name: 'Sepia Officinalis',
+        commonName: 'Inky Juice of Cuttlefish',
+        potency: '200C',
+        dosage: '4 pills once every 3 days in the evening',
+        keynotes: [
+          'Constant bearing-down sensation in uterus as if pelvic contents would protrude from vagina; must cross legs tightly',
+          'Fibroids with pelvic congestion, yellow saddle across nose, painful coitus, and severe apathy towards loved ones',
+          'Menses irregular, either profuse or scanty, with intense sacral backache ameliorated by hard pressure'
+        ],
+        materiaMedicaNotes: 'Kent Repertory: Deep-acting constitutional anti-psoric & sycotic polychrest for uterine engorgement, prolapsus, and pelvic fibroid indurations.',
+        modalities: {
+          worse: 'Forenoons, evenings, cold air, laundry work, standing',
+          better: 'Vigorous exercise, warm bed, crossing legs, hard pressure on back'
+        },
+        aliases: ['sepia', 'sepia officinalis']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R17 (Tumor Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Biological formula for benign and malignant neoplasms, glandular swelling, uterine fibroids, cysts and indurated tissues.',
+        dosage: '10-15 drops in a little water 3 times daily before meals.',
+        mrp: 320,
+        aliases: ['r17', 'r-17', 'reckeweg 17', 'dr reckeweg r17', 'cobapec', 'tumor drops']
+      },
+      {
+        name: 'SBL Tumorin Drops',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Effective therapeutic formulation for benign lumps, fibroids, cysts, glandular enlargements and cellular indurations.',
+        dosage: '10-15 drops in 1/4 cup water 3-4 times daily.',
+        mrp: 175,
+        aliases: ['tumorin', 'sbl tumorin', 'tumorin drops']
+      },
+      {
+        name: 'Bakson Ovi-Aid',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '75 Tablets / 30 ml Drops',
+        indications: 'Specially formulated for uterine fibroids, ovarian cysts, PCOS, lower abdominal heaviness and irregular painful bleeding.',
+        dosage: '1 tablet 3 times a day or 15 drops in water twice daily.',
+        mrp: 230,
+        aliases: ['ovi-aid', 'ovi aid', 'bakson ovi aid']
+      },
+      {
+        name: 'New Life NL-17 (Tumor Drops)',
+        brand: 'New Life',
+        company: 'New Life Laboratories',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Indicated for fibroid tumors, cysts, nodular indurations, breast lumps and glandular swelling.',
+        dosage: '15-20 drops in water 3 times daily.',
+        mrp: 155,
+        aliases: ['nl-17', 'nl 17', 'new life 17', 'new life tumor drops', 'nl17']
+      }
+    ],
+    dietAndRegimen: 'Adopt a hormone-balancing plant-rich diet with cruciferous vegetables (cabbage, broccoli). Avoid excess dairy, poultry with synthetic hormones, red meat, processed sugar, and trans-fats.',
+    warningNotes: 'Pelvic Ultrasonography (USG Pelvis TVS) recommended to monitor fibroid dimensions and exclude malignant transformation. Urgent evaluation if severe bleeding causes acute anaemia.'
+  },
+  {
+    id: 'appetite-digestion',
+    nameEn: 'Loss of Appetite & Dyspepsia / Indigestion',
+    nameBn: 'ক্ষুধামন্দা, অরুচি ও দুর্বল পরিপাকতন্ত্র',
+    chipLabel: 'Appetite & Indigestion / ক্ষুধামন্দা',
+    pathology: 'Anorexia, Gastric Hypo-secretion, Atonic Dyspepsia & Nutritional Impairment',
+    miasm: 'Psoric Diathesis with Gastro-Intestinal Atony',
+    typicalPresentation: 'Loss of appetite, aversion to food, bitter taste, post-prandial heaviness, dyspepsia and weak assimilation',
+    keywords: [
+      'appetite', 'loss of appetite', 'anorexia', 'poor appetite', 'no appetite', 'appetite problem',
+      'indigestion', 'dyspepsia', 'malnutrition', 'weak digestion', 'no hunger', 'atonic dyspepsia',
+      'eating problem', 'taste lost', 'slow digestion',
+      // Bengali
+      'ক্ষুধামন্দা', 'খিদে নেই', 'খিদে পায় না', 'খিদে নাই', 'অরুচি', 'অজীর্ণ', 'খাবারে রুচি নেই',
+      'হজম হচ্ছে না', 'হজম সমস্যা', 'বুক ভারী', 'পেট ফাঁপা', 'খাবার অনিচ্ছা'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Nux Vomica',
+        commonName: 'Poison Nut',
+        potency: '30C / 200C',
+        dosage: '4 pills at bedtime',
+        keynotes: [
+          'Total loss of appetite in sedentary, stressed persons; frequent ineffectual urging for stool',
+          'Heavy pressure in stomach 1-2 hours after eating like a stone; sour or bitter eructations',
+          'Craves stimulants, spicy foods, yet they aggravate; irritable, impatient and hypochondriacal'
+        ],
+        materiaMedicaNotes: 'Boericke Materia Medica: Primary digestive tonic for toxic gastropathy, loss of appetite from sedentary life, coffee, stimulants, and mental strain.',
+        modalities: {
+          worse: 'Morning, mental exertion, after eating, cold air, stimulants',
+          better: 'Evening, warm food, restful sleep, damp wet weather'
+        },
+        aliases: ['nux vomica', 'nux vom', 'nux']
+      },
+      {
+        name: 'Alfalfa',
+        commonName: 'Medicago Sativa / Lucerne',
+        potency: 'Q (Mother Tincture)',
+        dosage: '10-15 drops in 1/4 cup water before meals, 3 times daily',
+        keynotes: [
+          'Premier physiological appetite stimulant, promoting profound physical and mental vigour',
+          'Improves nitrogenous assimilation and digestion; acts as a natural restorative for debility and anorexia',
+          'Clean tongue, craving for food about 11 AM; enhances weight gain in malnourished children and adults'
+        ],
+        materiaMedicaNotes: 'Boericke Materia Medica: From its action on digestion and assimilation, it acts as a tonic to restore normal appetite and induce healthy weight gain.',
+        modalities: {
+          worse: 'Irregular eating, fatigue',
+          better: 'Regular nourishing food, fresh air'
+        },
+        aliases: ['alfalfa', 'medicago sativa']
+      },
+      {
+        name: 'Lycopodium Clavatum',
+        commonName: 'Club Moss',
+        potency: '30C / 200C',
+        dosage: '4 pills in the evening',
+        keynotes: [
+          'Excessive hunger, but after eating the very first few mouthfuls, feels intensely full and bloated',
+          'Marked flatulent distension of lower abdomen; symptoms consistently worse between 4:00 PM and 8:00 PM',
+          'Craves warm foods and sweet desserts; sour stomach regurgitations and sluggish hepatic function'
+        ],
+        materiaMedicaNotes: 'Kent Repertory: Atonic dyspepsia with early satiety, excessive flatulence, and sluggish digestion originating from hepatic insufficiency.',
+        modalities: {
+          worse: '4 PM to 8 PM, cold food, cabbage, beans, right side',
+          better: 'Warm drinks, motion, eructations, loosening garments'
+        },
+        aliases: ['lycopodium', 'lyco']
+      },
+      {
+        name: 'China (Cinchona Officinalis)',
+        commonName: 'Peruvian Bark',
+        potency: 'Q / 30C',
+        dosage: '10 drops in water twice daily before meals',
+        keynotes: [
+          'Anorexia and flatulent dyspepsia after debilitating illness or loss of vital fluids',
+          'Entire abdomen feels packed full, tight and distended; eructations give no relief whatever',
+          'Aversion to all food, bitter taste in mouth, general exhaustion, anemia and pale sallow complexion'
+        ],
+        materiaMedicaNotes: 'Boericke Materia Medica: Restores lost appetite and tone to gastrointestinal mucosa following prostration and fluid depletion.',
+        modalities: {
+          worse: 'Slightest touch, drafts, after eating, night, loss of fluids',
+          better: 'Hard pressure, warmth, bending double'
+        },
+        aliases: ['china', 'cinchona officinalis', 'china off']
+      },
+      {
+        name: 'Gentiana Lutea',
+        commonName: 'Yellow Gentian',
+        potency: 'Q (Mother Tincture)',
+        dosage: '5-10 drops in water 20 minutes before meals',
+        keynotes: [
+          'Classical bitter tonic acting directly on gastric salivary glands and peptic enzymes',
+          'Complete anorexia with thick yellowish coated tongue and acid taste',
+          'Atonic sluggish stomach with dull umbilical fullness and nausea after eating'
+        ],
+        materiaMedicaNotes: 'Boericke Materia Medica: Acts as a powerful bitter tonic to kindle natural digestive appetite and gastric peristalsis.',
+        modalities: {
+          worse: 'Heavy cold foods',
+          better: 'Light warm meals'
+        },
+        aliases: ['gentiana lutea', 'gentiana']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'SBL Alfalfa Tonic',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '115 ml / 500 ml Syrup',
+        indications: 'Rejuvenating health and appetite tonic; stimulates wholesome appetite, aids digestion and counteracts fatigue.',
+        dosage: '1-2 teaspoonfuls before meals 3 times daily.',
+        mrp: 150,
+        aliases: ['alfalfa tonic', 'sbl alfalfa', 'alfalfa syrup']
+      },
+      {
+        name: 'Bakson Appetiser',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '115 ml / 200 ml Syrup',
+        indications: 'Effective pediatric and adult appetite restorative; eliminates anorexia, improves digestive fire and assimilation.',
+        dosage: '1 teaspoonful 3 times daily before meals.',
+        mrp: 140,
+        aliases: ['appetiser', 'bakson appetiser', 'appetiser syrup']
+      },
+      {
+        name: 'Dr. Reckeweg R31 (Anorexia Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Biological remedy for lack of appetite, weight loss, digestive debility and nutritional deficiencies.',
+        dosage: '10-15 drops in water 3 times daily before meals.',
+        mrp: 310,
+        aliases: ['r31', 'r-31', 'reckeweg 31', 'dr reckeweg r31']
+      },
+      {
+        name: 'New Life Appetex',
+        brand: 'New Life',
+        company: 'New Life Laboratories',
+        country: 'India',
+        bottleSize: '100 ml Syrup',
+        indications: 'Restores natural hunger, cures atonic dyspepsia, eliminates poor food absorption in children and adults.',
+        dosage: '1-2 teaspoons 3 times a day before meals.',
+        mrp: 120,
+        aliases: ['appetex', 'new life appetex', 'nl appetex']
+      }
+    ],
+    dietAndRegimen: 'Eat frequent small, freshly cooked warm meals. Include ginger water, cumin decoction, and fresh seasonal fruits. Avoid excess cold sodas, greasy fried snacks, and irregular snacking.',
+    warningNotes: 'If loss of appetite persists with unprovoked significant weight loss or pale conjunctiva, check Complete Blood Count (CBC) and ESR to rule out occult systemic pathology.'
   }
 ];
 
-export function findRepertoryMatch(symptomQuery: string): ClinicalCondition {
-  const query = symptomQuery.toLowerCase().trim();
-  if (!query) return CLINICAL_REPERTORY_DATABASE[0];
+/**
+ * Dynamically constructs a tailored ClinicalCondition for symptoms that do not match
+ * any predefined database condition. This guarantees that unrelated symptoms (e.g. skin, fever,
+ * pain, headache) NEVER default to Kidney Stone.
+ */
+function buildDynamicCondition(symptomQuery: string): ClinicalCondition {
+  const q = symptomQuery.toLowerCase().trim();
 
-  let bestMatch = CLINICAL_REPERTORY_DATABASE[0];
-  let maxScore = -1;
+  // 1. Headache / Migraine
+  if (q.includes('headache') || q.includes('migraine') || q.includes('মাথা') || q.includes('শিরঃপীড়া')) {
+    return {
+      id: 'dynamic-headache',
+      nameEn: `Headache & Cephalalgia: ${symptomQuery}`,
+      nameBn: 'মাথাব্যথা ও মাইগ্রেনের চিকিৎসাসূচক বিশ্লেষণ',
+      chipLabel: 'Headache Repertory',
+      pathology: 'Cephalalgia, Vasomotor Migraine & Tension-type Headaches',
+      miasm: 'Psoric-Sycotic Neuralgic Diathesis',
+      typicalPresentation: symptomQuery,
+      keywords: [symptomQuery],
+      classicalRemedies: [
+        {
+          name: 'Belladonna',
+          commonName: 'Deadly Nightshade',
+          potency: '30C / 200C',
+          dosage: '4 pills every 3 hours during acute throbbing',
+          keynotes: ['Violent throbbing congestive headache; flushed red face, dilated pupils', 'Worse from light, noise, jar, motion, lying flat; better from tight wrapping and dark quiet room'],
+          materiaMedicaNotes: 'Boericke: Sudden onset, violent congestion, throbbing carotids. Relieved by pressure and quietude.',
+          modalities: { worse: 'Touch, jar, noise, light, motion', better: 'Semi-erect posture, tight bandaging' },
+          aliases: ['belladonna', 'bell']
+        },
+        {
+          name: 'Spigelia Anthelmia',
+          commonName: 'Pinkroot',
+          potency: '30C / 200C',
+          dosage: '4 pills 3 times daily',
+          keynotes: ['Left-sided headache and orbital neuralgia; begins at sunrise, reaches peak at noon, declines at sunset', 'Violent sharp stitching pain as if head would burst'],
+          materiaMedicaNotes: 'Kent: Periodic left-sided supraorbital neuralgia following sun path.',
+          modalities: { worse: 'Motion, noise, stooping, looking down', better: 'Lying with head high, warmth' },
+          aliases: ['spigelia']
+        },
+        {
+          name: 'Glonoine',
+          commonName: 'Nitroglycerine',
+          potency: '30C',
+          dosage: '4 drops in water during sun-induced pain',
+          keynotes: ['Sun headache, pulsating surges of blood to head; sensation as if skull were too small', 'Cannot bear anything tight around neck or warmth on head'],
+          materiaMedicaNotes: 'Boericke: Surging rushes of blood to head and heart from heat of sun.',
+          modalities: { worse: 'Sun, heat of fire, stooping, wine', better: 'Cold applications, holding head straight' },
+          aliases: ['glonoine', 'glonoin']
+        }
+      ],
+      patentFormulations: [
+        {
+          name: 'Dr. Reckeweg R16 (Migraine Drops)',
+          brand: 'Dr. Reckeweg',
+          company: 'Dr. Reckeweg & Co (Germany)',
+          country: 'Germany',
+          bottleSize: '22 ml Drops',
+          indications: 'Migraine, nervous headaches, neuralgia of the head and tension cephalalgia.',
+          dosage: '10-15 drops in water 3-4 times daily.',
+          mrp: 310,
+          aliases: ['r16', 'r-16', 'reckeweg 16']
+        },
+        {
+          name: 'SBL Relax-B Drops',
+          brand: 'SBL',
+          company: 'SBL Pvt Ltd',
+          country: 'India',
+          bottleSize: '30 ml Drops',
+          indications: 'Relieves acute throbbing and periodic headaches, sinus tension and heaviness.',
+          dosage: '10-15 drops in 1/4 cup water 3 times daily.',
+          mrp: 140,
+          aliases: ['relax-b', 'relax b', 'sbl relax b']
+        },
+        {
+          name: 'Bakson Mig Aid',
+          brand: "Bakson's",
+          company: 'Bakson Drugs & Pharmaceuticals',
+          country: 'India',
+          bottleSize: '30 ml Drops',
+          indications: 'Effective relief from unilateral headaches, visual disturbances and nausea associated with migraine.',
+          dosage: '10-15 drops in water 3 times a day.',
+          mrp: 160,
+          aliases: ['mig aid', 'bakson mig aid']
+        }
+      ],
+      dietAndRegimen: 'Rest in a quiet, dark, well-ventilated room. Sip warm chamomile or peppermint tea. Avoid chocolate, aged cheeses, excess caffeine, and staring at bright screens.',
+      warningNotes: 'If headache is accompanied by projectile vomiting, sudden onset neurological deficits, or neck stiffness, rule out acute intracranial pathology.'
+    };
+  }
+
+  // 2. Skin / Itching / Eczema / Rash
+  if (q.includes('skin') || q.includes('itch') || q.includes('rash') || q.includes('eczema') || q.includes('চুলকানি') || q.includes('চর্মরোগ')) {
+    return {
+      id: 'dynamic-skin',
+      nameEn: `Dermatological & Skin Condition: ${symptomQuery}`,
+      nameBn: 'চর্মরোগ, চুলকানি ও ত্বকের প্রদাহ বিশ্লেষণ',
+      chipLabel: 'Skin Repertory',
+      pathology: 'Dermatitis, Pruritus, Urticaria & Cutaneous Inflammatory Reactions',
+      miasm: 'Psoric Constitutional Diathesis',
+      typicalPresentation: symptomQuery,
+      keywords: [symptomQuery],
+      classicalRemedies: [
+        {
+          name: 'Sulphur',
+          commonName: 'Sublimed Sulphur',
+          potency: '200C / 1M',
+          dosage: '4 pills once weekly in the morning on empty stomach',
+          keynotes: ['Intense voluptuous itching, burning after scratching; distinctly aggravated from water and washing', 'Aversion to washing; heat of bed aggravates skin eruption and restlessness'],
+          materiaMedicaNotes: 'Kent: King of anti-psoric polychrests for burning pruritus aggravated by warmth of bed and washing.',
+          modalities: { worse: 'Warmth of bed, washing, standing, 11 AM', better: 'Dry warm weather, open air' },
+          aliases: ['sulphur', 'sulfur']
+        },
+        {
+          name: 'Graphites',
+          commonName: 'Black Lead',
+          potency: '30C / 200C',
+          dosage: '4 pills twice daily',
+          keynotes: ['Cracks and fissures behind ears, bends of limbs, corners of mouth; oozing thick sticky honey-like fluid', 'Dry, rough, hard skin with intense itching and constipation'],
+          materiaMedicaNotes: 'Boericke: Characteristically exudes a transparent, sticky, honey-like fluid.',
+          modalities: { worse: 'Warmth, at night, during and after menses', better: 'Walking in open air, dark room' },
+          aliases: ['graphites']
+        },
+        {
+          name: 'Rhus Toxicodendron',
+          commonName: 'Poison Ivy',
+          potency: '30C',
+          dosage: '4 pills 3 times daily',
+          keynotes: ['Vesicular erythematous eruptions with intense itching and burning; relieved by scalding hot water', 'Herpetic, urticarial eruptions with swelling and restlessness'],
+          materiaMedicaNotes: 'Boericke: Red swollen skin with vesicles and burning; temporary relief from very hot water.',
+          modalities: { worse: 'Cold damp air, scratching, night', better: 'Hot water application, motion' },
+          aliases: ['rhus tox', 'rhus']
+        }
+      ],
+      patentFormulations: [
+        {
+          name: 'Dr. Reckeweg R23 (Nosoderm Drops)',
+          brand: 'Dr. Reckeweg',
+          company: 'Dr. Reckeweg & Co (Germany)',
+          country: 'Germany',
+          bottleSize: '22 ml Drops',
+          indications: 'Chronic eczema, dermatitis, herpes, acute and chronic skin eruptions.',
+          dosage: '10-15 drops in water 3 times daily.',
+          mrp: 310,
+          aliases: ['r23', 'r-23', 'reckeweg 23']
+        },
+        {
+          name: 'Bakson Baksonite / Dermat Aid',
+          brand: "Bakson's",
+          company: 'Bakson Drugs & Pharmaceuticals',
+          country: 'India',
+          bottleSize: '30 ml Drops / 75g Soap',
+          indications: 'Effective formulation for pruritus, urticaria, dry and weeping eczema, and fungal rashes.',
+          dosage: '10-15 drops in water twice daily.',
+          mrp: 165,
+          aliases: ['dermat aid', 'bakson dermat aid']
+        },
+        {
+          name: 'New Life NL-14 (Skin Drops)',
+          brand: 'New Life',
+          company: 'New Life Laboratories',
+          country: 'India',
+          bottleSize: '30 ml Drops',
+          indications: 'Soothes persistent skin allergies, dry scales, hives, and burning itchy lesions.',
+          dosage: '15 drops in water 3 times a day.',
+          mrp: 140,
+          aliases: ['nl-14', 'nl 14', 'new life 14']
+        }
+      ],
+      dietAndRegimen: 'Wear loose cotton clothing. Avoid harsh chemical soaps; use neem or Calendula washing. Strictly eliminate eggs, sour pickles, brinjal (eggplant), and artificial preservatives.',
+      warningNotes: 'If lesion exhibits rapid cellulitis, weeping golden crusts with fever, evaluate for secondary bacterial impetigo.'
+    };
+  }
+
+  // 3. General Fallback Targeted Condition (NEVER Kidney Stone)
+  return {
+    id: `dynamic-${Date.now()}`,
+    nameEn: `Clinical Presentation Analysis: ${symptomQuery.length > 55 ? symptomQuery.slice(0, 55) + '...' : symptomQuery}`,
+    nameBn: 'উপসর্গভিত্তিক ক্লাসিক্যাল ও মাল্টি-ব্র্যান্ড পেটেন্ট বিশ্লেষণ',
+    chipLabel: 'Targeted Repertory',
+    pathology: `Pathological & Symptomatic Totality for: ${symptomQuery}`,
+    miasm: 'Constitutional Homoeopathic Individualization (Kent/Boericke Protocol)',
+    typicalPresentation: symptomQuery,
+    keywords: [symptomQuery],
+    classicalRemedies: [
+      {
+        name: 'Arnica Montana',
+        commonName: 'Leopards Bane',
+        potency: '30C / 200C',
+        dosage: '4 pills 3 times daily',
+        keynotes: [
+          'Sore, bruised, lame feeling throughout the system; bed feels too hard, must constantly change position',
+          'Ailments from physical trauma, over-exertion, muscular strain or generalized aching sore sensation',
+          'Fear of being touched or approached; claims nothing is wrong despite severe suffering'
+        ],
+        materiaMedicaNotes: 'Kent Repertory: Pre-eminent trauma and constitutional restorative for all bruised, sore, aching conditions with circulatory stasis.',
+        modalities: { worse: 'Touch, jarring, rest, damp cold', better: 'Lying flat with head low, gentle warmth' },
+        aliases: ['arnica', 'arnica montana']
+      },
+      {
+        name: 'Pulsatilla Nigricans',
+        commonName: 'Wind Flower',
+        potency: '30C / 200C',
+        dosage: '4 pills in morning and evening',
+        keynotes: [
+          'Highly changeable and wandering symptoms; never two symptoms or pains alike',
+          'Mild, yielding, gentle disposition; easily moved to weeping; craves comforting sympathy',
+          'Complete thirstlessness with dry mouth; intensely aggravated by warm enclosed rooms; craving cool open air'
+        ],
+        materiaMedicaNotes: 'Boericke Materia Medica: Primary remedy for wandering, shifting complaints with thirstlessness and relief in cool fresh open air.',
+        modalities: { worse: 'Heat, warm close rooms, rich fat food, evening', better: 'Open cool air, gentle walking, cold applications' },
+        aliases: ['pulsatilla', 'puls']
+      },
+      {
+        name: 'Nux Vomica',
+        commonName: 'Poison Nut',
+        potency: '30C / 200C',
+        dosage: '4 pills at bedtime',
+        keynotes: [
+          'Oversensitive to all impressions (noise, light, odors); irritable and impatient disposition',
+          'Digestive disturbances, sluggish toxic elimination from sedentary strain, medications or irregular living',
+          'Chilly patient; cannot uncover the slightest without feeling shivering, chilliness, and bodyache'
+        ],
+        materiaMedicaNotes: 'Boericke: Deep-acting polychrest for nervous, visceral and metabolic disharmony from modern stresses.',
+        modalities: { worse: 'Morning, cold air, mental strain, stimulants', better: 'Warmth, rest, evening' },
+        aliases: ['nux vomica', 'nux']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R1 (Anginacid / Inflammation Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Local and systemic inflammatory processes, glandular tenderness, malaise and acute irritation.',
+        dosage: '10-15 drops in water 3 times daily.',
+        mrp: 310,
+        aliases: ['r1', 'r-1', 'reckeweg 1', 'dr reckeweg r1']
+      },
+      {
+        name: 'SBL Alfalfa Tonic',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '115 ml Syrup',
+        indications: 'General constitutional restorative, strengthens natural immune resilience, appetite and vitality.',
+        dosage: '1-2 teaspoonfuls twice daily before meals.',
+        mrp: 150,
+        aliases: ['alfalfa', 'sbl alfalfa tonic']
+      },
+      {
+        name: 'Bakson Rheum Aid / Tone Aid',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '115 ml Syrup',
+        indications: 'Relieves general bodyaches, muscular tension, fatigue and physical weariness.',
+        dosage: '1 teaspoonful twice daily.',
+        mrp: 160,
+        aliases: ['bakson tone', 'bakson rheum aid']
+      }
+    ],
+    dietAndRegimen: 'Sip fresh warm filtered water regularly. Maintain a wholesome, balanced diet rich in boiled greens and seasonal fruits. Avoid heavy fried, greasy, and excessively spicy foods during treatment.',
+    warningNotes: 'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo). Correlate with thorough clinical examination.'
+  };
+}
+
+export function findRepertoryMatch(symptomQuery: string): ClinicalCondition | null {
+  const query = (symptomQuery || '').toLowerCase().trim();
+  if (!query) return null;
+
+  let bestMatch: ClinicalCondition | null = null;
+  let maxScore = 0;
 
   for (const cond of CLINICAL_REPERTORY_DATABASE) {
     let score = 0;
 
     // Check direct id or name match
-    if (query.includes(cond.id)) score += 10;
-    if (query.includes(cond.nameEn.toLowerCase())) score += 8;
-    if (query.includes(cond.nameBn.toLowerCase())) score += 8;
+    if (query.includes(cond.id)) score += 12;
+    if (query.includes(cond.nameEn.toLowerCase())) score += 10;
+    if (query.includes(cond.nameBn.toLowerCase())) score += 10;
 
     for (const kw of cond.keywords) {
-      if (query.includes(kw.toLowerCase())) {
-        score += kw.length > 5 ? 4 : 2;
+      const kwLower = kw.toLowerCase();
+      if (query.includes(kwLower)) {
+        score += kwLower.length > 5 ? 5 : 3;
       }
     }
 
@@ -1495,5 +2090,12 @@ export function findRepertoryMatch(symptomQuery: string): ClinicalCondition {
     }
   }
 
-  return bestMatch;
+  // If a predefined condition matched with a positive score, return it
+  if (bestMatch && maxScore > 0) {
+    return bestMatch;
+  }
+
+  // NEVER default to Kidney Stone! Dynamically synthesize a condition based on the user's specific query
+  return buildDynamicCondition(symptomQuery);
 }
+
