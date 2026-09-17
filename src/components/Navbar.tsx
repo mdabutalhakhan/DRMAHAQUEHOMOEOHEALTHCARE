@@ -1,6 +1,5 @@
 import React from 'react';
 import { 
-  HeartHandshake, 
   Moon, 
   Sun, 
   Phone, 
@@ -12,6 +11,7 @@ import {
   ShieldAlert,
   Search
 } from 'lucide-react';
+import { ClinicLogo } from './ClinicLogo';
 import { UserProfile } from '../types';
 
 interface NavbarProps {
@@ -44,8 +44,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           className="flex items-center gap-2 sm:gap-3 cursor-pointer group min-w-0"
           id="brand-logo-button"
         >
-          <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white flex items-center justify-center shadow-sm sm:shadow-md shadow-emerald-900/20 group-hover:scale-105 transition-transform shrink-0">
-            <HeartHandshake className="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-7 md:h-7 text-emerald-200" />
+          <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white flex items-center justify-center p-1 sm:p-1.5 shadow-sm sm:shadow-md shadow-emerald-900/20 group-hover:scale-105 transition-transform shrink-0">
+            <ClinicLogo className="w-full h-full" color="#A7F3D0" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 sm:gap-2">

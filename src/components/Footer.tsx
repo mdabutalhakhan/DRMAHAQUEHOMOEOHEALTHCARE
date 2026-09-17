@@ -1,6 +1,5 @@
 import React from 'react';
 import { 
-  HeartHandshake, 
   MapPin, 
   Phone, 
   Clock, 
@@ -9,6 +8,7 @@ import {
   Sparkles,
   ExternalLink 
 } from 'lucide-react';
+import { ClinicLogo } from './ClinicLogo';
 
 interface FooterProps {
   onOpenBooking: () => void;
@@ -28,8 +28,8 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Clinic Brand & Doctor Credential */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-700/60 border border-emerald-500/30 flex items-center justify-center">
-                <HeartHandshake className="w-6 h-6 text-emerald-300" />
+              <div className="w-10 h-10 rounded-xl bg-emerald-700/60 border border-emerald-500/30 flex items-center justify-center p-1">
+                <ClinicLogo className="w-full h-full" color="#A7F3D0" />
               </div>
               <div>
                 <h3 className="text-xl font-bold tracking-tight text-white">Homoeo Health Care</h3>

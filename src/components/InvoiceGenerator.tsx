@@ -21,6 +21,7 @@ import { Appointment, Invoice, InvoiceItem, PaymentMode } from '../types';
 import { createInvoice, getInvoices, registerCreatedInvoice, derivePatientId } from '../services/clinicStore';
 import { getSupabase } from '../services/supabase';
 import { exportInvoicesToCSV } from '../utils/exportUtils';
+import { ClinicLogo } from './ClinicLogo';
 
 interface InvoiceGeneratorProps {
   initialAppointment?: Appointment | null;
@@ -836,16 +837,21 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({
               <div className="printable-area standard-voucher w-full p-8 rounded-3xl bg-white text-slate-900 border border-slate-200 shadow-xl space-y-6 font-sans">
                 {/* Clinic Header */}
                 <div className="flex justify-between items-start pb-6 border-b border-slate-200">
-                  <div>
-                    <h1 className="text-2xl font-extrabold text-[#1B4332] tracking-tight">Homoeo Health Care</h1>
-                    <p className="text-sm font-semibold text-slate-700">Dr. M. A. Haque, M.D. (Homoeo)</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Salbagan Road, Benachity, Durgapur, PIN: 713213
-                    </p>
-                    <p className="text-xs text-slate-500">Phone / WhatsApp: 9933506514</p>
-                    <p className="text-xs font-mono font-semibold text-slate-600 mt-0.5">
-                      {savedInvoice.gstin || 'GSTIN: [To be added / Optional]'}
-                    </p>
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200/60 p-1.5 flex items-center justify-center shrink-0">
+                      <ClinicLogo className="w-full h-full" color="#1B4332" />
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-extrabold text-[#1B4332] tracking-tight">Homoeo Health Care</h1>
+                      <p className="text-sm font-semibold text-slate-700">Dr. M. A. Haque, M.D. (Homoeo)</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Salbagan Road, Benachity, Durgapur, PIN: 713213
+                      </p>
+                      <p className="text-xs text-slate-500">Phone / WhatsApp: 9933506514</p>
+                      <p className="text-xs font-mono font-semibold text-slate-600 mt-0.5">
+                        {savedInvoice.gstin || 'GSTIN: [To be added / Optional]'}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="text-right">

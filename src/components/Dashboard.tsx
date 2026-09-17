@@ -10,7 +10,6 @@ import {
   LogOut,
   Stethoscope,
   ChevronRight,
-  HeartHandshake,
   Menu,
   X,
   FolderClock,
