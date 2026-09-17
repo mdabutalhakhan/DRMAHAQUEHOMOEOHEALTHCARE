@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#065f46"/>
+    </linearGradient>
+  </defs>
+  <!-- Background Circle -->
+  <circle cx="32" cy="32" r="30" fill="url(#grad)"/>
+  
+  <!-- Clinical Cross -->
+  <rect x="27" y="15" width="10" height="34" rx="4" fill="#FFFFFF"/>
+  <rect x="15" y="27" width="34" height="10" rx="4" fill="#FFFFFF"/>
+  
+  <!-- Homeopathic Healing Leaf / Droplet Contour -->
+  <path d="M32 13 C44 13 49 23 46 34 C43 45 32 50 32 50 C32 50 21 45 18 34 C15 23 20 13 32 13 Z" 
+        stroke="#6EE7B7" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.9"/>
+  <circle cx="32" cy="32" r="3" fill="#059669"/>
+</svg>
