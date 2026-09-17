@@ -16,15 +16,15 @@ export const getWhatsAppReceiptUrl = (data: {
     `Dr. M. A. Haque, M.D. (Homoeo)\n` +
     `Benachity, Durgapur | 📞 9933056514\n` +
     `--------------------------------\n` +
-    `নমস্কার *${data.patientName || 'Patient'}*,\n` +
-    `হোমিও হেলথ কেয়ারে আসার জন্য আপনাকে ধন্যবাদ।\n\n` +
-    `📋 *ডিজিটাল ক্যাশ রসিদ (Cash Memo):*\n` +
-    `• বিল নং: *${data.invoiceNumber || 'N/A'}*\n` +
-    `• তারিখ: *${data.date}*\n` +
-    `• ডক্টর ফি: ₹${data.doctorFee || 0}\n` +
-    `• ওষুধ চার্জ: ₹${data.medicineTotal || 0}\n` +
-    `• *সর্বমোট পরিশোধিত:* *₹${data.totalAmount || 0}* (${data.paymentMode || 'Cash'})\n\n` +
-    `সুস্থ থাকুন, ভালো থাকুন। ✨`;
+    `Dear *${data.patientName || 'Patient'}*,\n` +
+    `Thank you for visiting Homoeo Health Care.\n\n` +
+    `📋 *Digital Cash Receipt / Bill:*\n` +
+    `• Invoice No: *${data.invoiceNumber || 'N/A'}*\n` +
+    `• Date: *${data.date}*\n` +
+    `• Doctor Consultation Fee: ₹${data.doctorFee || 0}\n` +
+    `• Medicine & Charges: ₹${data.medicineTotal || 0}\n` +
+    `• *Total Paid:* *₹${data.totalAmount || 0}* (${data.paymentMode || 'Cash'})\n\n` +
+    `Wishing you good health and a speedy recovery! ✨`;
 
   const encoded = encodeURIComponent(message);
   
