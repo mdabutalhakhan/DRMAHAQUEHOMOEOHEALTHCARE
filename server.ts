@@ -45,7 +45,7 @@ app.get('/api/health', (req, res) => {
     clinic: 'Homoeo Health Care',
     doctor: 'Dr. M. A. Haque, M.D. (Homoeo)',
     gemini_configured: !!activeKey,
-    model: 'gemini-3.6-flash',
+    model: 'gemini-1.5-flash',
   });
 });
 
@@ -317,7 +317,7 @@ Provide your response in structured JSON format with:
     };
 
     let outputText = '';
-    const modelsToTry = ['gemini-3.6-flash', 'gemini-3.8-flash'];
+    const modelsToTry = ['gemini-1.5-flash'];
     for (const m of modelsToTry) {
       try {
         const response = await ai.models.generateContent({

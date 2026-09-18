@@ -766,33 +766,664 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
     warningNotes: 'Endoscopy advised if difficulty swallowing (dysphagia), unexplained weight loss, persistent vomiting, or black tarry stools (melena) occur.'
   },
   {
-    id: 'joint-pain-gout',
-    nameEn: 'Joint Pain, Arthritis, Sciatica & Gout',
-    nameBn: 'বাতের ব্যথা, গাউট ও গাঁটে ফোলা যন্ত্রণা',
-    chipLabel: 'Joint Pain & Gout / বাতের ব্যথা',
-    pathology: 'Osteoarthritis, Rheumatoid Arthritis, Sciatic Neuralgia, Gouty Arthritis',
-    miasm: 'Sycotic Diathesis with Syphilitic Articular Degeneration',
-    typicalPresentation: 'Morning stiffness, swollen painful joints, shooting sciatic nerve pain and high uric acid gout',
+    id: 'fever-pyrexia',
+    nameEn: 'Fever, Pyrexia & Acute Inflammatory Heat',
+    nameBn: 'জ্বর, গা গরম ও তীব্র প্রদাহজনিত তাপমাত্রা',
+    chipLabel: 'Fever / জ্বর',
+    pathology: 'Acute Pyrexia, Viral Fever, Inflammatory Hyperthermia & Febrile Rigors',
+    miasm: 'Acute Psora with Inflammatory Hyperdynamic Congestion',
+    typicalPresentation: 'Sudden onset fever, hot dry skin, burning heat, chills, bodyache, delirium or restlessness',
     keywords: [
-      'joint pain', 'arthritis', 'osteoarthritis', 'gout', 'sciatica', 'rheumatism', 'knee pain', 'knee',
-      'morning stiffness', 'swollen joint', 'uric acid', 'lumbago', 'backache', 'cervical spondylitis',
-      'ankles', 'shoulder pain', 'rheumatic', 'leg pain', 'limb pain', 'pain',
+      'fever', 'pyrexia', 'high fever', 'acute fever', 'febrile', 'chills', 'rigors', 'hyperthermia',
+      'temperature', 'hot body', 'burning heat', 'bodyache',
       // Bengali
-      'পায়ে ব্যথা', 'পায়ে ব্যথা', 'ব্যথা', 'বাতের ব্যথা', 'গাঁটে ব্যথা', 'হাঁটু ব্যথা', 'হাঁটু', 'গাউট',
-      'বাত', 'বাতরোগ', 'কোমর ব্যথা', 'বাতের যন্ত্রণা', 'পায়ের জয়েন্টে ব্যথা', 'ইউরিক অ্যাসিড', 'সায়াটিকা', 'সকালের জড়তা'
+      'জ্বর', 'গা গরম', 'তীব্র জ্বর', 'শীত লাগা', 'কাঁপুনি দিয়ে জ্বর', 'গা পুড়ে যাওয়া', 'জ্বরের তাপমাত্রা', 'জ্বর ও শরীর ব্যথা'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Aconitum Napellus',
+        commonName: "Monk's Hood",
+        potency: '30C',
+        dosage: '4 pills every 2-3 hours in acute stage, reduce as fever subsides',
+        keynotes: [
+          'Sudden, violent onset of high fever after exposure to dry cold wind',
+          'Intense heat, burning dry skin, full bounding pulse, red face turning pale on sitting up',
+          'Agonizing physical restlessness, extreme anxiety, fear of death, unquenchable thirst for cold water'
+        ],
+        materiaMedicaNotes: 'Boericke: Aconite is the king of acute inflammatory fevers. Physical and mental restlessness, fright and sudden violence of onset are its hallmarks.',
+        modalities: {
+          worse: 'Warm room, evening and night, lying on affected side, dry cold wind',
+          better: 'Open air, resting quietly, profuse perspiration'
+        },
+        aliases: ['aconite', 'aconitum', 'aconitum napellus']
+      },
+      {
+        name: 'Belladonna',
+        commonName: 'Deadly Nightshade',
+        potency: '30C',
+        dosage: '4 drops in a spoonful of water every 3-4 hours',
+        keynotes: [
+          'High inflammatory fever with burning heat radiating from body, red flushed face, throbbing carotids',
+          'Dilated pupils, delirium, hot head with cold extremities',
+          'Sudden onset and sudden decline; hypersensitive to light, noise, touch, and jarring'
+        ],
+        materiaMedicaNotes: 'Kent: Great heat, redness, and throbbing. Skin is so hot it imparts a burning sensation to the examining hand.',
+        modalities: {
+          worse: 'Touch, jar, noise, draught of air, after 3 PM, lying down',
+          better: 'Semi-erect position, resting quietly in dark warm room'
+        },
+        aliases: ['belladonna', 'bell']
+      },
+      {
+        name: 'Bryonia Alba',
+        commonName: 'White Bryony',
+        potency: '30C',
+        dosage: '4 pills 3 times daily before meals',
+        keynotes: [
+          'Slowly developing fever with great thirst for large quantities of cold water at long intervals',
+          'Bursting frontal headache and severe aching in all muscles and joints',
+          'Sharp aggravation from the slightest motion; patient wants to lie completely still'
+        ],
+        materiaMedicaNotes: 'Boericke: Sluggish insidious onset fever. Irritable, dry mucous membranes, white coated tongue, motion aggravates.',
+        modalities: {
+          worse: 'Any motion, morning, warm weather, exertion',
+          better: 'Absolute rest, lying on painful side, cool open air'
+        },
+        aliases: ['bryonia', 'bryonia alba', 'bry']
+      },
+      {
+        name: 'Gelsemium Sempervirens',
+        commonName: 'Yellow Jasmine',
+        potency: '30C',
+        dosage: '4 pills 3-4 times daily in warm water',
+        keynotes: [
+          'The 4 D’s: Dizziness, Drowsiness, Dullness, and Drooping eyelids with muscular prostration',
+          'Slow, insidious onset of viral fever or flu-like illness; complete lack of thirst',
+          'Chills running up and down the spine with occipital heaviness and motor weakness'
+        ],
+        materiaMedicaNotes: 'Kent: Indicated in sluggish, congestive, catarrhal fevers, influenza, and warm-weather fevers with heavy, aching muscles.',
+        modalities: {
+          worse: 'Damp weather, fog, before a thunderstorm, emotions or bad news',
+          better: 'Bending forward, profuse urination, open air, motion'
+        },
+        aliases: ['gelsemium', 'gelsemium sempervirens', 'gels']
+      },
+      {
+        name: 'Eupatorium Perfoliatum',
+        commonName: 'Bone-set',
+        potency: '30C',
+        dosage: '4 pills 3 times daily',
+        keynotes: [
+          'Intense, deep aching in bones as if broken or bruised from head to foot',
+          'Fever paroxysm preceded by intense bone pain, soreness of eyeballs, and great thirst',
+          'Bitter vomiting of bile at the close of chill or during heat'
+        ],
+        materiaMedicaNotes: 'Boericke: Known as Bone-set for its unmatched ability to relieve aching in the bones of limbs and back during acute malaria, dengue, or influenza.',
+        modalities: {
+          worse: 'Periodically 7-9 AM, cold air, motion',
+          better: 'Rest, talking, warm room'
+        },
+        aliases: ['eupatorium', 'eupatorium perf', 'eupatorium perfoliatum', 'boneset']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R1 (Inflammation/Fever Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Biological formula for acute and chronic local inflammation, catarrhal fever, anginas, and inflammatory hyperthermia.',
+        dosage: '10-15 drops in water every 2-3 hours in acute fever; reduce to 3 times daily as condition normalizes.',
+        mrp: 310,
+        aliases: ['r1', 'r-1', 'reckeweg 1', 'dr reckeweg r1', 'r1 drops']
+      },
+      {
+        name: 'Bakson Febro Aid Syrup / Drops',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '115 ml Syrup / 30 ml Drops',
+        indications: 'Effective antipyretic formulation for temperature control, bodyaches, post-viral chills and fatigue.',
+        dosage: '1 teaspoonful or 10-15 drops in lukewarm water 3 times daily.',
+        mrp: 145,
+        aliases: ['febro aid', 'bakson febro aid', 'febro-aid']
+      },
+      {
+        name: 'Wheezal WL-14 (Fever Drops)',
+        brand: 'Wheezal',
+        company: 'Wheezal Homoeo Pharma',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Broad-spectrum fever drops for viral pyrexia, catarrhal influenza, headache and muscle ache.',
+        dosage: '10-15 drops in 1/4 cup water every 3-4 hours.',
+        mrp: 165,
+        aliases: ['wl-14', 'wl 14', 'wheezal wl 14', 'wheezal fever']
+      },
+      {
+        name: 'New Life NL-7 (Fever Drops)',
+        brand: 'New Life',
+        company: 'New Life Laboratories',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Therapeutic formula for acute pyrexia, shivering, headache, malaise and febrile delirium.',
+        dosage: '15-20 drops in warm water 3-4 times daily.',
+        mrp: 140,
+        aliases: ['nl-7', 'nl 7', 'new life 7', 'new life fever drops', 'nl7']
+      },
+      {
+        name: 'SBL Ferrum Phosphoricum 6X',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '25g Biochemic Tablets',
+        indications: 'The premier first-stage inflammatory and fever biochemic tissue salt for rapid temperature regulation and oxygenation.',
+        dosage: '4 tablets dissolved in lukewarm water 3-4 times daily.',
+        mrp: 120,
+        aliases: ['ferrum phos', 'ferrum phos 6x', 'sbl ferrum phos', 'ferrum phosphoricum']
+      }
+    ],
+    dietAndRegimen: 'Drink plenty of warm boiled fluids (barley water, fresh coconut water, light soup). Avoid cold drinks, oily foods, and direct air drafts. Rest completely in a well-ventilated room.',
+    warningNotes: 'Monitor temperature closely with a thermometer. If fever exceeds 103°F or is accompanied by stiff neck, convulsions, or rash, immediate clinical evaluation is required.'
+  },
+  {
+    id: 'dysentery-diarrhea',
+    nameEn: 'Dysentery, Diarrhea & Enteric Spasms',
+    nameBn: 'আমাশয়, ডায়রিয়া, পেট খারাপ ও পেটে মোচড়',
+    chipLabel: 'Dysentery & Diarrhea / আমাশয় ও পেট খারাপ',
+    pathology: 'Amoebic & Bacillary Dysentery, Acute Enterocolitis, Gastroenteritis & Colic',
+    miasm: 'Psoric-Sycotic Intestinal Catarrh with Tenesmus',
+    typicalPresentation: 'Frequent loose watery or bloody mucoid stools, cutting abdominal cramps, straining before and after stool',
+    keywords: [
+      'dysentery', 'diarrhea', 'diarrhoea', 'loose motion', 'loose stools', 'amoebiasis', 'enteritis',
+      'gastroenteritis', 'stomach upset', 'mucus stool', 'blood in stool', 'tenesmus', 'griping',
+      // Bengali
+      'আমাশয়', 'আমআশা', 'ডায়রিয়া', 'পেট খারাপ', 'পাতলা পায়খানা', 'পেটে মোচড়', 'রক্ত আমাশয়', 'পেট কামড়ানো', 'ঘন ঘন পায়খানা'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Mercurius Solubilis (Merc Sol)',
+        commonName: 'Quicksilver / Hydrargyrum',
+        potency: '30C',
+        dosage: '4 pills 3 times daily away from food',
+        keynotes: [
+          'Pre-eminent remedy for dysentery with slimy, bloody stool and persistent "never-get-done" feeling',
+          'Severe tenesmus during and after stool; violent griping and cutting colic',
+          'Offensive breath, flabby indented tongue, night aggravation, and profuse perspiration that gives no relief'
+        ],
+        materiaMedicaNotes: 'Kent: The cardinal keynote is "cannot get done straining." Stools are greenish, slimy, bloody with constant urgency.',
+        modalities: {
+          worse: 'Night, damp weather, lying on right side, warmth of bed',
+          better: 'Rest, moderate dry temperature'
+        },
+        aliases: ['merc sol', 'mercurius solubilis', 'mercurius', 'merc']
+      },
+      {
+        name: 'Nux Vomica',
+        commonName: 'Poison Nut',
+        potency: '30C',
+        dosage: '4 pills twice daily, especially at bedtime',
+        keynotes: [
+          'Frequent, small, ineffectual urging to stool; relief felt immediately after passing small quantity',
+          'Ailments from dietary excesses, rich spicy food, stimulants, purgatives, or sedentary lifestyle',
+          'Irritable disposition, hypersensitive to cold air and noise; morning diarrhea or alternating constipation'
+        ],
+        materiaMedicaNotes: 'Boericke: Unsurpassed in toxic, spicy-food induced enteritis with ineffectual desire. Modality: Better after momentary evacuation.',
+        modalities: {
+          worse: 'Morning, mental exertion, spices, stimulants, cold dry weather',
+          better: 'Evening, rest, warm wet weather, covering head'
+        },
+        aliases: ['nux vomica', 'nux', 'nux vom']
+      },
+      {
+        name: 'Aloe Socotrina',
+        commonName: 'Socotrine Aloes',
+        potency: '30C',
+        dosage: '4 pills 3 times daily before meals',
+        keynotes: [
+          'Sudden urgency driving patient out of bed early in the morning (5 AM)',
+          'Sensation of insecurity in the rectum; fear of passing flatus lest stool should escape',
+          'Stools contain jelly-like lumps of mucus; accompanied by loud rumbling and flatulence'
+        ],
+        materiaMedicaNotes: 'Kent: Paralytic weakness of the rectal sphincter. Stool escapes while passing flatus or urine. Colic relieved by passing stool.',
+        modalities: {
+          worse: 'Early morning, hot dry weather, after eating or drinking',
+          better: 'Cold water, cold open air, passing flatus or stool'
+        },
+        aliases: ['aloe', 'aloe socotrina', 'aloes']
+      },
+      {
+        name: 'Colocynthis',
+        commonName: 'Bitter Apple',
+        potency: '30C',
+        dosage: '4 pills in warm water every 2-3 hours during acute cramps',
+        keynotes: [
+          'Excruciating cutting, gripping abdominal colic causing patient to bend double and press hard for relief',
+          'Dysenteric stools provoked by anger, vexation, or indigestion',
+          'Severe intestinal cramps followed immediately by thin, frothy, yellowish or mucoid evacuations'
+        ],
+        materiaMedicaNotes: 'Boericke: The great homoeopathic pain reliever in violent abdominal colic. Ameliorated by firm pressure and doubling up.',
+        modalities: {
+          worse: 'Anger, eating or drinking, standing erect',
+          better: 'Doubling up, hard pressure, heat, warm drinks'
+        },
+        aliases: ['colocynth', 'colocynthis']
+      },
+      {
+        name: 'Ipecacuanha (Ipecac)',
+        commonName: 'Ipecac Root',
+        potency: '30C',
+        dosage: '4 drops in water 3 times daily',
+        keynotes: [
+          'Persistent, unyielding nausea and vomiting accompanying every diarrheic stool; clean tongue despite nausea',
+          'Green, frothy, pitch-like or fermented stools like frothy molasses, with umbilical griping',
+          'Lack of thirst, pale face with blue rings around eyes, prostration'
+        ],
+        materiaMedicaNotes: 'Kent: Constant nausea that is not relieved by vomiting is the guiding keynote across all complaints including dysentery.',
+        modalities: {
+          worse: 'Periodically, warm moist winds, rich food, lying down',
+          better: 'Open air, resting quietly'
+        },
+        aliases: ['ipecac', 'ipecacuanha']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R4 (Enteritis & Dysentery Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Amoebic and bacillary dysentery, chronic intestinal catarrh, flatulent colic, and summer diarrhea.',
+        dosage: '10-15 drops in water 3-4 times daily; in acute attacks every 1-2 hours.',
+        mrp: 310,
+        aliases: ['r4', 'r-4', 'reckeweg 4', 'dr reckeweg r4', 'enteritis drops']
+      },
+      {
+        name: 'SBL Dysentrin Drops',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Specifically formulated for acute and chronic amoebic dysentery, blood and mucus in stool, and griping pain.',
+        dosage: '10-15 drops in 1/4 cup lukewarm water 3-4 times daily.',
+        mrp: 160,
+        aliases: ['dysentrin', 'sbl dysentrin', 'dysentrin drops']
+      },
+      {
+        name: 'Bakson Diarrhoea Aid',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '75 Tablets / 30 ml Drops',
+        indications: 'Effective management for loose watery stools, abdominal cramps, gastroenteritis and traveler’s diarrhea.',
+        dosage: '1 tablet 3 times daily or 10-15 drops in water.',
+        mrp: 150,
+        aliases: ['diarrhoea aid', 'diarrhea aid', 'bakson diarrhoea aid']
+      },
+      {
+        name: 'New Life NL-4 (Gastroenteritis & Dysentery Drops)',
+        brand: 'New Life',
+        company: 'New Life Laboratories',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Intestinal infections, dysentery, loose motions, dehydration risk, and abdominal flatulence.',
+        dosage: '15-20 drops in water 3-4 times daily.',
+        mrp: 140,
+        aliases: ['nl-4', 'nl 4', 'new life 4', 'new life dysentery', 'nl4']
+      },
+      {
+        name: 'Wheezal WL-11 (Diarrhoea Drops)',
+        brand: 'Wheezal',
+        company: 'Wheezal Homoeo Pharma',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Formulated for gastrointestinal spasms, acute summer diarrhea, mucus in stools, and tenesmus.',
+        dosage: '10-15 drops in water every 2-3 hours until relieved.',
+        mrp: 165,
+        aliases: ['wl-11', 'wl 11', 'wheezal wl 11', 'wheezal diarrhoea']
+      }
+    ],
+    dietAndRegimen: 'Drink Oral Rehydration Salts (ORS), rice congee (জাউ ভাত), boiled green banana mash, and coconut water. Avoid whole milk, greasy spices, raw vegetables, and tea/coffee.',
+    warningNotes: 'Watch for signs of dehydration (sunken eyes, dry mouth, oliguria). Seek immediate hospitalization if high fever, severe bloody stool, or circulatory collapse occurs.'
+  },
+  {
+    id: 'sciatica-nerve-pain',
+    nameEn: 'Sciatica, Lumbago & Radiating Nerve Pain',
+    nameBn: 'সায়াটিকা, কোমর থেকে পা ব্যথা ও স্নায়ুশূল',
+    chipLabel: 'Sciatica & Nerve Pain / সায়াটিকা',
+    pathology: 'Sciatic Neuralgia, Lumbar Radiculopathy, L4-L5/S1 Disc Compression & Piriformis Syndrome',
+    miasm: 'Sycotic-Syphilitic Neuralgic and Structural Degenerative Diathesis',
+    typicalPresentation: 'Shooting, lightning-like pain from lower back down the posterior thigh to calf and foot, numbness and paresthesia',
+    keywords: [
+      'sciatica', 'sitica', 'sciatic pain', 'sciatic nerve', 'shooting pain', 'radiating pain',
+      'lower back to leg', 'lumbar disc', 'lumbago', 'disc herniation', 'radiculopathy',
+      // Bengali
+      'সায়াটিকা', 'সায়াটিকা', 'সিটিকা', 'কোমর থেকে পা', 'কোমর থেকে পায়ে ব্যথা', 'পা ব্যথা', 'পায়ে টান লাগা', 'রগে টান', 'রগ টান'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Colocynthis',
+        commonName: 'Bitter Apple',
+        potency: '30C / 200C',
+        dosage: '4 pills twice daily or in warm water during severe paroxysms',
+        keynotes: [
+          'Excruciating shooting, cramping pain in sciatic nerve, predominantly left-sided (hip down to knee and foot)',
+          'Pain is sharply ameliorated by hard pressure, warm applications, and lying on the affected side',
+          'Numbness with pains; sudden attacks provoked by cold dry wind, exposure, or emotional vexation'
+        ],
+        materiaMedicaNotes: 'Boericke: Specifically curative in left-sided sciatica. Modality is distinctive: Ameliorated by firm, hard pressure and heat; aggravated by gentle touch or motion.',
+        modalities: {
+          worse: 'Gentle touch, motion, cold air, extending the limb',
+          better: 'Hard pressure, warmth, bending limb, lying on painful side'
+        },
+        aliases: ['colocynthis', 'colocynth']
+      },
+      {
+        name: 'Magnesia Phosphorica',
+        commonName: 'Phosphate of Magnesia',
+        potency: '6X / 30C',
+        dosage: '4 tablets dissolved in warm water 3 times daily',
+        keynotes: [
+          'Sudden, sharp, shooting, lightning-like, spasmodic neuralgic pains along the sciatic path',
+          'Right-sided sciatica; pains dart like electric shocks',
+          'Prompt and unmistakable relief from hot water bottles, warm fomentation, and hard pressure'
+        ],
+        materiaMedicaNotes: 'Kent: The great anti-spasmodic and neuralgic tissue remedy. Warmth and pressure are the absolute keynotes.',
+        modalities: {
+          worse: 'Cold drafts, cold water, washing with cold water, touch',
+          better: 'Warm applications, hot water fomentation, hard pressure, doubling up'
+        },
+        aliases: ['mag phos', 'magnesia phos', 'magnesia phosphorica']
+      },
+      {
+        name: 'Gnaphalium Polycephalum',
+        commonName: 'Cud-weed',
+        potency: '30C',
+        dosage: '4 pills twice daily',
+        keynotes: [
+          'Intense pain along the course of the sciatic nerve alternating with numbness of the affected thigh and leg',
+          'Frequent cramping in calves and feet; worse when walking or stepping',
+          'Remarkable relief experienced only when sitting in a comfortable chair with thighs flexed on pelvis'
+        ],
+        materiaMedicaNotes: 'Boericke: A specific remedy for sciatica when numbness is associated with pain. Better sitting in a chair.',
+        modalities: {
+          worse: 'Motion, walking, stepping, lying down flat',
+          better: 'Sitting in a chair with legs drawn up'
+        },
+        aliases: ['gnaphalium', 'gnaphalium polycephalum', 'gnaph']
+      },
+      {
+        name: 'Rhus Toxicodendron (Rhus Tox)',
+        commonName: 'Poison Ivy',
+        potency: '200C',
+        dosage: '4 pills morning and evening',
+        keynotes: [
+          'Sciatica and lumbago resulting from lifting heavy weights, straining muscles, or exposure to cold damp weather',
+          'Severe stiffness and tearing pain worse on first starting to move; gradually relieved by continued gentle movement',
+          'Restless at night; must constantly shift position in bed'
+        ],
+        materiaMedicaNotes: 'Kent: In chronic sciatica with fibrous tissue stiffness. Modality: Worse on beginning motion, better with continued motion and dry warmth.',
+        modalities: {
+          worse: 'Rest, beginning of motion, cold damp weather, night',
+          better: 'Continued gentle walking, warm dry heat, dry weather'
+        },
+        aliases: ['rhus tox', 'rhus toxicodendron', 'rhus']
+      },
+      {
+        name: 'Hypericum Perforatum',
+        commonName: "St. John's Wort",
+        potency: '200C',
+        dosage: '4 pills twice daily',
+        keynotes: [
+          'King of remedies for nerve injury, spinal compression, and lacerated or compressed nerve roots',
+          'Darting, tearing, shooting pains travelling along the path of nerve trunks upwards towards spine',
+          'Numbness, burning, and tingling in the affected leg; hypersensitive to touch and cold air'
+        ],
+        materiaMedicaNotes: 'Boericke: The great remedy for mechanical injuries to nerves. In radiculopathy and sciatica caused by disc compression.',
+        modalities: {
+          worse: 'Cold, damp, fog, touch, jarring',
+          better: 'Bending head back, rest'
+        },
+        aliases: ['hypericum', 'hypericum perforatum', 'hyper']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R71 (Sciatica Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Sciatica, neuralgic pains along the sciatic nerve, lumbago, paresthesia and lumbar disc compression syndrome.',
+        dosage: '10-15 drops in water 3-4 times daily; during acute crisis take every 1-2 hours.',
+        mrp: 310,
+        aliases: ['r71', 'r-71', 'reckeweg 71', 'dr reckeweg r71', 'sciatica drops']
+      },
+      {
+        name: 'Bakson Rheum Aid Syrup / Tablets',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '115 ml Syrup / 75 Tablets',
+        indications: 'Relieves chronic sciatic neuralgia, radiating leg stiffness, muscular spasms, and joint inflammation.',
+        dosage: '1 teaspoonful or 1 tablet 3 times daily with warm water.',
+        mrp: 155,
+        aliases: ['rheum aid', 'bakson rheum aid', 'rheum-aid']
+      },
+      {
+        name: 'SBL Orthomuv Syrup & Massage Oil',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '180 ml Syrup / 60 ml Oil',
+        indications: 'Synergistic formulation for lumbago, radiating thigh nerve pain, spinal disc strain, and morning stiffness.',
+        dosage: '1 teaspoon syrup 3 times daily; apply oil gently along nerve path twice daily.',
+        mrp: 190,
+        aliases: ['orthomuv', 'sbl orthomuv', 'orthomuv oil', 'orthomuv syrup']
+      },
+      {
+        name: 'New Life NL-1 (Rheumatex & Sciatica Drops)',
+        brand: 'New Life',
+        company: 'New Life Laboratories',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Sciatic nerve shooting pain, severe leg stiffness, lumbar spondylosis and muscular rheumatism.',
+        dosage: '15-20 drops in warm water 3 times daily.',
+        mrp: 140,
+        aliases: ['nl-1', 'nl 1', 'new life 1', 'rheumatex', 'nl1']
+      }
+    ],
+    dietAndRegimen: 'Sleep on a firm orthopaedic mattress. Avoid bending forward at waist or lifting heavy loads. Apply dry warm compresses to lower back and gluteal region. Perform gentle hamstring stretches under medical guidance.',
+    warningNotes: 'If progressive foot drop (loss of dorsiflexion) or bowel/bladder incontinence occurs (Cauda Equina Syndrome), emergency neurosurgical consultation is imperative.'
+  },
+  {
+    id: 'neuro-problem-neuropathy',
+    nameEn: 'Neurological Disorders, Neuropathy & Paralytic Weakness',
+    nameBn: 'নার্ভের সমস্যা, নিউরোপ্যাথি ও স্নায়বিক দুর্বলতা',
+    chipLabel: 'Neuro Problem / নার্ভের সমস্যা',
+    pathology: 'Peripheral Neuropathy, Diabetic Nerve Damage, Neuralgia, Hemiplegia & Motor Weakness',
+    miasm: 'Syphilitic-Sycotic Neurodegenerative and Psoric Asthenic Diathesis',
+    typicalPresentation: 'Numbness, tingling "pins and needles", burning soles, muscle twitching, tremors, or partial paralytic weakness',
+    keywords: [
+      'neuro', 'nerve', 'neuropathy', 'neurological', 'paralysis', 'paresis', 'numbness', 'tingling',
+      'pins and needles', 'burning soles', 'motor weakness', 'tremor', 'bell palsy', 'facial paralysis',
+      // Bengali
+      'নার্ভ', 'নার্ভের সমস্যা', 'স্নায়বিক দুর্বলতা', 'অসারতা', 'প্যারালাইসিস', 'ঝিঁঝিঁ ধরা', 'অবশ লাগা', 'হাত পা কাঁপা', 'নার্ভের ব্যথা'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Hypericum Perforatum',
+        commonName: "St. John's Wort",
+        potency: '200C',
+        dosage: '4 pills twice daily',
+        keynotes: [
+          'Pre-eminent constitutional remedy for peripheral nerve trauma, compression, and neuritis',
+          'Sharp, shooting, lancinating pains following the course of peripheral nerves; extreme hypersensitivity to touch',
+          'Phantom pains, burning sensation, and numbness in limbs following nerve damage'
+        ],
+        materiaMedicaNotes: 'Kent: What Arnica is to bruises of soft tissues, Hypericum is to injuries and inflammatory destruction of nerves.',
+        modalities: {
+          worse: 'Cold, damp weather, fog, motion, touch',
+          better: 'Bending head back, lying quiet in warm room'
+        },
+        aliases: ['hypericum', 'hypericum perforatum']
+      },
+      {
+        name: 'Kali Phosphoricum',
+        commonName: 'Phosphate of Potassium',
+        potency: '6X / 30C',
+        dosage: '4 tablets in warm water 3 times daily',
+        keynotes: [
+          'Great biochemic nerve nutrient for nervous exhaustion, prostration, brain fag, and neuralgic pain',
+          'Numbness, weakness of limbs, tremors with mental fatigue, depression, and loss of memory',
+          'Diabetic neuropathy, burning of soles and palms with nervous restlessness'
+        ],
+        materiaMedicaNotes: 'Boericke: One of the greatest nerve remedies in Materia Medica. Indicated for conditions arising from lack of nerve power and exhaustion.',
+        modalities: {
+          worse: 'Mental exertion, physical fatigue, cold, morning',
+          better: 'Warmth, rest, gentle movement, eating'
+        },
+        aliases: ['kali phos', 'kali phosphoricum', 'kali-phos']
+      },
+      {
+        name: 'Causticum',
+        commonName: 'Hahnemann’s Tinctura Acris Sine Kali',
+        potency: '200C',
+        dosage: '4 pills once every 3 days in the evening',
+        keynotes: [
+          'Paralysis of single nerves or local parts: facial paralysis (Bell’s palsy), vocal cords, bladder, or right-sided hemiplegia',
+          'Ailments from exposure to dry, cold winds, or chronic debilitating neurological disease',
+          'Muscular contractions, stiffness, unsteadiness of gait, and weakness of flexor tendons'
+        ],
+        materiaMedicaNotes: 'Kent: Deep-acting polychrest for progressive paralytic states, hemiplegia, and chorea. Characterized by intolerance of dry cold wind.',
+        modalities: {
+          worse: 'Dry cold winds, clear fine weather, morning',
+          better: 'Damp wet weather, warm bed, gentle warmth'
+        },
+        aliases: ['causticum', 'caust']
+      },
+      {
+        name: 'Zincum Metallicum',
+        commonName: 'Metallic Zinc',
+        potency: '30C',
+        dosage: '4 pills twice daily',
+        keynotes: [
+          'Continuous restlessness of feet and lower legs; cannot keep feet still, must constantly move them',
+          'Tremors, chorea, twitching of muscles, and cerebral depression following suppressed eruptions',
+          'Tingling and numbness along nerve tracts with muscular twitching during sleep'
+        ],
+        materiaMedicaNotes: 'Boericke: Profound action upon the nervous system. Defective vitality and nerve exhaustion with continuous fidgety legs.',
+        modalities: {
+          worse: 'Mental exertion, evening, cold wine/stimulants',
+          better: 'Free discharges (perspiration, menses), open air'
+        },
+        aliases: ['zincum met', 'zincum metallicum', 'zincum']
+      },
+      {
+        name: 'Gelsemium Sempervirens',
+        commonName: 'Yellow Jasmine',
+        potency: '30C',
+        dosage: '4 drops twice daily in water',
+        keynotes: [
+          'Motor paralysis with gradual loss of muscular control and heavy prostration',
+          'Drooping of eyelids (ptosis), tremors of hands, tongue and legs with extreme dizziness',
+          'Post-viral neuropathy and weakness; muscular coordination severely impaired'
+        ],
+        materiaMedicaNotes: 'Kent: Gelsemium paralyzes the motor nerves. The muscles refuse to obey the will; limbs feel heavy as lead.',
+        modalities: {
+          worse: 'Emotional excitement, bad news, hot humid weather',
+          better: 'Profuse urination, open air, bending forward'
+        },
+        aliases: ['gelsemium', 'gelsemium sempervirens', 'gels']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R36 (Chorea & Nervous Disorder Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Chorea, nervous twitches, muscular spasms, involuntary movements, neuropathy and paralytic tremors.',
+        dosage: '10-15 drops in water 3 times daily before meals.',
+        mrp: 320,
+        aliases: ['r36', 'r-36', 'reckeweg 36', 'dr reckeweg r36', 'chorea drops']
+      },
+      {
+        name: 'Dr. Reckeweg R14 (Nerve & Sleep Sedative Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Central and autonomic nervous exhaustion, insomnia, neurovegetative dystonia, and nervous debility.',
+        dosage: '10-15 drops in water in afternoon and before sleep.',
+        mrp: 310,
+        aliases: ['r14', 'r-14', 'reckeweg 14', 'dr reckeweg r14', 'quietude']
+      },
+      {
+        name: 'Wheezal WL-28 (Neuralgia Drops)',
+        brand: 'Wheezal',
+        company: 'Wheezal Homoeo Pharma',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Severe facial neuralgia, peripheral nerve tingling, numbness, and burning sensation.',
+        dosage: '10-15 drops in 1/4 cup water 3 times daily.',
+        mrp: 170,
+        aliases: ['wl-28', 'wl 28', 'wheezal wl 28', 'neuralgia drops']
+      },
+      {
+        name: 'Schwabe Ginseng 1X / Tonic',
+        brand: 'Schwabe',
+        company: 'Dr. Willmar Schwabe (Germany/India)',
+        country: 'Germany',
+        bottleSize: '30 ml Drops / 100 ml Tonic',
+        indications: 'Renowned German adaptogen and revitalizing nerve tonic for neuromuscular weakness, paresthesia, and exhaustion.',
+        dosage: '15 drops in water twice daily or 1 teaspoonful twice daily.',
+        mrp: 260,
+        aliases: ['ginseng', 'schwabe ginseng', 'ginseng tonic']
+      },
+      {
+        name: 'New Life NL-15 (Nervous Exhaustion Drops)',
+        brand: 'New Life',
+        company: 'New Life Laboratories',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Nerve weakness, tremors, tingling sensation in hands and feet, and mental exhaustion.',
+        dosage: '15-20 drops in water 3 times daily.',
+        mrp: 145,
+        aliases: ['nl-15', 'nl 15', 'new life 15', 'new life nerve', 'nl15']
+      }
+    ],
+    dietAndRegimen: 'Ensure adequate vitamin B12 rich nutrition, soaked almonds, walnuts, and green leafy vegetables. Avoid smoking, alcohol, and refined sugars which exacerbate peripheral neuropathy. Perform gentle physiotherapy.',
+    warningNotes: 'Sudden onset of facial asymmetry, unilateral arm weakness, or speech slurring may signal acute cerebrovascular accident (Stroke); require immediate emergency hospital transfer.'
+  },
+  {
+    id: 'arthritis-joint-pain',
+    nameEn: 'Arthritis, Osteoarthritis & Knee Joint Inflammation',
+    nameBn: 'বাত, অস্টিওআর্থ্রাইটিস, হাঁটু ও গাঁটের ব্যথা',
+    chipLabel: 'Arthritis & Joint Pain / বাত ও গাঁটের ব্যথা',
+    pathology: 'Osteoarthritis, Rheumatoid Arthritis, Synovitis, Gout & Articular Degeneration',
+    miasm: 'Sycotic Diathesis with Syphilitic Articular Cartilage Erosion',
+    typicalPresentation: 'Morning stiffness in joints, swelling, pain in knees and knuckles, difficulty climbing stairs or getting up',
+    keywords: [
+      'arthritis', 'osteoarthritis', 'rheumatoid arthritis', 'joint pain', 'knee pain', 'knee',
+      'swollen joint', 'morning stiffness', 'gout', 'cartilage', 'synovial', 'crepitus',
+      // Bengali
+      'বাত', 'বাতের ব্যথা', 'হাঁটু ব্যথা', 'হাঁটু', 'গাঁটের ব্যথা', 'গাঁটে ব্যথা', 'সকালের জড়তা', 'পায়ের জয়েন্টে ব্যথা', 'বাতরোগ'
     ],
     classicalRemedies: [
       {
         name: 'Rhus Toxicodendron (Rhus Tox)',
         commonName: 'Poison Ivy',
-        potency: '30C / 200C',
-        dosage: '4 pills twice daily in morning and evening',
+        potency: '200C',
+        dosage: '4 pills twice daily morning and evening',
         keynotes: [
-          'Stiffness worse on first beginning to move, distinctly relieved by continued gentle motion',
-          'Ailments brought on by exposure to cold damp weather, rain, or getting wet while perspiring',
-          'Restlessness at night in bed; cannot stay in one position, must toss and turn for momentary relief'
+          'Severe stiffness and lameness in joints, distinctly worse on first movement after resting',
+          'Pains markedly ameliorated by continued gentle walking and warm dry fomentation',
+          'Aggravated by wet, rainy, cold damp weather and getting soaked while perspiring'
         ],
-        materiaMedicaNotes: 'Boericke: Primary affinity for fibrous tissue, tendons, ligaments, and joints. Aggravation from rest and initial movement; amelioration from warm dry heat and continued movement.',
+        materiaMedicaNotes: 'Boericke: Cardinal remedy for fibrous tissues, ligaments, and tendons. The modalities of relief from continuous motion and warmth are pathognomonic.',
         modalities: {
           worse: 'Rest, beginning of motion, cold damp weather, night',
           better: 'Continued gentle motion, warm applications, dry heat'
@@ -802,14 +1433,14 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
       {
         name: 'Bryonia Alba',
         commonName: 'White Bryony',
-        potency: '30C / 200C',
+        potency: '200C',
         dosage: '4 drops twice daily before meals',
         keynotes: [
-          'Severe stitching and tearing joint pains sharply aggravated by the slightest movement or jarring',
-          'Great relief experienced by absolute rest and firm pressure or lying on the affected painful joint',
-          'Dryness of mucous membranes with thirst for large quantities of cold water at long intervals'
+          'Stitching, tearing joint pains sharply aggravated by the slightest movement or jarring',
+          'Affected joints are hot, swollen, and red; patient demands absolute stillness',
+          'Distinct relief from firm bandaging, pressure, and lying directly on the painful joint'
         ],
-        materiaMedicaNotes: 'Kent: Complete immobility gives comfort. Modality is diagnostic: Worse from motion; better from absolute rest and pressure.',
+        materiaMedicaNotes: 'Kent: The cardinal modality is "Worse from motion, better from absolute rest and pressure." Thirst for large quantities of water.',
         modalities: {
           worse: 'Any movement, jarring, morning, warm room',
           better: 'Absolute rest, firm pressure, lying on painful side'
@@ -819,17 +1450,17 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
       {
         name: 'Ledum Palustre',
         commonName: 'Marsh Tea',
-        potency: '30C / 200C',
-        dosage: '4 pills twice daily for 7 days',
+        potency: '200C',
+        dosage: '4 pills twice daily',
         keynotes: [
-          'Gouty and rheumatic pains that ascend from lower extremities upward (ankles to knees to hips)',
-          'Affected joints are purple, swollen, yet lack natural vital heat',
-          'Peculiar modality: Intolerant of warm blankets; pains are distinctly relieved by ice-cold water applications'
+          'Rheumatic and gouty pains that ascend from lower extremities upward (ankles to knees to hips)',
+          'Joints are swollen, purple, yet lack natural animal warmth',
+          'Peculiar diagnostic keynote: Pains are distinctly relieved by ice-cold water compresses, worse from warmth of bed'
         ],
-        materiaMedicaNotes: 'Boericke: Invaluable in gout and chronic rheumatism. Patient puts feet in a tub of ice-cold water for relief.',
+        materiaMedicaNotes: 'Boericke: Excellent for gout and acute articular rheumatism. The affected joints are cool yet patient insists on ice-cold applications for relief.',
         modalities: {
           worse: 'Warmth of bed, heat of stove, night, motion',
-          better: 'Ice-cold applications, cold compresses, rest'
+          better: 'Ice-cold applications, cold compresses, resting quietly'
         },
         aliases: ['ledum pal', 'ledum', 'ledum palustre']
       },
@@ -837,42 +1468,70 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
         name: 'Colchicum Autumnale',
         commonName: 'Meadow Saffron',
         potency: '30C',
-        dosage: '4 drops twice daily',
+        dosage: '4 drops twice daily in water',
         keynotes: [
-          'Specific for acute gouty paroxysms, especially of the big toe and small joints',
+          'Specific remedy for acute gouty paroxysms, swollen red painful big toe, and small joints',
           'Extreme hypersensitivity to touch and vibration; smell of cooking food causes intense nausea',
-          'Joints are red, swollen, hot, with tearing stitching pains'
+          'High uric acid diathesis with tearing pains in joints and dark scanty urine'
         ],
-        materiaMedicaNotes: 'Boericke: Has a specific power of relieving the gouty paroxysms. Modality: Smell of food sickens; worse from motion and touch.',
+        materiaMedicaNotes: 'Kent: Colchicum has great power over acute gouty inflammation. Intolerance of the smell of food is constant.',
         modalities: {
-          worse: 'Motion, touch, smell of food, evening',
-          better: 'Warmth, doubling up, resting quietly'
+          worse: 'Motion, touch, smell of food, evening, cold damp',
+          better: 'Warmth, rest, doubling up'
         },
         aliases: ['colchicum', 'colchicum autumnale']
+      },
+      {
+        name: 'Causticum',
+        commonName: 'Hahnemann’s Tinctura Acris',
+        potency: '200C',
+        dosage: '4 pills once every 3 days in the evening',
+        keynotes: [
+          'Chronic progressive rheumatoid arthritis with contracture of tendons and stiffening of joints',
+          'Deformities of fingers and toes; cracking of knee joints on walking',
+          'Pains worse in clear fine weather and dry cold winds; distinctly relieved by warm bed and wet weather'
+        ],
+        materiaMedicaNotes: 'Boericke: Manifests action in chronic rheumatic, arthritic, and paralytic affections. Indurated ligaments and contracted joints.',
+        modalities: {
+          worse: 'Dry cold air, clear fine weather, morning',
+          better: 'Damp wet weather, warm applications'
+        },
+        aliases: ['causticum', 'caust']
       }
     ],
     patentFormulations: [
       {
-        name: 'Bakson Rheum Aid Syrup / Drops',
-        brand: "Bakson's",
-        company: "Bakson Drugs & Pharmaceuticals",
-        country: 'India',
-        bottleSize: '115 ml Syrup / 30 ml Drops',
-        indications: 'Arthritis, rheumatism, osteoarthritis, gout, sciatica, joint stiffness and swelling.',
-        dosage: '1 teaspoon or 10-15 drops in warm water 3 times daily.',
-        mrp: 155,
-        aliases: ['rheum aid', 'bakson rheum aid', 'b11', 'bakson b11']
+        name: 'Dr. Reckeweg R11 (Lumbago & Joint Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Acute and chronic articular rheumatism, osteoarthritis of large joints, knee pain, and lumbago.',
+        dosage: '10-15 drops in water 3 times daily before meals.',
+        mrp: 310,
+        aliases: ['r11', 'r-11', 'reckeweg 11', 'dr reckeweg r11', 'lumbacon']
       },
       {
-        name: 'SBL Orthomuv Syrup & Oil',
+        name: 'Bakson Rheum Aid Syrup / Drops',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '115 ml Syrup / 30 ml Drops',
+        indications: 'Comprehensive formulation for joint stiffness, knee osteophytes, osteoarthritis, and morning stiffness.',
+        dosage: '1 teaspoonful or 10-15 drops in warm water 3 times daily.',
+        mrp: 155,
+        aliases: ['rheum aid', 'bakson rheum aid', 'rheum-aid']
+      },
+      {
+        name: 'SBL Orthomuv Syrup',
         brand: 'SBL',
         company: 'SBL Pvt Ltd',
         country: 'India',
-        bottleSize: '180 ml Syrup / 60 ml Oil',
-        indications: 'Synergistic oral syrup and topical oil for arthritis, joint inflammation, morning stiffness.',
-        dosage: '1 teaspoon syrup 3 times daily + apply oil gently twice daily.',
+        bottleSize: '180 ml Syrup',
+        indications: 'Symptomatic relief for arthritis, inflammatory joint swelling, cartilage erosion, and limited mobility.',
+        dosage: '1 teaspoon syrup 3 times daily after meals.',
         mrp: 190,
-        aliases: ['orthomuv', 'sbl orthomuv', 'orthomuv oil']
+        aliases: ['orthomuv', 'sbl orthomuv', 'orthomuv syrup']
       },
       {
         name: 'New Life NL-1 (Joint Pain & Rheumatic Drops)',
@@ -880,80 +1539,14 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
         company: 'New Life Laboratories',
         country: 'India',
         bottleSize: '30 ml Drops',
-        indications: 'Severe leg pain, knee stiffness, sciatic nerve irritation, swollen joints, and muscular rheumatism.',
+        indications: 'Severe knee pain, swelling in finger joints, synovial inflammation and chronic osteoarthritis.',
         dosage: '15-20 drops in warm water 3 times daily.',
         mrp: 140,
-        aliases: ['nl-1', 'nl 1', 'new life 1', 'new life joint pain', 'joint pain']
-      },
-      {
-        name: 'Dr. Reckeweg R11 (Lumbacon) & R73',
-        brand: 'Dr. Reckeweg',
-        company: 'Dr. Reckeweg & Co (Germany)',
-        country: 'Germany',
-        bottleSize: '22 ml Drops',
-        indications: 'Acute and chronic muscular rheumatism, lumbago, back pain, sciatica, and osteoarthritis of large joints.',
-        dosage: '10-15 drops in water 3 times daily.',
-        mrp: 310,
-        aliases: ['r11', 'r73', 'r-11', 'r-73', 'lumbacon', 'reckeweg 11', 'reckeweg 73']
-      },
-      {
-        name: 'Adel 24 (Septonsil / Joint Drops)',
-        brand: 'Adel',
-        company: 'Adel Pekana (Germany)',
-        country: 'Germany',
-        bottleSize: '20 ml Drops',
-        indications: 'Rheumatic and arthritic ailments, reduces inflammatory swelling and restores joint flexibility.',
-        dosage: '15-20 drops in water 3 times daily.',
-        mrp: 335,
-        aliases: ['adel 24', 'adel-24', 'adel joint']
-      },
-      {
-        name: 'Wheezal WL-35 (Rheumatic Pain Drops)',
-        brand: 'Wheezal',
-        company: 'Wheezal Homoeo Pharma',
-        country: 'India',
-        bottleSize: '30 ml Drops',
-        indications: 'Joint pain, rheumatoid arthritis, uric acid diathesis, morning joint stiffness and backache.',
-        dosage: '10-15 drops in water 3 times daily.',
-        mrp: 170,
-        aliases: ['wl-35', 'wl 35', 'wheezal wl 35']
-      },
-      {
-        name: 'Medisynth Rheuma-Saj Forte',
-        brand: 'Medisynth',
-        company: 'Medisynth Chemicals',
-        country: 'India',
-        bottleSize: '30 ml Drops / 60 ml Oil',
-        indications: 'Deep-acting anti-rheumatic formulation for arthritic inflammation, high uric acid, and sciatica.',
-        dosage: '10-15 drops in water 3 times daily.',
-        mrp: 185,
-        aliases: ['rheuma saj', 'rheuma-saj', 'medisynth rheuma']
-      },
-      {
-        name: 'Schwabe Topi MP Gel / Bryorheum',
-        brand: 'Schwabe',
-        company: 'Dr. Willmar Schwabe',
-        country: 'Germany / India',
-        bottleSize: '30 ml Drops / 30g Gel',
-        indications: 'WSG German proprietary formula for acute and chronic articular rheumatism, sciatica, and muscle ache.',
-        dosage: '10-15 drops 3 times daily; apply Topi MP Gel locally twice daily.',
-        mrp: 235,
-        aliases: ['bryorheum', 'topi mp', 'schwabe bryorheum']
-      },
-      {
-        name: 'Allen A15 Rheumatic Drops',
-        brand: 'Allen',
-        company: 'Allen Homoeo',
-        country: 'India',
-        bottleSize: '30 ml Drops',
-        indications: 'Rheumatic pains in joints, back, muscles, knees with morning stiffness.',
-        dosage: '10-15 drops in water 3 times daily.',
-        mrp: 175,
-        aliases: ['allen a15', 'a15', 'allen rheumatic']
+        aliases: ['nl-1', 'nl 1', 'new life 1', 'new life joint pain', 'nl1']
       }
     ],
-    dietAndRegimen: 'Maintain gentle daily walking and mobility exercises without overstraining inflamed joints. Avoid sour curd at night, red meat, and high-purine foods. Apply warm dry fomentation on stiff joints.',
-    warningNotes: 'Check Serum Uric Acid, ESR, and Rheumatoid Factor (RA) if acute polyarthritis persists. Avoid sudden weight lifting.'
+    dietAndRegimen: 'Avoid high-purine foods (red meat, organ meats, lentils at night), sour curd, and excess tomatoes. Maintain gentle non-impact joint mobility (isometric quad exercises). Apply warm dry heat.',
+    warningNotes: 'Monitor ESR, CRP, and Serum Uric Acid. If a single joint becomes acutely red, hot, and severely swollen with high fever, rule out septic arthritis.'
   },
   {
     id: 'toothache-pyorrhea',
@@ -1802,7 +2395,43 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
 function buildDynamicCondition(symptomQuery: string): ClinicalCondition {
   const q = symptomQuery.toLowerCase().trim();
 
-  // 1. Headache / Migraine
+  // 1. Fever / Pyrexia / গা গরম
+  if (q.includes('fever') || q.includes('জ্বর') || q.includes('গা গরম') || q.includes('pyrexia') || q.includes('febrile') || q.includes('তাপমাত্রা') || q.includes('chills') || q.includes('rigor')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'fever-pyrexia');
+    if (cond) return cond;
+  }
+
+  // 2. Dysentery & Diarrhea / আমাশয় ও পেট খারাপ
+  if (q.includes('dysentery') || q.includes('diarrhea') || q.includes('diarrhoea') || q.includes('loose motion') || q.includes('loose stool') || q.includes('আমাশয়') || q.includes('আমআশা') || q.includes('ডায়রিয়া') || q.includes('পেট খারাপ') || q.includes('পাতলা পায়খানা') || q.includes('পেটে মোচড়') || q.includes('tenesmus') || q.includes('amoebic')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'dysentery-diarrhea');
+    if (cond) return cond;
+  }
+
+  // 3. Sciatica & Nerve Pain / সায়াটিকা ও কোমর-পা ব্যথা
+  if (q.includes('sciatica') || q.includes('sitica') || q.includes('সায়াটিকা') || q.includes('সায়াটিকা') || q.includes('সিটিকা') || q.includes('কোমর থেকে পা') || q.includes('পা ব্যথা') || q.includes('পায়ে টান') || q.includes('রগে টান') || q.includes('shooting pain') || q.includes('radiculopathy') || q.includes('sciatic')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'sciatica-nerve-pain');
+    if (cond) return cond;
+  }
+
+  // 4. Neuro Problem / Neuropathy / নার্ভের সমস্যা
+  if (q.includes('neuro') || q.includes('nerve') || q.includes('neuropathy') || q.includes('paralysis') || q.includes('paresis') || q.includes('numbness') || q.includes('tingling') || q.includes('pins and needles') || q.includes('burning soles') || q.includes('নার্ভ') || q.includes('নার্ভের সমস্যা') || q.includes('স্নায়বিক') || q.includes('অসারতা') || q.includes('প্যারালাইসিস') || q.includes('ঝিঁঝিঁ') || q.includes('হাত পা কাঁপা')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'neuro-problem-neuropathy');
+    if (cond) return cond;
+  }
+
+  // 5. Arthritis & Joint Pain / বাত ও গাঁটের ব্যথা
+  if (q.includes('arthritis') || q.includes('osteoarthritis') || q.includes('joint pain') || q.includes('knee') || q.includes('gout') || q.includes('morning stiffness') || q.includes('বাত') || q.includes('বাতের ব্যথা') || q.includes('হাঁটু ব্যথা') || q.includes('হাঁটু') || q.includes('গাঁটের ব্যথা') || q.includes('গাঁটে ব্যথা') || q.includes('ইউরিক অ্যাসিড') || q.includes('বাতরোগ')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'arthritis-joint-pain');
+    if (cond) return cond;
+  }
+
+  // 6. Uterine Fibroid & Tumors / ফাইব্রয়েড ও টিউমার
+  if (q.includes('fibroid') || q.includes('tumor') || q.includes('tumour') || q.includes('ফাইব্রয়েড') || q.includes('ফাইব্রয়েড') || q.includes('টিউমার') || q.includes('myoma') || q.includes('আর্বুদ') || q.includes('গিলটি') || q.includes('uterine fibroid')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'uterine-fibroid-tumor');
+    if (cond) return cond;
+  }
+
+  // 7. Headache / Migraine
   if (q.includes('headache') || q.includes('migraine') || q.includes('মাথা') || q.includes('শিরঃপীড়া')) {
     return {
       id: 'dynamic-headache',
@@ -2073,14 +2702,20 @@ export function findRepertoryMatch(symptomQuery: string): ClinicalCondition | nu
     let score = 0;
 
     // Check direct id or name match
-    if (query.includes(cond.id)) score += 12;
-    if (query.includes(cond.nameEn.toLowerCase())) score += 10;
-    if (query.includes(cond.nameBn.toLowerCase())) score += 10;
+    if (query === cond.id || query.includes(cond.id)) score += 20;
+    if (query.includes(cond.nameEn.toLowerCase())) score += 15;
+    if (query.includes(cond.nameBn.toLowerCase())) score += 15;
 
     for (const kw of cond.keywords) {
-      const kwLower = kw.toLowerCase();
-      if (query.includes(kwLower)) {
-        score += kwLower.length > 5 ? 5 : 3;
+      const kwLower = kw.toLowerCase().trim();
+      if (!kwLower) continue;
+
+      if (query === kwLower) {
+        score += 30; // Exact keyword match takes top priority
+      } else if (query.includes(kwLower)) {
+        score += kwLower.length > 5 ? 10 : 6;
+      } else if (kwLower.includes(query) && query.length >= 3) {
+        score += 6;
       }
     }
 
@@ -2095,7 +2730,7 @@ export function findRepertoryMatch(symptomQuery: string): ClinicalCondition | nu
     return bestMatch;
   }
 
-  // NEVER default to Kidney Stone! Dynamically synthesize a condition based on the user's specific query
+  // Dynamically synthesize a condition based on the user's specific query
   return buildDynamicCondition(symptomQuery);
 }
 

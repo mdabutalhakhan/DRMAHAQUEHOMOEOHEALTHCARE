@@ -49,8 +49,8 @@ export function getGeminiApiKey(): string {
   return apiKey;
 }
 
-export const STABLE_GEMINI_MODEL = 'gemini-3.6-flash';
-export const FALLBACK_GEMINI_MODEL = 'gemini-3.8-flash';
+export const STABLE_GEMINI_MODEL = 'gemini-1.5-flash';
+export const FALLBACK_GEMINI_MODEL = 'gemini-1.5-flash';
 
 /**
  * Builds the authoritative clinical prompt for Dr. M. A. Haque, M.D. (Homoeo)
@@ -111,53 +111,39 @@ export async function callGeminiDirectlyFromClient(
   }
 
   const promptText = buildClinicalConsultPrompt(symptoms, modalities, system);
+  const model = STABLE_GEMINI_MODEL;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  // Models to try in sequence: user-requested gemini-1.5-flash, gemini-2.5-flash, and stable gemini-3.6-flash
-  const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-3.6-flash'];
-  let lastErrorMsg = '';
+  // Strictly no Authorization header. API key is passed solely in query string.
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: promptText }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
+    }),
+  });
 
-  for (const model of modelsToTry) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    try {
-      // Strictly no Authorization header. API key is passed solely in query string.
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: promptText }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        lastErrorMsg = `Model ${model} returned (${response.status}): ${errorBody.slice(0, 160)}`;
-        console.warn(lastErrorMsg);
-        continue;
-      }
-
-      const data = await response.json();
-      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) {
-        lastErrorMsg = `Model ${model} returned empty content parts`;
-        continue;
-      }
-
-      const cleanJson = rawText.replace(/```json\s*/gi, '').replace(/```\s*$/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
-      if (parsed && (parsed.remedies || parsed.analysis_summary)) {
-        return parsed as ClinicalGeminiConsultResponse;
-      }
-    } catch (err: any) {
-      lastErrorMsg = `Model ${model} fetch exception: ${err.message || String(err)}`;
-      console.warn(lastErrorMsg);
-    }
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Gemini ${model} returned (${response.status}): ${errorBody.slice(0, 160)}`);
   }
 
-  throw new Error(`Direct Gemini REST call failed: ${lastErrorMsg}`);
+  const data = await response.json();
+  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawText) {
+    throw new Error(`Gemini ${model} returned empty content parts`);
+  }
+
+  const cleanJson = rawText.replace(/```json\s*/gi, '').replace(/```\s*$/g, '').trim();
+  const parsed = JSON.parse(cleanJson);
+  if (parsed && (parsed.remedies || parsed.analysis_summary)) {
+    return parsed as ClinicalGeminiConsultResponse;
+  }
+
+  throw new Error('Direct Gemini REST call: returned data does not match expected schema');
 }

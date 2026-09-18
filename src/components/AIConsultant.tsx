@@ -502,8 +502,12 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
         <div className="flex items-center gap-2 self-end md:self-auto text-xs">
           <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center gap-2 font-medium">
             <PackageSearch className="w-4 h-4 text-emerald-600" />
-            <span>
-              Live Inventory Sync: <strong>{inventoryLoaded ? `${inventoryItems.length} items` : 'Syncing...'}</strong>
+            <span id="inventory-sync-badge">
+              {!inventoryLoaded
+                ? 'Syncing Stock...'
+                : (inventoryItems?.length || 0) === 0
+                ? 'Chamber Stock: 0 Items'
+                : `Live Inventory Sync: ${inventoryItems.length} Items`}
             </span>
           </div>
         </div>
@@ -622,6 +626,36 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             <span>{errorMsg}</span>
           </div>
         )}
+
+        {/* Quick Clinical Condition Preset Chips */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mr-1 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-emerald-600" />
+            Quick Repertory:
+          </span>
+          {[
+            { label: 'Fever / জ্বর', query: 'fever pyrexia chills' },
+            { label: 'Dysentery / আমাশয়', query: 'dysentery mucus stool colic' },
+            { label: 'Sciatica / সায়াটিকা', query: 'sciatica lower back to leg shooting pain' },
+            { label: 'Neuro Problem / নার্ভের সমস্যা', query: 'neuro neuropathy numbness tingling' },
+            { label: 'Arthritis & Knee / বাত', query: 'arthritis knee pain joint morning stiffness' },
+            { label: 'Fibroid / ফাইব্রয়েড', query: 'uterine fibroid tumor menorrhagia' },
+            { label: 'Kidney Stone / পাথর', query: 'kidney stone renal calculus right flank' },
+            { label: 'Acidity / এসিডিটি', query: 'acidity gas heartburn sour eructation' },
+          ].map((chip, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                setSymptoms(chip.query);
+                handleAnalyze(chip.query);
+              }}
+              className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 dark:bg-slate-700/60 dark:hover:bg-emerald-950/60 text-slate-700 hover:text-emerald-800 dark:text-slate-300 dark:hover:text-emerald-300 border border-slate-200 dark:border-slate-600 hover:border-emerald-300 dark:hover:border-emerald-700 font-medium transition cursor-pointer"
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
 
         {/* Action Buttons: Instant Repertory & Gemini Deep AI Consult */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">

@@ -52,9 +52,9 @@ Provide output in JSON format with:
 5. "diet_and_regimen": string
 6. "warning_notes": string`;
 
-    // 2. Ensure modern stable model: gemini-3.6-flash
+    // 2. Ensure official model: gemini-1.5-flash
     let outputText = '';
-    const modelsToTry = ['gemini-3.6-flash', 'gemini-3.8-flash'];
+    const modelsToTry = ['gemini-1.5-flash'];
     for (const m of modelsToTry) {
       try {
         const response = await ai.models.generateContent({
