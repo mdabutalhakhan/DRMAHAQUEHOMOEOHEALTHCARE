@@ -49,8 +49,9 @@ export function getGeminiApiKey(): string {
   return apiKey;
 }
 
-export const STABLE_GEMINI_MODEL = 'gemini-1.5-flash';
-export const FALLBACK_GEMINI_MODEL = 'gemini-1.5-flash';
+export const CANDIDATE_MODELS = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
+export const STABLE_GEMINI_MODEL = CANDIDATE_MODELS[0];
+export const FALLBACK_GEMINI_MODEL = CANDIDATE_MODELS[1];
 
 /**
  * Builds the authoritative clinical prompt for Dr. M. A. Haque, M.D. (Homoeo)
@@ -89,61 +90,73 @@ Provide your response in structured JSON format with:
 }
 
 /**
- * Direct Frontend Gemini Client REST Call.
- * PERMANENT FIX FOR GEMINI REST 401 (OAUTH ERROR):
- * - DO NOT send `Authorization: Bearer ...` under any circumstances (this triggers Google OAuth credential check and produces 401 on Vercel).
- * - Pass the API key strictly as a URL query parameter: ?key=${apiKey}
+ * Direct Frontend Gemini Client REST Call with Resilient Multi-Model Fallback Cascade.
+ * FIXES GEMINI 404 "Requested entity was not found":
+ * - Iterates through CANDIDATE_MODELS in sequence: ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
+ * - If a model returns 404, automatically cascades to the next candidate model without throwing.
+ * - Passes the API key strictly as a URL query parameter: ?key=${apiKey} (strictly NO Authorization header to prevent OAuth 401).
  */
-export async function callGeminiDirectlyFromClient(
+export async function callGeminiAPI(
   symptoms: string,
   modalities?: string,
   system?: string
 ): Promise<ClinicalGeminiConsultResponse> {
   const apiKey = (
-    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) ||
-    (typeof process !== 'undefined' && process.env && process.env.VITE_GEMINI_API_KEY) ||
-    (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) ||
+    (typeof process !== 'undefined' && process.env?.VITE_GEMINI_API_KEY) ||
+    (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) ||
     ''
   ).trim();
 
   if (!apiKey) {
-    throw new Error('VITE_GEMINI_API_KEY not found in client environment.');
+    throw new Error('Gemini API Key missing in environment');
   }
 
   const promptText = buildClinicalConsultPrompt(symptoms, modalities, system);
-  const model = STABLE_GEMINI_MODEL;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  // Strictly no Authorization header. API key is passed solely in query string.
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: promptText }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-      },
-    }),
-  });
+  let lastError: any = null;
+  let parsedResult: any = null;
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Gemini ${model} returned (${response.status}): ${errorBody.slice(0, 160)}`);
+  for (const model of CANDIDATE_MODELS) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.2,
+          },
+        }),
+      });
+
+      if (res.status === 404) {
+        console.warn(`Model ${model} not found (404), trying next model...`);
+        continue;
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || `Error ${res.status}`);
+      }
+
+      let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      rawText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+      parsedResult = JSON.parse(rawText);
+      if (parsedResult) break; // Successfully parsed!
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`Gemini attempt with ${model} failed:`, err.message);
+    }
   }
 
-  const data = await response.json();
-  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) {
-    throw new Error(`Gemini ${model} returned empty content parts`);
+  if (!parsedResult) {
+    throw lastError || new Error('Unable to connect to Gemini models');
   }
 
-  const cleanJson = rawText.replace(/```json\s*/gi, '').replace(/```\s*$/g, '').trim();
-  const parsed = JSON.parse(cleanJson);
-  if (parsed && (parsed.remedies || parsed.analysis_summary)) {
-    return parsed as ClinicalGeminiConsultResponse;
-  }
-
-  throw new Error('Direct Gemini REST call: returned data does not match expected schema');
+  return parsedResult as ClinicalGeminiConsultResponse;
 }
+
+export const callGeminiDirectlyFromClient = callGeminiAPI;

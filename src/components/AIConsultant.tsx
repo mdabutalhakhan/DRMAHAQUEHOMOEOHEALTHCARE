@@ -32,7 +32,8 @@ import {
   ClassicalRemedy, 
   PatentFormulation 
 } from '../data/clinicalRepertoryData';
-import { callGeminiDirectlyFromClient } from '../services/geminiClient';
+import { synthesizeMateriaMedicaOffline } from '../services/materiaMedicaEngine';
+import { callGeminiAPI, callGeminiDirectlyFromClient } from '../services/geminiClient';
 
 interface AIConsultantProps {
   initialSymptoms?: string;
@@ -52,13 +53,21 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>('all');
   const [consultSource, setConsultSource] = useState<'repertory' | 'gemini'>('repertory');
   const [errorMsg, setErrorMsg] = useState('');
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'error' | 'success' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((prev) => (prev?.message === message ? null : prev));
+    }, 6000);
+  };
 
   // Voice Engine State
   const [speechLang, setSpeechLang] = useState<'en' | 'bn'>('en');
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(true);
 
-  // Live Inventory State from Supabase & Store
+  // Live Inventory State from Supabase & Store (strictly 0 items if empty, no mock dummy inventory)
   const [inventoryItems, setInventoryItems] = useState<
     Array<{ id: string; name: string; rack_location?: string; stock_qty: number; mrp?: number }>
   >([]);
@@ -83,7 +92,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     }
   }, [initialSymptoms]);
 
-  // Load Inventory from Supabase (or clinicStore fallback)
+  // Load Inventory directly from Supabase (or empty store)
   useEffect(() => {
     const fetchInventory = async () => {
       let items: Array<{ id: string; name: string; rack_location?: string; stock_qty: number; mrp?: number }> = [];
@@ -105,11 +114,11 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             }));
           }
         } catch (err) {
-          console.warn('Supabase medicines query error, falling back to local inventory:', err);
+          console.warn('Supabase medicines query error:', err);
         }
       }
 
-      // Merge / fallback with local clinic store
+      // Check local store if Supabase was uninitialized or empty
       if (items.length === 0) {
         try {
           const localInv = getInventory();
@@ -307,13 +316,21 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     setLoading(true);
 
     try {
-      const match = findRepertoryMatch(query);
+      let match = findRepertoryMatch(query);
+      if (!match) {
+        match = synthesizeMateriaMedicaOffline(query);
+      }
       setSelectedCondition(match);
       setConsultSource('repertory');
       setSelectedBrandFilter('all');
+      setErrorMsg('');
     } catch (err) {
-      console.error('Repertory analysis error:', err);
-      setErrorMsg('Failed to process symptoms. Please try again.');
+      console.error('Repertory analysis error, activating offline engine:', err);
+      const fallback = synthesizeMateriaMedicaOffline(query);
+      setSelectedCondition(fallback);
+      setConsultSource('repertory');
+      setSelectedBrandFilter('all');
+      setErrorMsg('');
     } finally {
       setLoading(false);
     }
@@ -323,11 +340,12 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   const handleGeminiConsult = async (overrideQuery?: string) => {
     const query = (overrideQuery !== undefined ? overrideQuery : symptoms).trim();
     if (!query) {
-      setErrorMsg('Please enter symptoms in English or Bengali, or speak using the voice microphone.');
+      const msg = 'Please enter symptoms in English or Bengali, or speak using the voice microphone.';
+      setErrorMsg(msg);
+      showToast(msg, 'error');
       return;
     }
 
-    // 1. Direct REST fetch priority (passes API key via URL query param, strictly NO Authorization header)
     const apiKey = (
       (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) ||
       (typeof process !== 'undefined' && process.env && process.env.VITE_GEMINI_API_KEY) ||
@@ -338,94 +356,100 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     setErrorMsg('');
     setIsAiLoading(true);
 
-    let data: any = null;
-    let usedClientFallback = false;
-
-    // Step 1: Direct Client REST call first (strictly avoids OAuth 401 error on Vercel)
-    if (apiKey) {
-      try {
-        usedClientFallback = true;
-        data = await callGeminiDirectlyFromClient(query);
-      } catch (clientErr: any) {
-        console.warn('Direct client REST call failed, attempting server route /api/consult:', clientErr);
-      }
-    }
-
-    // Step 2: Attempt server route /api/consult if client direct call was not used or failed
-    if (!data) {
-      try {
-        const response = await fetch('/api/consult', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symptoms: query, apiKey }),
-        });
-
-        if (response.ok) {
-          data = await response.json();
-        }
-      } catch (serverErr: any) {
-        console.warn('Serverless /api/consult unavailable or returned error:', serverErr);
-      }
-    }
-
-    // Step 3: If remote AI is offline or model busy, smoothly fall back to internal verified clinical repertory engine
-    if (!data || !data.remedies || data.remedies.length === 0) {
-      handleAnalyze(query);
-      setErrorMsg('');
-      setIsAiLoading(false);
-      return;
-    }
-
     try {
-      if (data && data.remedies && data.patent_formulations) {
-        const aiCondition: ClinicalCondition = {
-          id: 'gemini-ai-consult',
-          nameEn: `AI Consultation: ${query.length > 50 ? query.slice(0, 50) + '...' : query}`,
-          nameBn: 'এআই প্রেসক্রিপশন ও মাল্টি-ব্র্যান্ড পেটেন্ট ফরমুলেশন',
-          chipLabel: usedClientFallback ? 'Gemini AI (Direct Client REST)' : 'Gemini Deep AI Consult',
-          pathology: data.analysis_summary || 'Constitutional & Pathological Evaluation',
-          miasm: 'Miasmatic Synthesis (Kent/Boericke & Commercial Patents)',
-          keywords: [query],
-          typicalPresentation: query,
-          classicalRemedies: (data.remedies || []).map((r: any) => ({
-            name: r.remedy_name,
-            commonName: r.common_name || '',
-            potency: r.potency || '30C / 200C',
-            dosage: r.dosage || '4 pills twice daily',
-            keynotes: r.key_indications || [],
-            materiaMedicaNotes: r.materia_medica_notes || '',
-            modalities: r.modalities || { worse: 'Motion/Cold', better: 'Rest/Warmth' },
-            aliases: [r.remedy_name, r.common_name].filter(Boolean),
-          })),
-          patentFormulations: (data.patent_formulations || []).map((p: any) => {
-            const b = (p.brand || '').toLowerCase();
-            const isGerman = b.includes('reckeweg') || b.includes('adel') || (p.company || '').toLowerCase().includes('germany');
-            return {
-              name: p.name,
-              brand: p.brand || 'Patent',
-              company: p.company || 'Homeopathic Manufacturer',
-              country: isGerman ? 'Germany' : 'India',
-              bottleSize: p.bottle_size || p.bottleSize || '30 ml Drops',
-              indications: p.indications || '',
-              dosage: p.dosage || '10-15 drops in water 3 times daily.',
-              mrp: p.mrp || 160,
-              aliases: p.aliases || [p.name, p.brand].filter(Boolean),
-            };
-          }),
-          dietAndRegimen: data.diet_and_regimen || 'Sip warm water. Avoid raw onion, garlic, menthol and strong coffee during homoeopathic treatment.',
-          warningNotes: data.warning_notes || 'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo).',
-        };
-
-        setSelectedCondition(aiCondition);
-        setConsultSource('gemini');
-        setSelectedBrandFilter('all');
-      } else {
-        throw new Error('Unexpected data format from Gemini consultation');
+      if (!apiKey) {
+        throw new Error('Gemini API key is not configured. Falling back to Boericke/Kent Emergency Repertory Engine.');
       }
-    } catch (err: any) {
-      console.warn('Gemini data processing error, seamlessly using verified local repertory:', err);
-      handleAnalyze(query);
+
+      let data: any = null;
+      let usedClientDirect = false;
+
+      // Primary: Direct Client REST call with multi-model cascade (passes key via query param, strictly NO Authorization header)
+      try {
+        data = await callGeminiAPI(query);
+        usedClientDirect = true;
+      } catch (clientErr: any) {
+        console.warn('Direct client REST cascade error, falling back to /api/consult route:', clientErr);
+        // Fallback to server route
+        try {
+          const response = await fetch('/api/consult', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symptoms: query, apiKey }),
+          });
+
+          if (response.ok) {
+            data = await response.json();
+          } else {
+            const errJson = await response.json().catch(() => ({}));
+            throw new Error(errJson.error || `Server responded with HTTP ${response.status}`);
+          }
+        } catch (serverErr: any) {
+          // If both fail, trigger offline heuristic fallback
+          throw clientErr;
+        }
+      }
+
+      if (!data || (!data.remedies && !data.patent_formulations)) {
+        throw new Error('Gemini response did not contain remedies.');
+      }
+
+      const classicalRemedies = (data.remedies || []).map((r: any) => ({
+        name: r.remedy_name || r.name,
+        commonName: r.common_name || r.commonName || '',
+        potency: r.potency || '30C / 200C',
+        dosage: r.dosage || '4 pills twice daily in water',
+        keynotes: r.key_indications || r.keynotes || [],
+        materiaMedicaNotes: r.materia_medica_notes || r.materiaMedicaNotes || '',
+        modalities: r.modalities || { worse: 'Motion / Cold drafts', better: 'Warmth / Rest' },
+        aliases: [r.remedy_name, r.name, r.common_name, r.commonName].filter(Boolean),
+      }));
+
+      const patentFormulations = (data.patent_formulations || data.patentFormulations || []).map((p: any) => {
+        const b = (p.brand || '').toLowerCase();
+        const isGerman = b.includes('reckeweg') || b.includes('adel') || (p.company || '').toLowerCase().includes('germany');
+        return {
+          name: p.name,
+          brand: p.brand || 'Patent',
+          company: p.company || 'Homoeopathic Laboratories',
+          country: isGerman ? 'Germany' : 'India',
+          bottleSize: p.bottle_size || p.bottleSize || '30 ml Drops',
+          indications: p.indications || '',
+          dosage: p.dosage || '10-15 drops in water 3 times daily.',
+          mrp: p.mrp || 180,
+          aliases: p.aliases || [p.name, p.brand].filter(Boolean),
+        };
+      });
+
+      const aiCondition: ClinicalCondition = {
+        id: `gemini-consult-${Date.now()}`,
+        nameEn: `AI Consultation: ${query.length > 50 ? query.slice(0, 50) + '...' : query}`,
+        nameBn: 'এআই প্রেসক্রিপশন ও মাল্টি-ব্র্যান্ড পেটেন্ট ফরমুলেশন',
+        chipLabel: usedClientDirect ? 'Gemini AI (Direct Client REST)' : 'Gemini Deep AI Consult',
+        pathology: data.analysis_summary || `Constitutional & Pathological Synthesis for: ${query}`,
+        miasm: 'Miasmatic Synthesis (Kent/Boericke & Commercial Patents)',
+        keywords: [query],
+        typicalPresentation: query,
+        classicalRemedies,
+        patentFormulations,
+        dietAndRegimen: data.diet_and_regimen || data.dietAndRegimen || 'Sip warm water. Avoid raw onion, garlic, menthol, camphor and strong coffee during homoeopathic treatment.',
+        warningNotes: data.warning_notes || data.warningNotes || 'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo). Correlate with physical examination.',
+      };
+
+      setSelectedCondition(aiCondition);
+      setConsultSource('gemini');
+      setSelectedBrandFilter('all');
       setErrorMsg('');
+      showToast('Gemini AI consultation completed successfully.', 'success');
+    } catch (err: any) {
+      console.warn('Gemini API unavailable or offline, activating Boericke/Kent Emergency Repertory Engine:', err);
+      // Fail-safe: Zero-dependency dynamic Materia Medica synthesis
+      const offlineCondition = synthesizeMateriaMedicaOffline(query);
+      setSelectedCondition(offlineCondition);
+      setConsultSource('repertory');
+      setSelectedBrandFilter('all');
+      setErrorMsg('');
+      showToast('Materia Medica Offline Engine Active: Boericke & Kent protocol synthesized.', 'info');
     } finally {
       setIsAiLoading(false);
     }
@@ -500,8 +524,15 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
 
         {/* Live Inventory Status Pill */}
         <div className="flex items-center gap-2 self-end md:self-auto text-xs">
-          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center gap-2 font-medium">
-            <PackageSearch className="w-4 h-4 text-emerald-600" />
+          <div
+            id="inventory-sync-pill"
+            className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 font-medium transition-colors ${
+              (inventoryItems?.length || 0) === 0
+                ? 'bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+                : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+            }`}
+          >
+            <PackageSearch className={`w-4 h-4 ${(inventoryItems?.length || 0) === 0 ? 'text-slate-400' : 'text-emerald-600'}`} />
             <span id="inventory-sync-badge">
               {`Chamber Stock: ${inventoryItems?.length || 0} Items`}
             </span>
@@ -630,14 +661,17 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             Quick Repertory:
           </span>
           {[
+            { label: 'Fish Bone / গলায় কাঁটা', query: 'গলায় কাঁটা মাছের কাঁটা fish bone in throat' },
+            { label: 'Corn / পায়ের কড়া', query: 'পায়ের কড়া corn callus' },
+            { label: 'Stye / চোখে অঞ্জনি', query: 'চোখে অঞ্জনি stye hordeolum' },
+            { label: 'Tingling / অবশ ও ঝিনঝিন', query: 'হাত-পা অবশ ও ঝিনঝিন numbness tingling' },
+            { label: 'Cramp / পেশির খিল ধরা', query: 'পেশির টান ও খিল ধরা muscle cramp spasm colic' },
+            { label: 'Burning / জ্বালাপোড়া', query: 'শরীরে ও পেটে তীব্র জ্বালা burning heat' },
             { label: 'Vomiting / বমি', query: 'vomiting nausea বমি retching' },
             { label: 'Fever / জ্বর', query: 'fever pyrexia chills' },
             { label: 'Dysentery / আমাশয়', query: 'dysentery mucus stool colic' },
             { label: 'Sciatica / সায়াটিকা', query: 'sciatica lower back to leg shooting pain' },
-            { label: 'Neuro Problem / নার্ভের সমস্যা', query: 'neuro neuropathy numbness tingling' },
-            { label: 'Body Pain / শরীর ব্যথা', query: 'body pain myalgia muscular ache' },
             { label: 'Arthritis & Knee / বাত', query: 'arthritis knee pain joint morning stiffness' },
-            { label: 'Fibroid / ফাইব্রয়েড', query: 'uterine fibroid tumor menorrhagia' },
             { label: 'Kidney Stone / পাথর', query: 'kidney stone renal calculus right flank' },
             { label: 'Acidity / এসিডিটি', query: 'acidity gas heartburn sour eructation' },
           ].map((chip, idx) => (
@@ -693,9 +727,25 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-emerald-950 via-[#1B4332] to-[#081C15] text-white shadow-md border border-emerald-800/40">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-300 uppercase tracking-wider mb-1">
-                  <Stethoscope className="w-4 h-4" />
-                  <span>Clinical Pathology & Miasmatic Evaluation</span>
+                <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-emerald-300 uppercase tracking-wider mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <Stethoscope className="w-4 h-4 text-emerald-400" />
+                    <span>Clinical Pathology & Miasmatic Evaluation</span>
+                  </div>
+                  {selectedCondition.chipLabel && (
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-normal ${
+                      selectedCondition.chipLabel.includes('Offline')
+                        ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40 shadow-xs'
+                        : 'bg-emerald-400/20 text-emerald-200 border border-emerald-400/30'
+                    }`}>
+                      {selectedCondition.chipLabel.includes('Offline') ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+                      )}
+                      <span>{selectedCondition.chipLabel}</span>
+                    </span>
+                  )}
                 </div>
                 <h2 className="text-xl sm:text-2xl font-black tracking-tight">
                   {selectedCondition.nameEn}
@@ -1123,16 +1173,61 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
 
       {/* Clean, Neutral Initial State when no condition is selected */}
       {!selectedCondition && !loading && !isAiLoading && (
-        <div className="p-8 sm:p-12 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-3">
+        <div className="p-8 sm:p-12 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 text-center space-y-4">
           <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 flex items-center justify-center text-emerald-800 dark:text-emerald-300">
             <BookOpen className="w-6 h-6" />
           </div>
           <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-200">
-            Awaiting Patient Symptoms
+            {symptoms.trim() ? 'No Direct Offline Repertory Match' : 'Clinical Decision Support'}
           </h3>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-            Enter symptoms or rubrics above in English or Bengali (or click the microphone to dictate), then press <kbd className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-[11px]">Enter</kbd> or click <strong>Instant Repertorize</strong>.
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+            Enter symptoms or click <strong>'Gemini Deep AI Consult'</strong> to analyze with AI.
           </p>
+          {symptoms.trim() && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => handleGeminiConsult()}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Run Gemini Deep AI Consult</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Floating Toast Notification for API status and actions */}
+      {toast && (
+        <div
+          role="alert"
+          className={`fixed bottom-6 right-6 z-50 max-w-md p-4 rounded-2xl shadow-xl border flex items-start gap-3 transition-all duration-300 animate-in fade-in slide-in-from-bottom-5 ${
+            toast.type === 'error'
+              ? 'bg-red-50 dark:bg-red-950/95 border-red-300 dark:border-red-800 text-red-900 dark:text-red-100'
+              : toast.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-950/95 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100'
+              : 'bg-slate-50 dark:bg-slate-900/95 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+          ) : toast.type === 'success' ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+          ) : (
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          )}
+          <div className="flex-1 text-xs font-semibold leading-relaxed">
+            {toast.message}
+          </div>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm font-bold cursor-pointer"
+            aria-label="Close notification"
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

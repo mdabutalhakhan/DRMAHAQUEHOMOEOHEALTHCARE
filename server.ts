@@ -317,7 +317,7 @@ Provide your response in structured JSON format with:
     };
 
     let outputText = '';
-    const modelsToTry = ['gemini-1.5-flash'];
+    const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
     for (const m of modelsToTry) {
       try {
         const response = await ai.models.generateContent({

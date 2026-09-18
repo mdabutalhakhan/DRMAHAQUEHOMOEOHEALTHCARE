@@ -2611,16 +2611,480 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
     ],
     dietAndRegimen: 'Keep warm and protected from cold drafts. Drink warm soups or ginger decoction. Ensure adequate physical rest and avoid heavy strenuous lifting.',
     warningNotes: 'If body pain is accompanied by high spiking fever with rash or neck stiffness, evaluate for acute systemic infection.'
+  },
+  {
+    id: 'spondylitis-cervical',
+    nameEn: 'Cervical Spondylitis & Neck Pain',
+    nameBn: 'সার্ভাইকাল স্পন্ডিলাইটিস ও ঘাড়ের তীব্র ব্যথা',
+    chipLabel: 'Spondylitis / ঘাড় ব্যথা',
+    pathology: 'Cervical Spondylosis, Disc Prolapse, Suboccipital Neuralgia & Stiff Neck',
+    miasm: 'Sycotic-Rheumatic Spine Degenerative Diathesis',
+    typicalPresentation: 'Severe stiffness and aching pain in cervical spine radiating to shoulders, numbness in fingers, aggravated by turning head or cold',
+    keywords: [
+      'spondylitis', 'cervical spondylitis', 'cervical spondylosis', 'neck pain', 'stiff neck', 'cervical',
+      // Bengali
+      'ঘাড় ব্যথা', 'ঘাড় ব্যথা', 'ঘাড়ে ব্যথা', 'ঘাড়ের ব্যথা', 'ঘাড় শক্ত', 'ঘাড় শক্ত', 'সার্ভাইকাল', 'spondin'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Rhus Tox 200C',
+        commonName: 'Poison Ivy',
+        potency: '200C',
+        dosage: '4 pills twice daily in morning and evening',
+        keynotes: [
+          'Stiff, aching neck and trapezius muscles on waking; worse on first beginning to move',
+          'Relieved by continuous gentle movement, stretching, and hot dry applications',
+          'Ailments from cold drafts on neck, sleeping in front of air conditioners or fans'
+        ],
+        materiaMedicaNotes: 'Boericke: Premier polychrest for cervical stiffness, ligamentous strain and rheumatic tension relieved by continued motion.',
+        modalities: {
+          worse: 'Beginning of motion, cold damp drafts, rest',
+          better: 'Continued motion, hot fomentation, warmth'
+        },
+        aliases: ['rhus tox', 'rhus toxicodendron', 'rhus tox 200c']
+      },
+      {
+        name: 'Kalmia Lat 30C',
+        commonName: 'Mountain Laurel',
+        potency: '30C',
+        dosage: '4 pills 3 times daily',
+        keynotes: [
+          'Neuralgic pain in cervical spine rapidly shooting downwards into shoulder, arm and fingers',
+          'Numbness, tingling and cracking in cervical vertebrae on turning head',
+          'Pain shifts rapidly; accompanied by stiff feeling in neck muscles'
+        ],
+        materiaMedicaNotes: 'Kent: Severe neuralgic pains following nerves from neck down the arm to fingertips with numbness and weakness.',
+        modalities: {
+          worse: 'Moving neck, stooping, cold air',
+          better: 'Rest, lying flat with head supported'
+        },
+        aliases: ['kalmia', 'kalmia lat', 'kalmia latifolia', 'kalmia lat 30c']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'SBL Spondin Drops',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Renowned formulation for spondylitis, cervical and lumbosacral pain, stiff neck, vertiginous sensation, and shooting radiating pain into shoulders and arms.',
+        dosage: '10-15 drops in 1/4 cup lukewarm water 3-4 times daily.',
+        mrp: 155,
+        aliases: ['spondin', 'sbl spondin', 'spondin drops']
+      },
+      {
+        name: 'Dr. Reckeweg R11 (Lumbago & Spine Pain Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Myalgia, cervical syndrome, acute rheumatic stiffness, lumbago, and spinal disc discomfort.',
+        dosage: '10-15 drops in water 3 times daily; in acute agony every 2 hours.',
+        mrp: 310,
+        aliases: ['r11', 'r-11', 'reckeweg 11', 'dr reckeweg r11']
+      }
+    ],
+    dietAndRegimen: 'Use thin orthopaedic pillow. Avoid sleeping with high pillows or looking down at phone screens for prolonged periods. Do gentle neck isometric exercises. Apply warm fomentation.',
+    warningNotes: 'If neck pain causes progressive arm weakness, loss of grip, or persistent dizziness on turning neck, obtain cervical spine X-ray/MRI to evaluate nerve root compression.'
+  },
+  {
+    id: 'corn-callus',
+    nameEn: 'Corns, Callosities & Plantar Hyperkeratosis',
+    nameBn: 'পায়ের কড়া, কড়া ও চামড়া শক্ত হওয়া',
+    chipLabel: 'Corn / কড়া',
+    pathology: 'Circumscribed Hyperkeratosis, Clavus, Plantar Callus & Painful Pressure Keratoma',
+    miasm: 'Sycotic Cutaneous Proliferative Diathesis',
+    typicalPresentation: 'Painful localized thickening of epidermis on soles or toes with central hard core, extremely sensitive to walking, touch and pressure',
+    keywords: [
+      'corn', 'corns', 'callus', 'calluses', 'callosity', 'clavus', 'hyperkeratosis',
+      // Bengali
+      'কড়া', 'কড়া', 'পায়ের কড়া', 'পায়ের কড়া', 'পায়ের কড়া', 'চামড়া শক্ত', 'কড়া পড়া'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Antim Crudum 200C',
+        commonName: 'Black Sulphide of Antimony',
+        potency: '200C',
+        dosage: '4 pills once daily at night or alternate days',
+        keynotes: [
+          'Horny, thick, hard callosities and corns on soles of feet and palms',
+          'Feet so tender and painful the patient can scarcely walk on pavement or hard floor',
+          'Thick milky white coated tongue with gastric irritability'
+        ],
+        materiaMedicaNotes: 'Boericke: Specific for horny cutaneous excrescences, painful corns and callosities where feet are exceedingly tender to walking.',
+        modalities: {
+          worse: 'Walking on bare feet, heat of sun, cold baths',
+          better: 'Rest, open air, resting feet elevated'
+        },
+        aliases: ['antim crud', 'antim crudum', 'antimonium crudum', 'antim crud 200c']
+      },
+      {
+        name: 'Thuja Occ 200C',
+        commonName: 'Arbor Vitae',
+        potency: '200C',
+        dosage: '4 pills twice weekly in the morning',
+        keynotes: [
+          'Chief sycotic remedy for epithelial overgrowth, painful corns, warts, and excrescences',
+          'Stinging, burning pains in corns with hyperesthesia of the affected sole',
+          'Skin hyperkeratosis with tendency to glandular indurations'
+        ],
+        materiaMedicaNotes: 'Kent: Master sycotic remedy for dissolving morbid cutaneous excrescences, corns, warty outgrowths and callous skin.',
+        modalities: {
+          worse: 'Cold damp weather, 3 AM and 3 PM',
+          better: 'Warm dry conditions'
+        },
+        aliases: ['thuja', 'thuja occ', 'thuja occidentalis', 'thuja 200c']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'SBL Thuja Ointment / Corn Paint',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '25g Tube / 15 ml Liquid Paint',
+        indications: 'Topical therapeutic application for softening and dissolving painful corns, plantar calluses, hard fissures and warty excrescences.',
+        dosage: 'Clean and dry affected foot with warm water, apply gently twice daily onto the corn.',
+        mrp: 110,
+        aliases: ['thuja ointment', 'corn paint', 'sbl thuja ointment', 'sbl corn paint']
+      },
+      {
+        name: 'Dr. Reckeweg R21 (Skin Reconstitution Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Biological terrain remedy for chronic cutaneous proliferation, indurated tissues, corns and dermopathy.',
+        dosage: '10-15 drops in water twice daily before meals.',
+        mrp: 310,
+        aliases: ['r21', 'r-21', 'reckeweg 21']
+      }
+    ],
+    dietAndRegimen: 'Wear well-fitted, wide-toed cushioned footwear with silicon orthotic pads to relieve direct pressure. Never cut or scrape corns with blades or unsterilized tools.',
+    warningNotes: 'Diabetic patients with corns or callosities must never self-excise lesions due to high risk of diabetic foot ulcers and secondary infection.'
+  },
+  {
+    id: 'travel-sickness-motion',
+    nameEn: 'Travel Sickness, Motion Sickness & Car Sickness',
+    nameBn: 'গাড়িতে বমি, গতিজনিত অসুস্থতা ও মাথা ঘোরা',
+    chipLabel: 'Motion Sickness / গাড়িতে বমি',
+    pathology: 'Kinetosis, Vestibular-Ocular Mismatch, Car/Sea/Air Sickness & Acute Vertiginous Nausea',
+    miasm: 'Psoric Neuropathic & Vestibular Hyperreactivity',
+    typicalPresentation: 'Nausea, vomiting, cold clammy sweat, dizziness and extreme malaise triggered by travelling in car, bus, boat, train or airplane',
+    keywords: [
+      'travel sickness', 'motion sickness', 'car sickness', 'sea sickness', 'air sickness', 'kinetosis',
+      // Bengali
+      'গাড়িতে বমি', 'গাড়িতে বমি', 'বাসে বমি', 'ভ্রমণে বমি', 'গাড়ি চড়লে বমি', 'গাড়ি চড়লে বমি', 'গাড়িতে মাথা ঘোরা', 'জার্নিতে বমি'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Cocculus Indicus 30C',
+        commonName: 'Indian Cockle',
+        potency: '30C',
+        dosage: '4 pills 1 hour before travel, repeat during journey every 2-3 hours if needed',
+        keynotes: [
+          'Specific simillimum for motion sickness, sea sickness, and car or train travel distress',
+          'Deathly nausea, vertigo with sensation of hollowness or emptiness in head and stomach',
+          'Aversion to food; sight or smell of food disgusts; worse from lack of sleep or night watching'
+        ],
+        materiaMedicaNotes: 'Boericke: Invaluable remedy for car sickness, sea sickness, and nausea from traveling or passive motion.',
+        modalities: {
+          worse: 'Motion of car or carriage, sitting up, lack of sleep',
+          better: 'Lying quietly on side, warmth'
+        },
+        aliases: ['cocculus', 'cocculus indicus', 'cocculus 30c']
+      },
+      {
+        name: 'Tabacum 30C',
+        commonName: 'Tobacco',
+        potency: '30C',
+        dosage: '4 drops in water immediately on onset of nausea or cold sweating',
+        keynotes: [
+          'Deathly sinking nausea with icy cold sweat, especially on forehead and face',
+          'Violent vomiting aggravated by opening eyes or moving head',
+          'Uncovering the abdomen and exposing body to cool fresh open air brings instant relief'
+        ],
+        materiaMedicaNotes: 'Kent: Most violent motion sickness with pale, cold skin, cold clammy sweat and intense nausea; relieved by uncovering belly and cool air.',
+        modalities: {
+          worse: 'Motion, warmth, opening eyes',
+          better: 'Fresh cold open air, uncovering abdomen'
+        },
+        aliases: ['tabacum', 'tabacum 30c', 'tabac']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R52 (Vomiting & Motion Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Nausea, vomiting, motion sickness in cars, trains, boats or planes, morning sickness and hyperemesis.',
+        dosage: '10-15 drops in a tablespoon of water before starting journey; repeat every 1-2 hours during journey.',
+        mrp: 310,
+        aliases: ['r52', 'r-52', 'reckeweg 52', 'dr reckeweg r52']
+      },
+      {
+        name: 'Bakson Gastro Aid',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '115 ml Syrup / 75 Tablets',
+        indications: 'Soothes digestive nausea, motion regurgitation, nervous vomiting and acidity during journey.',
+        dosage: '1 tablet or 1 teaspoonful before journey.',
+        mrp: 150,
+        aliases: ['gastro aid', 'bakson gastro aid']
+      }
+    ],
+    dietAndRegimen: 'Eat a light, non-greasy snack before travelling; avoid empty stomach or overeating heavy oily foods. Sit in front seat facing direction of travel. Keep car window cracked for fresh airflow.',
+    warningNotes: 'If motion sickness is accompanied by persistent nystagmus, ear ringing (tinnitus) or focal neurological signs outside of travel, evaluate for inner ear labyrinthitis or Ménière’s disease.'
+  },
+  {
+    id: 'tingling-numbness-paresthesia',
+    nameEn: 'Tingling, Numbness & Paresthesia (পা চিনচিন / ঝিঁঝিঁ)',
+    nameBn: 'পা চিনচিন করা, অবশ ভাব ও হাত পায়ে ঝিঁঝিঁ ধরা',
+    chipLabel: 'Tingling / পা চিনচিন',
+    pathology: 'Peripheral Paresthesia, Nerve Irritation, Sensory Neuropathy & Acroparesthesia',
+    miasm: 'Psoric-Sycotic Neuro-sensory Diathesis',
+    typicalPresentation: 'Pins and needles sensation, prickling (চিনচিন), crawling insects sensation, burning numbness in feet, soles or fingers',
+    keywords: [
+      'পা চিনচিন', 'চিনচিন', 'হাত পা চিনচিন', 'পায়ে চিনচিন', 'পা ঝিঁঝিঁ', 'ঝিঁঝিঁ', 'হাত পা ঝিঁঝিঁ', 'অবশ', 'হাত পা অবশ',
+      'tingling', 'numbness', 'pins and needles', 'paresthesia', 'prickling', 'burning soles', 'formication'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Hypericum 200C',
+        commonName: "'Arnica of the Nerves' (St. John's Wort)",
+        potency: '200C',
+        dosage: '4 pills twice daily',
+        keynotes: [
+          'Premier remedy for nerve injury, nerve irritation, shooting darting pains and tingling paresthesia',
+          'Crawling, prickling sensations in extremities, hypersensitivity along peripheral nerve paths',
+          'Relieves nerve inflammation, trauma, and burning neuralgic dysesthesia'
+        ],
+        materiaMedicaNotes: 'Boericke: Hypericum is to nerves what Arnica is to bruises. Indicated for intolerable tingling, burning and numbness along nerve tracts.',
+        modalities: {
+          worse: 'Cold, damp, fog, touch',
+          better: 'Rest, warmth'
+        },
+        aliases: ['hypericum', 'hypericum perf', 'hypericum 200c']
+      },
+      {
+        name: 'Kali Phos 6X',
+        commonName: 'Phosphate of Potassium',
+        potency: '6X',
+        dosage: '4 tablets dissolved in warm water 3 times daily',
+        keynotes: [
+          'The supreme nerve nutrient tissue salt for nerve exhaustion, numbness, and tingling extremities',
+          'Pins and needles feeling in hands and feet accompanied by nervous debility and physical fatigue',
+          'Restores cellular nerve conduction and soothes irritable nerve fibers'
+        ],
+        materiaMedicaNotes: 'Schuessler & Boericke: Master biochemic nerve tissue salt for peripheral neuropathic numbness, pricking, and mental-physical exhaustion.',
+        modalities: {
+          worse: 'Physical exertion, cold air, after midnight',
+          better: 'Warmth, rest, nourishment'
+        },
+        aliases: ['kali phos', 'kali phos 6x', 'potassium phosphate']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R36 (Neuralgia & Nervous Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Nerve irritation, tingling, numbness, choreatic twitches, paresthesia and peripheral neuropathic sensitivity.',
+        dosage: '10-15 drops in water 3 times daily before meals.',
+        mrp: 310,
+        aliases: ['r36', 'r-36', 'reckeweg 36', 'dr reckeweg r36']
+      },
+      {
+        name: 'SBL Five Phos 6X',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '25g / 450g Tablets',
+        indications: 'Comprehensive biochemic tonic for nerve vitality, peripheral paresthesias, numbness, and chronic neuromuscular fatigue.',
+        dosage: '4 tablets dissolved in warm water 3 times daily.',
+        mrp: 140,
+        aliases: ['five phos', 'sbl five phos', '5 phos']
+      }
+    ],
+    dietAndRegimen: 'Check Vitamin B12 and blood glucose levels. Ensure diet includes leafy greens, nuts, and whole grains. Avoid walking barefoot on ice-cold tiles or crossing legs for prolonged duration.',
+    warningNotes: 'If tingling and numbness are progressive with loss of sensation, balance instability or foot drop, investigate for diabetic neuropathy or lumbar disc herniation.'
+  },
+  {
+    id: 'fish-bone-throat',
+    nameEn: 'Foreign Body Sensation & Fish Bone in Throat',
+    nameBn: 'গলায় কাঁটা বা সূঁচ ফোটার অনুভূতি ও ক্ষত',
+    chipLabel: 'Fish Bone / গলায় কাঁটা',
+    pathology: 'Foreign Body Sensation & Fish Bone in Throat / গলায় কাঁটা বা সূঁচ ফোটার অনুভূতি',
+    miasm: 'Psoric-Sycotic Irritation with Needle-like Pains',
+    typicalPresentation: 'Sensation of a fish bone, needle or sharp splinter sticking in the throat; sharp stitching, pricking pain aggravated by swallowing saliva or food; persistent urge to swallow or cough.',
+    keywords: [
+      'কাঁটা', 'গলায় কাঁটা', 'মাছের কাঁটা', 'fish bone', 'bone in throat', 'splinter', 'foreign body throat',
+      'গলায় কাঁটা', 'গলার কাঁটা', 'মাছের কাটা', 'গলায় কাটা', 'গলায় কাটা', 'কাটা', 'throat bone', 'splinter in throat', 'fishbone'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Silicea (Silica) 30C / 200C',
+        commonName: 'Pure Flint',
+        potency: '30C / 200C',
+        dosage: '4 pills twice daily or 4 pills every 3 hours in acute distress',
+        keynotes: [
+          'Promotes expulsion of foreign bodies, fish bones, splinters from tissues',
+          'Sharp needle-like stitching sensations in throat aggravated on swallowing cold drinks',
+          'Suppurative tendency and profound sensitivity to cold drafts; chilly patient'
+        ],
+        materiaMedicaNotes: 'Kent & Boericke: Master remedy to promote suppuration and expulsion of foreign bodies, fish bones, and splinters embedded in tissues; needle-like stitching sensations.',
+        modalities: {
+          worse: 'Cold drafts, swallowing, morning, uncovery',
+          better: 'Warmth, warm drinks, wrapping head and neck warmly'
+        },
+        aliases: ['silicea', 'silica', 'silicea 200c', 'silicea 30c']
+      },
+      {
+        name: 'Hepar Sulphuris Calcareum 30C / 200C',
+        commonName: "Hahnemann's Calcium Sulphide",
+        potency: '30C / 200C',
+        dosage: '4 pills 3 times daily dissolved in warm water',
+        keynotes: [
+          'Sticking, splinter-like pain in throat on swallowing, extending to ears',
+          'Extreme hypersensitivity to cold air, touching neck, or swallowing the slightest morsel',
+          'Throat feels plugged, inflamed with sharp sticking like a fish bone or thorn'
+        ],
+        materiaMedicaNotes: 'Boericke: Sharp splinter-like pains extending to ears on swallowing. Extreme chilliness and hypersensitivity to touch and cold air.',
+        modalities: {
+          worse: 'Cold air, swallowing saliva or cold food, drafts, touch',
+          better: 'Warmth, warm drinks, wrapping neck warmly'
+        },
+        aliases: ['hepar sulph', 'hepar sulphuris', 'hepar sulph 200c', 'hepar']
+      },
+      {
+        name: 'Argentum Nitricum 30C',
+        commonName: 'Silver Nitrate',
+        potency: '30C',
+        dosage: '4 pills 3 times daily away from meals',
+        keynotes: [
+          'Sensation of a fish bone or splinter embedded in throat when swallowing',
+          'Painful raw inflammation, dark redness of fauces, uvula relaxed and elongated',
+          'Persistent clearing of tenacious mucus with tickling cough'
+        ],
+        materiaMedicaNotes: 'Kent: Sensation as if a splinter or fish bone were lodged in the pharynx; worse swallowing food or turning neck.',
+        modalities: {
+          worse: 'Warm room, swallowing food, emotional agitation',
+          better: 'Cool open air, cold drinks'
+        },
+        aliases: ['arg nit', 'argentum nitricum', 'argentum']
+      },
+      {
+        name: 'Nitricum Acidum 30C',
+        commonName: 'Nitric Acid',
+        potency: '30C',
+        dosage: '4 pills twice daily in water',
+        keynotes: [
+          'Sharp splinter-like pains on swallowing food or liquids',
+          'Stitching pains as if sticking with pins or sharp fish needles, agonizing on swallowing',
+          'Ulcerated sore throat with putrid breath and offensive secretions'
+        ],
+        materiaMedicaNotes: 'Boericke: Splinter-like pains appearing and disappearing quickly. Mucous membranes stitch and burn like a needle on deglutition.',
+        modalities: {
+          worse: 'Swallowing, cold changes of weather, night, jarring',
+          better: 'Warmth, gentle warmth'
+        },
+        aliases: ['nitric acid', 'nitricum acidum', 'nit acid']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Bakson Throat Aid Tablets',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '75 Tablets',
+        indications: 'Relieves sharp stabbing pain & inflamed throat tissue, sensation of throat obstruction and painful swallowing.',
+        dosage: '1 tablet dissolved or chewed in mouth every 2 hours until relief.',
+        mrp: 165,
+        aliases: ['throat aid', 'bakson throat aid', 'throat tablets']
+      },
+      {
+        name: 'Dr. Reckeweg R1 (Biological Inflammation Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Reduces local throat inflammation, catarrhal congestion, glandular swelling and mucosal irritation.',
+        dosage: '10-15 drops in warm water 3 times daily.',
+        mrp: 310,
+        aliases: ['r1', 'r-1', 'reckeweg 1', 'dr reckeweg r1']
+      },
+      {
+        name: 'SBL Tonsilat Tablets',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '25g Tablets',
+        indications: 'Relieves pain on swallowing & throat soreness, painful inflamed tonsils and pharyngeal irritation.',
+        dosage: '2-4 tablets dissolved in mouth 3 times daily.',
+        mrp: 155,
+        aliases: ['tonsilat', 'sbl tonsilat', 'tonsil aid']
+      }
+    ],
+    dietAndRegimen: 'Drink warm water, lukewarm honey-lemon water, or soft boiled rice. Avoid hard dry crusts, chips, sharp crunchy snacks, and very cold drinks that aggravate throat spasm.',
+    warningNotes: 'If persistent foreign body sensation with breathing difficulty, acute stridor, or active bleeding occurs, seek immediate laryngoscopy/ENT examination for direct foreign body extraction.'
   }
 ];
 
 /**
  * Dynamically constructs a tailored ClinicalCondition for symptoms that do not match
- * any predefined database condition. This guarantees that unrelated symptoms (e.g. vomiting, fever,
- * pain, headache) NEVER default to Kidney Stone or static Arnica Montana.
+ * any predefined database condition. This guarantees that unrelated symptoms NEVER default to generic remedies.
  */
-function buildDynamicCondition(symptomQuery: string): ClinicalCondition {
+function buildDynamicCondition(symptomQuery: string): ClinicalCondition | null {
   const q = symptomQuery.toLowerCase().trim();
+
+  // 0. FISH BONE / FOREIGN BODY IN THROAT / গলায় কাঁটা
+  if (
+    q.includes('কাঁটা') ||
+    (q.includes('কাটা') && (q.includes('গলা') || q.includes('throat'))) ||
+    q.includes('গলায় কাঁটা') ||
+    q.includes('গলায় কাঁটা') ||
+    q.includes('মাছের কাঁটা') ||
+    q.includes('মাছের কাটা') ||
+    q.includes('fish bone') ||
+    q.includes('bone in throat') ||
+    q.includes('splinter') ||
+    q.includes('foreign body throat') ||
+    q.includes('fishbone')
+  ) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'fish-bone-throat');
+    if (cond) return cond;
+  }
+
+  // 0A. SPONDYLITIS & NECK PAIN / ঘাড় ব্যথা
+  if (q.includes('spondylitis') || q.includes('cervical') || q.includes('neck pain') || q.includes('stiff neck') || q.includes('ঘাড় ব্যথা') || q.includes('ঘাড় ব্যথা') || q.includes('ঘাড়ে ব্যথা') || q.includes('ঘাড়ের ব্যথা') || q.includes('ঘাড় শক্ত') || q.includes('ঘাড় শক্ত') || q.includes('সার্ভাইকাল') || q.includes('spondin')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'spondylitis-cervical');
+    if (cond) return cond;
+  }
+
+  // 0B. CORN / CALLUS / কড়া
+  if (q.includes('corn') || q.includes('corns') || q.includes('callus') || q.includes('calluses') || q.includes('callosity') || q.includes('কড়া') || q.includes('কড়া') || q.includes('পায়ের কড়া') || q.includes('পায়ের কড়া') || q.includes('পায়ের কড়া') || q.includes('চামড়া শক্ত') || q.includes('clavus')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'corn-callus');
+    if (cond) return cond;
+  }
+
+  // 0C. TRAVEL SICKNESS / MOTION SICKNESS / গাড়িতে বমি
+  if (q.includes('travel sickness') || q.includes('motion sickness') || q.includes('car sickness') || q.includes('sea sickness') || q.includes('গাড়িতে বমি') || q.includes('গাড়িতে বমি') || q.includes('বাসে বমি') || q.includes('ভ্রমণে বমি') || q.includes('গাড়ি চড়লে বমি') || q.includes('গাড়ি চড়লে বমি') || q.includes('গাড়িতে মাথা ঘোরা') || q.includes('জার্নিতে বমি')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'travel-sickness-motion');
+    if (cond) return cond;
+  }
+
+  // 0D. PA CHINCHIN / TINGLING / NUMBNESS / পা চিনচিন
+  if (q.includes('পা চিনচিন') || q.includes('চিনচিন') || q.includes('হাত পা চিনচিন') || q.includes('পায়ে চিনচিন') || q.includes('পা ঝিঁঝিঁ') || q.includes('ঝিঁঝিঁ') || q.includes('হাত পা ঝিঁঝিঁ') || q.includes('অবশ') || q.includes('হাত পা অবশ') || q.includes('tingling') || q.includes('numbness') || q.includes('pins and needles') || q.includes('paresthesia') || q.includes('burning soles')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'tingling-numbness-paresthesia');
+    if (cond) return cond;
+  }
 
   // 1. VOMITING / NAUSEA / বমি
   if (q.includes('vomit') || q.includes('nausea') || q.includes('বমি') || q.includes('nauseous') || q.includes('retching') || q.includes('emesis') || q.includes('গা গুলানো') || q.includes('morning sickness')) {
@@ -2939,100 +3403,13 @@ function buildDynamicCondition(symptomQuery: string): ClinicalCondition {
     if (coughCond) return coughCond;
   }
 
-  // General Acute Symptomatic Analysis with tailored constitutional polychrests
-  return {
-    id: `dynamic-${Date.now()}`,
-    nameEn: `Clinical Presentation Analysis: ${symptomQuery.length > 55 ? symptomQuery.slice(0, 55) + '...' : symptomQuery}`,
-    nameBn: 'উপসর্গভিত্তিক ক্লাসিক্যাল ও মাল্টি-ব্র্যান্ড পেটেন্ট বিশ্লেষণ',
-    chipLabel: 'Targeted Repertory',
-    pathology: `Pathological & Symptomatic Totality for: ${symptomQuery}`,
-    miasm: 'Constitutional Homoeopathic Individualization (Kent/Boericke Protocol)',
-    typicalPresentation: symptomQuery,
-    keywords: [symptomQuery],
-    classicalRemedies: [
-      {
-        name: 'Belladonna 30C',
-        commonName: 'Deadly Nightshade',
-        potency: '30C',
-        dosage: '4 pills 3 times daily in water',
-        keynotes: [
-          'Acute onset of redness, heat, throbbing pain and localized vascular congestion',
-          'Hypersensitive to touch, cold drafts, noise, and sudden movement or jarring',
-          'Flushed face, sudden flare-up and prompt therapeutic response'
-        ],
-        materiaMedicaNotes: 'Kent: King of acute hyperemic, congestive, and violent inflammatory states. Sudden onset and rapid progression.',
-        modalities: { worse: 'Touch, jar, noise, draught of air, after 3 PM', better: 'Semi-erect position, resting quietly' },
-        aliases: ['belladonna', 'bell', 'belladonna 30c']
-      },
-      {
-        name: 'Nux Vomica 30C',
-        commonName: 'Poison Nut',
-        potency: '30C',
-        dosage: '4 pills at bedtime',
-        keynotes: [
-          'Sedentary lifestyle strain, digestive disharmony, and autonomic nervous hypersensitivity',
-          'Chilly disposition, cannot uncover without feeling shivering and irritability',
-          'Ailments from dietary excesses, mental overwork, and pharmaceutical over-medication'
-        ],
-        materiaMedicaNotes: 'Boericke: Master polychrest for modern stresses, visceral congestion, and toxic visceral elimination.',
-        modalities: { worse: 'Morning, cold air, mental strain, stimulants', better: 'Warmth, evening rest' },
-        aliases: ['nux vomica', 'nux', 'nux vomica 30c']
-      },
-      {
-        name: 'Arsenicum Album 30C',
-        commonName: 'White Oxide of Arsenic',
-        potency: '30C',
-        dosage: '4 pills twice daily away from meals',
-        keynotes: [
-          'Profound mental restlessness, anxiety, and weakness with burning pains relieved by heat',
-          'Thirst for small sips of warm water at frequent intervals; chilly patient',
-          'Deep-acting constitutional polychrest for catarrhal and constitutional disharmony'
-        ],
-        materiaMedicaNotes: 'Boericke: Restlessness, burning, and prostration. Ameliorated by warmth.',
-        modalities: { worse: 'Cold, after midnight, cold food/drinks', better: 'Warmth, hot applications, company' },
-        aliases: ['arsenicum album', 'ars alb', 'arsenicum']
-      }
-    ],
-    patentFormulations: [
-      {
-        name: 'Dr. Reckeweg R1 (Biological Inflammation Drops)',
-        brand: 'Dr. Reckeweg',
-        company: 'Dr. Reckeweg & Co (Germany)',
-        country: 'Germany',
-        bottleSize: '22 ml Drops',
-        indications: 'Local and systemic inflammatory processes, glandular tenderness, malaise and acute irritation.',
-        dosage: '10-15 drops in water 3 times daily.',
-        mrp: 310,
-        aliases: ['r1', 'r-1', 'reckeweg 1', 'dr reckeweg r1']
-      },
-      {
-        name: 'Bakson Biochemic Combination BC-1',
-        brand: "Bakson's",
-        company: 'Bakson Drugs & Pharmaceuticals',
-        country: 'India',
-        bottleSize: '25g Tablets',
-        indications: 'Universal biochemic formulation for acute inflammatory discomfort, heat and systemic irritation.',
-        dosage: '4 tablets dissolved in warm water 3 times daily.',
-        mrp: 135,
-        aliases: ['bc-1', 'bc 1', 'bakson bc 1']
-      },
-      {
-        name: 'SBL Alfalfa Tonic',
-        brand: 'SBL',
-        company: 'SBL Pvt Ltd',
-        country: 'India',
-        bottleSize: '115 ml Syrup',
-        indications: 'Natural constitutional tonic to strengthen resistance, improve vitality and restore metabolic tone.',
-        dosage: '1-2 teaspoonfuls twice daily before meals.',
-        mrp: 150,
-        aliases: ['alfalfa', 'sbl alfalfa tonic']
-      }
-    ],
-    dietAndRegimen: 'Sip fresh warm filtered water regularly. Maintain a wholesome, balanced diet rich in boiled greens and seasonal fruits. Avoid heavy fried, greasy, and excessively spicy foods during treatment.',
-    warningNotes: 'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo). Correlate with thorough clinical examination.'
-  };
+  // If symptoms do not match any known clinical condition, return null.
+  // Strictly no generic Belladonna/Nux Vomica fallback.
+  return null;
 }
 
+
+import { synthesizeMateriaMedicaOffline } from '../services/materiaMedicaEngine';
 
 export function findRepertoryMatch(symptomQuery: string): ClinicalCondition | null {
   const query = (symptomQuery || '').toLowerCase().trim();
@@ -3074,6 +3451,10 @@ export function findRepertoryMatch(symptomQuery: string): ClinicalCondition | nu
   }
 
   // Dynamically synthesize a condition based on the user's specific query
-  return buildDynamicCondition(symptomQuery);
+  const dynamic = buildDynamicCondition(symptomQuery);
+  if (dynamic) return dynamic;
+
+  // Zero-Dependency Boericke/Kent Materia Medica & Organ-Sensation Engine Fallback
+  return synthesizeMateriaMedicaOffline(symptomQuery);
 }
 
