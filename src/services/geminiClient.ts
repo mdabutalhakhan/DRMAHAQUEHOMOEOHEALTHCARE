@@ -50,51 +50,60 @@ export function getGeminiApiKey(): string {
 }
 
 export const CANDIDATE_MODELS = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest'];
-export const STABLE_GEMINI_MODEL = CANDIDATE_MODELS[0];
-export const FALLBACK_GEMINI_MODEL = CANDIDATE_MODELS[1];
+export const STABLE_GEMINI_MODEL = 'gemini-1.5-flash';
 
 /**
- * Builds the authoritative clinical prompt for Dr. M. A. Haque, M.D. (Homoeo)
+ * Builds a concise, token-optimized clinical homoeopathic consultation prompt.
+ * Pruned to prevent token overflows while preserving rich clinical precision.
  */
-export function buildClinicalConsultPrompt(symptoms: string, modalities?: string, system?: string): string {
-  return `You are an expert homoeopathic consultant assisting Dr. M. A. Haque, M.D. (Homoeo) at "Homoeo Health Care" clinic.
-When evaluating the patient's symptoms, provide 4 Classical Simillimum remedies (Kent/Boericke) AND at least 5-6 premier commercial patent combinations specifically from Bakson's, Dr. Reckeweg (Germany), SBL, Adel Pekana (Germany), Wheezal, Schwabe, Medisynth, Allen, and Lord's with exact commercial names and bottle sizes.
+export function buildClinicalConsultPrompt(
+  symptoms: string,
+  modalities?: string,
+  system?: string
+): string {
+  return `You are a homeopathic clinical decision assistant for Dr. M. A. Haque, M.D. (Homoeo) at "Homoeo Health Care".
+Analyze the patient presentation (English or Bengali).
 
-PATIENT PRESENTATION:
-- Chief Symptoms: ${symptoms}
-- Modalities: ${modalities || 'Standard acute/chronic homoeopathic modalities'}
-- Affected System: ${system || 'General / Multi-system'}
+Patient Symptoms: ${symptoms.trim()}
+${modalities ? `Modalities: ${modalities.trim()}` : ''}
+${system ? `Affected System: ${system.trim()}` : ''}
 
-Provide your response in structured JSON format with:
-1. "analysis_summary": Brief clinical summary of the miasmatic, pathological, and therapeutic picture.
-2. "remedies": Array of exactly 4 Classical Simillimum homoeopathic remedies (Kent/Boericke), each having:
-   - "remedy_name" (e.g. Berberis Vulgaris, Rhus Toxicodendron, Bryonia Alba, Lycopodium Clavatum, Nux Vomica)
-   - "common_name"
-   - "potency" (e.g. 30C, 200C, 1M, Q)
-   - "dosage" (e.g. 4 pills 3 times daily or 10-15 drops in water)
-   - "key_indications" (array of 3 specific keynote symptoms)
-   - "materia_medica_notes" (concise authentic Materia Medica reference)
-   - "modalities": { "worse": string, "better": string }
-3. "patent_formulations": Array of at least 5-6 renowned commercial patent combinations from Bakson's, Dr. Reckeweg, SBL, Adel Pekana, Wheezal, Schwabe, Medisynth, Allen, and Lord's, each having:
-   - "name": full commercial product name
-   - "brand": exact brand ("Bakson's", "Dr. Reckeweg", "SBL", "Adel", "Wheezal", "Schwabe", "Medisynth", "Allen", "Lord's")
-   - "company": manufacturer name
-   - "bottle_size": package form (e.g. "30 ml Drops", "22 ml Drops", "115 ml Syrup", "20g Tablets")
-   - "indications": clinical indication and therapeutic scope
-   - "dosage": recommended dosage
-   - "mrp": approximate MRP in INR (number)
-   - "aliases": array of 3-4 lowercase search keywords or brand codes (e.g. ["calculi aid", "b16", "bakson calculi"])
-4. "repertory_keynotes": Array of relevant Kent/Boericke rubrics.
-5. "diet_and_regimen": Homoeopathic regimen instructions (e.g. hydration, specific foods to avoid, antidotes).
-6. "warning_notes": Clinical safety and investigation advice.`;
+Respond ONLY with valid JSON conforming to:
+{
+  "analysis_summary": "Concise miasmatic and clinical summary in 1-2 sentences",
+  "remedies": [
+    {
+      "remedy_name": "Remedy Name (e.g. Rhododendron)",
+      "common_name": "Common English Name",
+      "potency": "30C or 200C",
+      "dosage": "4 pills twice daily",
+      "key_indications": ["Keynote 1", "Keynote 2"],
+      "materia_medica_notes": "Boericke/Kent keynote",
+      "modalities": { "worse": "aggravating factors", "better": "ameliorating factors" }
+    }
+  ],
+  "patent_formulations": [
+    {
+      "name": "Full Commercial Product Name (e.g. Dr. Reckeweg R16)",
+      "brand": "Brand (Dr. Reckeweg, Bakson's, SBL, Adel, Wheezal, Schwabe, Medisynth)",
+      "company": "Manufacturer Name",
+      "bottle_size": "22 ml Drops or 115 ml Syrup",
+      "indications": "Clinical therapeutic scope",
+      "dosage": "10-15 drops in water 3 times daily",
+      "mrp": 250,
+      "aliases": ["r16", "reckeweg 16"]
+    }
+  ],
+  "diet_and_regimen": "Dietary instructions (e.g. avoid raw onion/camphor)",
+  "warning_notes": "Clinical red flags or diagnostic tests"
+}
+Provide 3-4 classical remedies and 4-6 patent formulations.`;
 }
 
 /**
- * Direct Frontend Gemini Client REST Call with Resilient Multi-Model Fallback Cascade.
- * FIXES GEMINI 404 "Requested entity was not found":
- * - Iterates through CANDIDATE_MODELS in sequence: ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
- * - If a model returns 404, automatically cascades to the next candidate model without throwing.
- * - Passes the API key strictly as a URL query parameter: ?key=${apiKey} (strictly NO Authorization header to prevent OAuth 401).
+ * Direct Frontend Gemini Client REST Call.
+ * Uses candidate models cascade:
+ * https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}
  */
 export async function callGeminiAPI(
   symptoms: string,
@@ -109,13 +118,10 @@ export async function callGeminiAPI(
   ).trim();
 
   if (!apiKey) {
-    throw new Error('Gemini API Key missing in environment');
+    throw new Error('Gemini API key not found in environment');
   }
 
   const promptText = buildClinicalConsultPrompt(symptoms, modalities, system);
-
-  let lastError: any = null;
-  let parsedResult: any = null;
 
   for (const model of CANDIDATE_MODELS) {
     try {
@@ -133,30 +139,27 @@ export async function callGeminiAPI(
       });
 
       if (res.status === 404) {
-        console.warn(`Model ${model} not found (404), trying next model...`);
+        console.warn(`Model ${model} returned 404, attempting alternative model...`);
         continue;
       }
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error?.message || `Error ${res.status}`);
+        throw new Error(data.error?.message || `HTTP ${res.status}`);
       }
 
       let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
       rawText = rawText.replace(/```json/gi, '').replace(/```/gi, '').trim();
-      parsedResult = JSON.parse(rawText);
-      if (parsedResult) break; // Successfully parsed!
+      const parsed = JSON.parse(rawText);
+      if (parsed && (parsed.remedies || parsed.patent_formulations)) {
+        return parsed as ClinicalGeminiConsultResponse;
+      }
     } catch (err: any) {
-      lastError = err;
-      console.warn(`Gemini attempt with ${model} failed:`, err.message);
+      console.warn(`Gemini attempt with ${model} error:`, err.message);
     }
   }
 
-  if (!parsedResult) {
-    throw lastError || new Error('Unable to connect to Gemini models');
-  }
-
-  return parsedResult as ClinicalGeminiConsultResponse;
+  throw new Error('Gemini API service unavailable or invalid response structure');
 }
 
 export const callGeminiDirectlyFromClient = callGeminiAPI;

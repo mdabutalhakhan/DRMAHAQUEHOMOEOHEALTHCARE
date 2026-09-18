@@ -53,6 +53,8 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>('all');
   const [consultSource, setConsultSource] = useState<'repertory' | 'gemini'>('repertory');
   const [errorMsg, setErrorMsg] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchedQuery, setSearchedQuery] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
 
   const showToast = (message: string, type: 'error' | 'success' | 'info' = 'info') => {
@@ -314,6 +316,8 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
 
     setErrorMsg('');
     setLoading(true);
+    setHasSearched(true);
+    setSearchedQuery(query);
 
     try {
       let match = findRepertoryMatch(query);
@@ -324,6 +328,9 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       setConsultSource('repertory');
       setSelectedBrandFilter('all');
       setErrorMsg('');
+      if (match) {
+        showToast('Clinical repertory condition matched.', 'success');
+      }
     } catch (err) {
       console.error('Repertory analysis error, activating offline engine:', err);
       const fallback = synthesizeMateriaMedicaOffline(query);
@@ -355,6 +362,8 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
 
     setErrorMsg('');
     setIsAiLoading(true);
+    setHasSearched(true);
+    setSearchedQuery(query);
 
     try {
       if (!apiKey) {
@@ -443,13 +452,18 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       showToast('Gemini AI consultation completed successfully.', 'success');
     } catch (err: any) {
       console.warn('Gemini API unavailable or offline, activating Boericke/Kent Emergency Repertory Engine:', err);
-      // Fail-safe: Zero-dependency dynamic Materia Medica synthesis
-      const offlineCondition = synthesizeMateriaMedicaOffline(query);
+      // Fail-safe: Try verified offline repertory match first, then organ-sensation synthesis
+      let offlineCondition = findRepertoryMatch(query);
+      if (!offlineCondition) {
+        offlineCondition = synthesizeMateriaMedicaOffline(query);
+      }
       setSelectedCondition(offlineCondition);
       setConsultSource('repertory');
       setSelectedBrandFilter('all');
       setErrorMsg('');
-      showToast('Materia Medica Offline Engine Active: Boericke & Kent protocol synthesized.', 'info');
+      if (offlineCondition) {
+        showToast('Materia Medica Offline Engine Active: Boericke & Kent protocol synthesized.', 'info');
+      }
     } finally {
       setIsAiLoading(false);
     }
@@ -661,18 +675,18 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             Quick Repertory:
           </span>
           {[
+            { label: 'Hydrocele / হাইড্রোসিল', query: 'হাইড্রোসিল অণ্ডকোষ বৃদ্ধি hydrocele scrotum' },
+            { label: 'Piles / অর্শ', query: 'অর্শ পাইলস bleeding piles haemorrhoids' },
+            { label: 'Fissure / এনাল ফিসার', query: 'এনাল ফিসার মলদ্বারে তীব্র জ্বালা কাটা ব্যথা anal fissure' },
+            { label: 'Hair Fall / চুল পড়া', query: 'চুল পড়া alopecia hair loss dandruff' },
+            { label: 'Tonsillitis / টনসিল', query: 'টনসিল টনসিলাইটিস গলা ব্যথা tonsillitis sore throat' },
+            { label: 'Asthma / হাঁপানি', query: 'হাঁপানি শ্বাসকষ্ট bronchial asthma wheezing' },
+            { label: 'Ringworm / দাদ', query: 'দাদ ringworm tinea fungal rash' },
+            { label: 'Corns & Warts / কড়া ও আঁচিল', query: 'পায়ের কড়া আঁচিল corns warts verruca' },
             { label: 'Fish Bone / গলায় কাঁটা', query: 'গলায় কাঁটা মাছের কাঁটা fish bone in throat' },
-            { label: 'Corn / পায়ের কড়া', query: 'পায়ের কড়া corn callus' },
-            { label: 'Stye / চোখে অঞ্জনি', query: 'চোখে অঞ্জনি stye hordeolum' },
-            { label: 'Tingling / অবশ ও ঝিনঝিন', query: 'হাত-পা অবশ ও ঝিনঝিন numbness tingling' },
-            { label: 'Cramp / পেশির খিল ধরা', query: 'পেশির টান ও খিল ধরা muscle cramp spasm colic' },
-            { label: 'Burning / জ্বালাপোড়া', query: 'শরীরে ও পেটে তীব্র জ্বালা burning heat' },
-            { label: 'Vomiting / বমি', query: 'vomiting nausea বমি retching' },
-            { label: 'Fever / জ্বর', query: 'fever pyrexia chills' },
-            { label: 'Dysentery / আমাশয়', query: 'dysentery mucus stool colic' },
-            { label: 'Sciatica / সায়াটিকা', query: 'sciatica lower back to leg shooting pain' },
-            { label: 'Arthritis & Knee / বাত', query: 'arthritis knee pain joint morning stiffness' },
             { label: 'Kidney Stone / পাথর', query: 'kidney stone renal calculus right flank' },
+            { label: 'Sciatica / সায়াটিকা', query: 'sciatica lower back to leg shooting pain' },
+            { label: 'Arthritis / বাত', query: 'arthritis knee pain joint morning stiffness' },
             { label: 'Acidity / এসিডিটি', query: 'acidity gas heartburn sour eructation' },
           ].map((chip, idx) => (
             <button
@@ -719,6 +733,60 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Informative Guidance Banner when No Exact Simillimum is Found */}
+      {hasSearched && !selectedCondition && !loading && !isAiLoading && (
+        <div className="p-6 rounded-3xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 shadow-sm space-y-4 animate-in fade-in duration-200">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 shrink-0">
+              <Stethoscope className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-amber-900 dark:text-amber-200">
+                No Specific Clinical Repertory Simillimum Found for &ldquo;{searchedQuery}&rdquo;
+              </h3>
+              <p className="text-xs sm:text-sm text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+                অনুগ্রহ করে রোগীর সুনির্দিষ্ট অঙ্গ (Anatomical Location) অথবা লক্ষণ (Clinical Sensation/Modality) উল্লেখ করুন।
+                হোমিওপ্যাথিক মূলনীতি অনুযায়ী অনুমানমূলক বা জেনেরিক ওষুধ প্রেসক্রাইব করা কঠোরভাবে অনুচিত।
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-amber-200/70 dark:border-amber-800/40 text-xs space-y-3">
+            <p className="font-semibold text-slate-700 dark:text-slate-200">
+              Try searching with clinical organ keywords or common pathology rubrics:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'Hydrocele / অণ্ডকোষ বৃদ্ধি', query: 'হাইড্রোসিল অণ্ডকোষ বৃদ্ধি' },
+                { label: 'Piles / অর্শ', query: 'অর্শ পাইলস রক্তক্ষরণ' },
+                { label: 'Anal Fissure / এনাল ফিসার', query: 'এনাল ফিসার মলদ্বারে তীব্র জ্বালা' },
+                { label: 'Hair Fall / চুল পড়া', query: 'চুল পড়া alopecia' },
+                { label: 'Tonsillitis / টনসিল', query: 'টনসিল গলা ব্যথা tonsillitis' },
+                { label: 'Asthma / হাঁপানি', query: 'হাঁপানি শ্বাসকষ্ট asthma' },
+                { label: 'Ringworm / দাদ', query: 'দাদ ringworm tinea' },
+                { label: 'Corns & Warts / কড়া ও আঁচিল', query: 'পায়ের কড়া আঁচিল corn wart' },
+                { label: 'Throat & Foreign Body / গলায় কাঁটা', query: 'গলায় কাঁটা fish bone in throat' },
+                { label: 'Kidney Stone / কিডনির পাথর', query: 'kidney stone renal calculi' },
+                { label: 'Sciatica / সায়াটিকা', query: 'সায়াটিকা sciatica pain' },
+                { label: 'Arthritis / বাত ব্যথা', query: 'বাত ব্যথা arthritis knee pain' },
+              ].map((rec, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    setSymptoms(rec.query);
+                    handleAnalyze(rec.query);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-amber-100/70 hover:bg-amber-200 dark:bg-slate-700 dark:hover:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-slate-600 text-xs font-medium transition cursor-pointer"
+                >
+                  {rec.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Results Container: Dual-Tier Output */}
       {selectedCondition && (

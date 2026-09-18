@@ -1,3 +1,7 @@
+import { EXPANDED_CLINICAL_CONDITIONS } from './expandedClinicalConditions';
+import { ADDITIONAL_CLINICAL_CONDITIONS } from './additionalClinicalConditions';
+import { synthesizeMateriaMedicaOffline } from '../services/materiaMedicaEngine';
+
 export interface ClassicalRemedy {
   name: string;
   commonName: string;
@@ -3034,7 +3038,9 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
     ],
     dietAndRegimen: 'Drink warm water, lukewarm honey-lemon water, or soft boiled rice. Avoid hard dry crusts, chips, sharp crunchy snacks, and very cold drinks that aggravate throat spasm.',
     warningNotes: 'If persistent foreign body sensation with breathing difficulty, acute stridor, or active bleeding occurs, seek immediate laryngoscopy/ENT examination for direct foreign body extraction.'
-  }
+  },
+  ...EXPANDED_CLINICAL_CONDITIONS,
+  ...ADDITIONAL_CLINICAL_CONDITIONS
 ];
 
 /**
@@ -3407,9 +3413,6 @@ function buildDynamicCondition(symptomQuery: string): ClinicalCondition | null {
   // Strictly no generic Belladonna/Nux Vomica fallback.
   return null;
 }
-
-
-import { synthesizeMateriaMedicaOffline } from '../services/materiaMedicaEngine';
 
 export function findRepertoryMatch(symptomQuery: string): ClinicalCondition | null {
   const query = (symptomQuery || '').toLowerCase().trim();

@@ -1263,136 +1263,10 @@ function getOrganDefaultCondition(organ: OrganDefinition, rawQuery: string): Cli
 }
 
 /**
- * Fallback Polychrest Constitutional Synthesis when no specific organ or sensation is identified.
- * Utilizes Boericke & Kent's leading constitutional remedies (Arnica, Bryonia, Rhus Tox, Nux Vomica, Sulphur).
- */
-function getPolychrestConstitutionalCondition(rawQuery: string): ClinicalCondition {
-  return {
-    id: `polychrest-materia-medica-${Date.now()}`,
-    nameEn: 'Clinical Repertory Matching (Boericke & Kent Materia Medica Protocol)',
-    nameBn: 'বোয়েরিক ও কেন্ট রেপার্টরি ম্যাটারিয়া মেডিকা প্রোটোকল',
-    chipLabel: 'Materia Medica Offline Engine Active',
-    pathology: `Constitutional Polychrest Repertorization for: ${rawQuery}`,
-    miasm: 'Constitutional Polychrest Evaluation (Hahnemannian Miasmatic Base)',
-    typicalPresentation: rawQuery,
-    keywords: [rawQuery],
-    classicalRemedies: [
-      {
-        name: 'Arnica Montana 200C',
-        commonName: 'Leopard’s Bane',
-        potency: '200C',
-        dosage: '4 pills twice daily in water',
-        keynotes: [
-          'Master remedy for bruised, sore, lame feeling all over body; bed feels too hard',
-          'Ailments from mechanical trauma, physical overexertion, sprains, or vascular extravasation',
-          'Fear of being touched or approached due to tenderness of parts'
-        ],
-        materiaMedicaNotes: 'Boericke: Traumatism in all its forms. Bruised, lame, sore feeling throughout the body. Bed feels too hard.',
-        modalities: { worse: 'Least touch, motion, damp cold', better: 'Lying down with head low' },
-        aliases: ['arnica', 'arnica montana', 'arnica 200c']
-      },
-      {
-        name: 'Bryonia Alba 30C',
-        commonName: 'White Bryony',
-        potency: '30C',
-        dosage: '4 pills 3 times daily',
-        keynotes: [
-          'Dryness of all mucous membranes with intense thirst for large quantities of water',
-          'Sharp stitching pains, severely aggravated by the slightest motion, relieved by absolute rest and firm pressure',
-          'Irritable, worried about business affairs'
-        ],
-        materiaMedicaNotes: 'Kent: Sharp stitching pains; worse on least movement; better lying on painful side and keeping absolutely quiet.',
-        modalities: { worse: 'Any motion, exertion, morning, warmth', better: 'Lying on painful side, absolute rest, cold drinks' },
-        aliases: ['bryonia', 'bryonia alba', 'bry']
-      },
-      {
-        name: 'Rhus Toxicodendron 200C',
-        commonName: 'Poison Ivy',
-        potency: '200C',
-        dosage: '4 pills twice daily',
-        keynotes: [
-          'Stiffness and aching, worst at first movement after rest, distinctly relieved by continued gentle motion',
-          'Physical restlessness, constantly shifting position in bed',
-          'Aggravated by damp, rainy weather and cold drafts'
-        ],
-        materiaMedicaNotes: 'Boericke: Great key: worse on beginning to move, better on continued motion. Relieved by warmth and dry weather.',
-        modalities: { worse: 'Initial motion, rest, cold damp weather', better: 'Continued motion, warmth, dry weather' },
-        aliases: ['rhus tox', 'rhus']
-      },
-      {
-        name: 'Nux Vomica 30C',
-        commonName: 'Poison Nut',
-        potency: '30C',
-        dosage: '4 pills at bedtime',
-        keynotes: [
-          'Supreme remedy for metabolic and digestive disharmony from sedentary lifestyle and stimulants',
-          'Oversensitive to light, noise, odors, and cold air; irritable temperament',
-          'Gastric heaviness, sour eructations, ineffectual urging for stool'
-        ],
-        materiaMedicaNotes: 'Kent: Nervous, irritable, over-sensitive patients. Sedentary habits, high living, digestive derangements.',
-        modalities: { worse: 'Morning, mental exertion, cold air, rich food', better: 'Evening, rest, warm drinks' },
-        aliases: ['nux vomica', 'nux vom']
-      },
-      {
-        name: 'Sulphur 200C',
-        commonName: 'Sublimed Sulphur',
-        potency: '200C',
-        dosage: '4 pills once weekly in morning',
-        keynotes: [
-          'Great anti-psoric king of constitutional chronic ailments; clears metabolic sluggishness',
-          'Burning sensations (soles of feet at night, palms, vertex of head)',
-          'Standing is the most uncomfortable posture; sinks at stomach at 11 AM'
-        ],
-        materiaMedicaNotes: 'Kent: The King of Anti-Psorics. When carefully selected remedies fail to produce expected relief, Sulphur clears the reactive vital force.',
-        modalities: { worse: 'Warmth of bed, washing, standing, 11 AM', better: 'Dry warm weather' },
-        aliases: ['sulphur', 'sulphur 200c']
-      }
-    ],
-    patentFormulations: [
-      {
-        name: 'Dr. Reckeweg R1 (Biological Inflammation Drops)',
-        brand: 'Dr. Reckeweg',
-        company: 'Dr. Reckeweg & Co (Germany)',
-        country: 'Germany',
-        bottleSize: '22 ml Drops',
-        indications: 'Universal broad-spectrum biological complex for acute and chronic tissue inflammation and cellular recovery.',
-        dosage: '10-15 drops in water 3 times daily.',
-        mrp: 310,
-        aliases: ['r1', 'r-1', 'reckeweg 1', 'dr reckeweg r1']
-      },
-      {
-        name: 'Bakson Biochemic BC-1 (Calcarea Fluorica & Ferrum Phos Complex)',
-        brand: "Bakson's",
-        company: 'Bakson Drugs & Pharmaceuticals',
-        country: 'India',
-        bottleSize: '25g Tablets',
-        indications: 'Universal tissue cell restorative for inflammatory irritation, cellular vitality, and muscular tone.',
-        dosage: '4 tablets dissolved in warm water 3 times daily.',
-        mrp: 130,
-        aliases: ['bc-1', 'bakson bc-1']
-      },
-      {
-        name: 'SBL Alfalfa Tonic',
-        brand: 'SBL',
-        company: 'SBL Pvt Ltd',
-        country: 'India',
-        bottleSize: '115 ml Syrup',
-        indications: 'Comprehensive vitality tonic to restore physical stamina, appetite, and constitutional defense.',
-        dosage: '1-2 teaspoonfuls twice daily before meals.',
-        mrp: 150,
-        aliases: ['alfalfa', 'sbl alfalfa tonic']
-      }
-    ],
-    dietAndRegimen: 'Sip warm water. Maintain light, nourishing home-cooked meals. Avoid camphor, raw garlic, raw onions, and menthol during homoeopathic remedy action.',
-    warningNotes: 'Constitutional decision-support protocol for Dr. M. A. Haque, M.D. (Homoeo). Correlate with physical examination.'
-  };
-}
-
-/**
  * Zero-Dependency Multi-Layer NLP Organ & Sensation Parser & Repertory Synthesis.
  * Works 100% offline without any API dependency.
  */
-export function synthesizeMateriaMedicaOffline(rawQuery: string): ClinicalCondition {
+export function synthesizeMateriaMedicaOffline(rawQuery: string): ClinicalCondition | null {
   const query = (rawQuery || '').toLowerCase().trim();
 
   // 1. Scan for Specific Clinical Sensations & Pathologies (Highest clinical priority)
@@ -1438,6 +1312,7 @@ export function synthesizeMateriaMedicaOffline(rawQuery: string): ClinicalCondit
   }
 
   // 3. If no specific organ or sensation isolated:
-  // Select the leading Constitutional Polychrest remedies matching general modalities (Arnica, Bryonia, Rhus Tox, Nux Vomica, Sulphur)
-  return getPolychrestConstitutionalCondition(rawQuery);
+  // Strictly return null so that the UI can guide the clinician with organ-specific rubric assistance
+  // rather than returning unindividualized random polychrest medicines.
+  return null;
 }
