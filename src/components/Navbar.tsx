@@ -5,12 +5,7 @@ import {
   Phone, 
   UserCheck, 
   LogOut, 
-  LayoutDashboard, 
-  CalendarCheck, 
-  Stethoscope, 
-  ShieldAlert,
-  Search,
-  BookOpen
+  LayoutDashboard
 } from 'lucide-react';
 import { ClinicLogo } from './ClinicLogo';
 import { UserProfile } from '../types';
@@ -85,26 +80,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
             )}
-          </button>
-
-          {/* Quick Materia Medica Explorer Button */}
-          <button
-            id="btn-nav-materia-medica"
-            onClick={() => {
-              sessionStorage.setItem('hhc_active_tab', 'materia-medica');
-              window.location.hash = '#materia-medica';
-              if (currentUser) {
-                setCurrentView('dashboard');
-              } else {
-                onOpenLogin();
-              }
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors cursor-pointer"
-            title="Materia Medica Explorer (ঔষধ সহায়িকা)"
-          >
-            <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-700 dark:text-emerald-400" />
-            <span className="hidden md:inline">Materia Medica</span>
-            <span className="md:hidden">ঔষধ</span>
           </button>
 
           {/* Authentication / Dashboard state */}
