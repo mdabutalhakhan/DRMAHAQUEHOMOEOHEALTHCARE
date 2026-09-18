@@ -14,12 +14,14 @@ import {
   X,
   FolderClock,
   Camera,
-  TrendingUp
+  TrendingUp,
+  BookOpen
 } from 'lucide-react';
 import { Appointment, Invoice, UserProfile } from '../types';
 import { QueueManager } from './QueueManager';
 import { InventoryManager } from './InventoryManager';
 import { AIConsultant } from './AIConsultant';
+import { MateriaMedicaExplorer } from './MateriaMedicaExplorer';
 import { InvoiceGenerator } from './InvoiceGenerator';
 import { ConsultationModal } from './ConsultationModal';
 import { TeamManagement } from './TeamManagement';
@@ -39,12 +41,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onReturnToHome,
 }) => {
   // Persist and restore active tab from URL hash or sessionStorage
-  const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'ai' | 'billing' | 'sales' | 'patients' | 'team' | 'settings'>(() => {
+  const [activeTab, setActiveTab] = useState<'queue' | 'inventory' | 'materia-medica' | 'ai' | 'billing' | 'sales' | 'patients' | 'team' | 'settings'>(() => {
     if (typeof window === 'undefined') return 'queue';
 
     // 1. Check URL hash first
     const hash = window.location.hash.toLowerCase().replace('#', '');
     if (hash === 'inventory') return 'inventory';
+    if (hash === 'materia-medica' || hash === 'materia' || hash === 'encyclopedia') return 'materia-medica';
     if (hash === 'billing') return 'billing';
     if (hash === 'sales' || hash === 'sales-summary' || hash === 'revenue') return 'sales';
     if (hash === 'patients' || hash === 'history' || hash === 'patients-history') return 'patients';
@@ -55,7 +58,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
     // 2. Check sessionStorage
     const saved = sessionStorage.getItem('hhc_active_tab') as any;
-    if (saved && ['queue', 'inventory', 'ai', 'billing', 'sales', 'patients', 'team', 'settings'].includes(saved)) {
+    if (saved && ['queue', 'inventory', 'materia-medica', 'ai', 'billing', 'sales', 'patients', 'team', 'settings'].includes(saved)) {
       if ((saved === 'team' || saved === 'settings') && currentUser.role !== 'admin') {
         return 'queue';
       }
@@ -81,6 +84,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const handleHashChange = () => {
       const hash = window.location.hash.toLowerCase().replace('#', '');
       if (hash === 'inventory') setActiveTab('inventory');
+      else if (hash === 'materia-medica' || hash === 'materia' || hash === 'encyclopedia') setActiveTab('materia-medica');
       else if (hash === 'billing') setActiveTab('billing');
       else if (hash === 'sales' || hash === 'sales-summary' || hash === 'revenue') setActiveTab('sales');
       else if (hash === 'patients' || hash === 'history' || hash === 'patients-history') setActiveTab('patients');
@@ -149,6 +153,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
       shortLabel: 'Inventory',
       icon: Boxes,
       description: 'Potency, dilutions, mother tinctures & stock alerts'
+    },
+    {
+      id: 'materia-medica' as const,
+      label: 'Materia Medica (ঔষধ সহায়িকা)',
+      shortLabel: 'Materia Medica',
+      icon: BookOpen,
+      description: '500+ remedies encyclopedia, keynotes, modalities & bilingual profiles'
     },
     {
       id: 'ai' as const,
@@ -429,6 +440,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {activeTab === 'inventory' && (
           <InventoryManager currentUser={currentUser} />
+        )}
+
+        {activeTab === 'materia-medica' && (
+          <MateriaMedicaExplorer
+            onAddRemedyToBilling={(remedyName) => {
+              setActiveTab('billing');
+            }}
+            onNavigateToInventory={(medicineName) => {
+              setActiveTab('inventory');
+            }}
+          />
         )}
 
         {activeTab === 'ai' && (

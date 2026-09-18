@@ -1,6 +1,14 @@
 import { EXPANDED_CLINICAL_CONDITIONS } from './expandedClinicalConditions';
 import { ADDITIONAL_CLINICAL_CONDITIONS } from './additionalClinicalConditions';
 import { synthesizeMateriaMedicaOffline } from '../services/materiaMedicaEngine';
+import { MALE_GENITO_URINARY_CONDITIONS } from './rubrics/maleGenitoUrinary';
+import { DIGESTIVE_RECTAL_CONDITIONS } from './rubrics/digestiveRectal';
+import { RESPIRATORY_THROAT_CONDITIONS } from './rubrics/respiratoryThroat';
+import { DERMATOLOGY_HAIR_CONDITIONS } from './rubrics/dermatologyHair';
+import { MUSCULOSKELETAL_CONDITIONS } from './rubrics/musculoskeletal';
+import { NEUROLOGICAL_CONDITIONS } from './rubrics/neurological';
+import { FEMALE_HORMONAL_CONDITIONS } from './rubrics/femaleHormonal';
+import { FEVER_SYSTEMIC_CONDITIONS } from './rubrics/feverSystemic';
 
 export interface ClassicalRemedy {
   name: string;
@@ -44,6 +52,14 @@ export interface ClinicalCondition {
 }
 
 export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
+  ...MALE_GENITO_URINARY_CONDITIONS,
+  ...DIGESTIVE_RECTAL_CONDITIONS,
+  ...RESPIRATORY_THROAT_CONDITIONS,
+  ...DERMATOLOGY_HAIR_CONDITIONS,
+  ...MUSCULOSKELETAL_CONDITIONS,
+  ...NEUROLOGICAL_CONDITIONS,
+  ...FEMALE_HORMONAL_CONDITIONS,
+  ...FEVER_SYSTEMIC_CONDITIONS,
   {
     id: 'kidney-stone',
     nameEn: 'Kidney Stone / Renal Calculi',

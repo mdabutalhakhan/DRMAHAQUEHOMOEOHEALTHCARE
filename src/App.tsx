@@ -36,7 +36,7 @@ export default function App() {
     const hash = window.location.hash.toLowerCase().replace('#', '');
     if (hash === 'tracker') return 'tracker';
 
-    const dashboardTabs = ['queue', 'inventory', 'billing', 'ai', 'ai-consultant', 'team', 'dashboard'];
+    const dashboardTabs = ['queue', 'inventory', 'materia-medica', 'materia', 'encyclopedia', 'billing', 'sales', 'patients', 'ai', 'ai-consultant', 'team', 'settings', 'dashboard'];
     const user = getCurrentUser();
 
     if (dashboardTabs.includes(hash)) {
@@ -73,7 +73,7 @@ export default function App() {
       }
     } else if (currentView === 'dashboard') {
       const hash = window.location.hash.toLowerCase().replace('#', '');
-      const dashboardTabs = ['queue', 'inventory', 'billing', 'ai', 'ai-consultant', 'team'];
+      const dashboardTabs = ['queue', 'inventory', 'materia-medica', 'materia', 'encyclopedia', 'billing', 'sales', 'patients', 'ai', 'ai-consultant', 'team', 'settings'];
       if (!dashboardTabs.includes(hash)) {
         const savedTab = sessionStorage.getItem('hhc_active_tab') || 'queue';
         const hashTarget = savedTab === 'ai' ? 'ai-consultant' : savedTab;
@@ -94,7 +94,7 @@ export default function App() {
           setCurrentView('home');
         }
       } else {
-        const dashboardTabs = ['queue', 'inventory', 'billing', 'ai', 'ai-consultant', 'team', 'dashboard'];
+        const dashboardTabs = ['queue', 'inventory', 'materia-medica', 'materia', 'encyclopedia', 'billing', 'sales', 'patients', 'ai', 'ai-consultant', 'team', 'settings', 'dashboard'];
         if (dashboardTabs.includes(hash) && currentUser) {
           setCurrentView('dashboard');
         }
