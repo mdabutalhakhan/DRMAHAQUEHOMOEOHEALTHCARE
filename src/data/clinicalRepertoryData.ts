@@ -2384,55 +2384,306 @@ export const CLINICAL_REPERTORY_DATABASE: ClinicalCondition[] = [
     ],
     dietAndRegimen: 'Eat frequent small, freshly cooked warm meals. Include ginger water, cumin decoction, and fresh seasonal fruits. Avoid excess cold sodas, greasy fried snacks, and irregular snacking.',
     warningNotes: 'If loss of appetite persists with unprovoked significant weight loss or pale conjunctiva, check Complete Blood Count (CBC) and ESR to rule out occult systemic pathology.'
+  },
+  {
+    id: 'vomiting-nausea',
+    nameEn: 'Vomiting, Nausea & Gastric Regurgitation',
+    nameBn: 'বমি, বমি বমি ভাব ও পাকস্থলীর অস্বস্তি',
+    chipLabel: 'Vomiting / বমি',
+    pathology: 'Acute Gastritis, Dyspepsia, Motion Sickness, Hyperemesis & Gastro-esophageal Reflux',
+    miasm: 'Psoric Gastric Catarrh with Spasmodic Vomiting Diathesis',
+    typicalPresentation: 'Persistent nausea, vomiting of food or bile, retching, cold sweat, motion sickness and gastric irritation',
+    keywords: [
+      'vomiting', 'nausea', 'vomit', 'emesis', 'retching', 'hyperemesis', 'morning sickness',
+      'motion sickness', 'sick to stomach', 'throw up', 'throwing up', 'nauseous',
+      // Bengali
+      'বমি', 'বমি বমি ভাব', 'বমি হওয়া', 'বমি হওয়া', 'বমিভাব', 'গা গুলানো', 'অতিরিক্ত বমি', 'বমি ও পেটের সমস্যা'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Ipecacuanha 30C',
+        commonName: 'Ipecac Root',
+        potency: '30C',
+        dosage: '4 pills every 2-3 hours during acute nausea and vomiting',
+        keynotes: [
+          'Persistent nausea, clean tongue with unyielding desire to vomit',
+          'Vomiting does not relieve the nausea; constant distress in stomach',
+          'Profuse salivation, thirstlessness, vomiting of white glairy mucus or ingested food'
+        ],
+        materiaMedicaNotes: 'Boericke: Incessant, violent nausea and vomiting with clean, uncoated tongue. Nausea not relieved by vomiting.',
+        modalities: {
+          worse: 'Warm room, periodic, lying down, rich food',
+          better: 'Open air, resting quietly'
+        },
+        aliases: ['ipecac', 'ipecacuanha', 'ipecacuanha 30c']
+      },
+      {
+        name: 'Arsenicum Album 30C',
+        commonName: 'White Oxide of Arsenic',
+        potency: '30C',
+        dosage: '4 pills 3 times daily in water',
+        keynotes: [
+          'Vomiting with burning thirst, immediately after eating or drinking the least food or water',
+          'Burning pains in epigastrium temporarily relieved by warm drinks or warmth',
+          'Rapid prostration, great anxiety, restlessness, and fear of death'
+        ],
+        materiaMedicaNotes: 'Kent: Intense burning in stomach, vomiting provoked by the slightest sip of water. Great thirst for frequent sips of warm water.',
+        modalities: {
+          worse: 'Cold drinks, midnight (1-2 AM), sight or smell of food',
+          better: 'Warm drinks, heat, warm room'
+        },
+        aliases: ['arsenicum', 'arsenicum album', 'ars alb', 'arsenicum album 30c']
+      },
+      {
+        name: 'Tabacum 30C',
+        commonName: 'Tobacco',
+        potency: '30C',
+        dosage: '4 drops in water during acute motion sickness or nausea',
+        keynotes: [
+          'Deathly nausea and violent vomiting with cold sweat, particularly on forehead',
+          'Motion sickness, car sickness, sea sickness with pale sunken face and faintness',
+          'Uncovering the abdomen and exposing body to cool fresh open air brings marked relief'
+        ],
+        materiaMedicaNotes: 'Boericke: Incessant nausea, vomiting with deathly pallor and cold clammy sweat. Ameliorated by cool open air and uncovering belly.',
+        modalities: {
+          worse: 'Motion, warmth, opening eyes, smell of tobacco',
+          better: 'Fresh cold open air, uncovering abdomen'
+        },
+        aliases: ['tabacum', 'tabacum 30c', 'tabac']
+      },
+      {
+        name: 'Nux Vomica 30C',
+        commonName: 'Poison Nut',
+        potency: '30C',
+        dosage: '4 pills twice daily, especially at night and early morning',
+        keynotes: [
+          'Ineffectual retching, constant nausea; feelings that if one could only vomit one would feel better',
+          'Vomiting from dietary indiscretions, rich spicy foods, coffee, alcohol, or gastric overload',
+          'Hypersensitive, chilly, irritable disposition with sour bitter eructations'
+        ],
+        materiaMedicaNotes: 'Kent: The patient gags and retches ineffectually in the morning. Great gastric distress relieved after vomiting occurs.',
+        modalities: {
+          worse: 'Morning, after eating, cold air, mental strain',
+          better: 'Warmth, rest, momentary relief after vomiting'
+        },
+        aliases: ['nux vomica', 'nux', 'nux vomica 30c']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R52 (Vomiting / Gastric Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Nausea, vomiting, morning sickness of pregnancy, sea sickness, nervous gastropathy and pylorospasm.',
+        dosage: '10-15 drops in water every 1-2 hours in acute vomiting; reduce to 3 times daily before meals.',
+        mrp: 310,
+        aliases: ['r52', 'r-52', 'reckeweg 52', 'dr reckeweg r52', 'vomiting drops']
+      },
+      {
+        name: 'Bakson Gastro Aid',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '115 ml Syrup / 75 Tablets',
+        indications: 'Effective formulation for nausea, persistent vomiting, dyspepsia, gastric acidity and digestive reflux.',
+        dosage: '1 teaspoonful or 1 tablet dissolved in warm water 3 times daily before meals.',
+        mrp: 150,
+        aliases: ['gastro aid', 'bakson gastro aid', 'gastro-aid']
+      },
+      {
+        name: 'SBL Nux Vomica Mother Q',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '30 ml Mother Tincture',
+        indications: 'Classical mother tincture formulation for toxic stomach irritation, nausea, ineffectual retching, and digestive spasms.',
+        dosage: '5-10 drops in 1/4 cup lukewarm water after meals or during acute retching.',
+        mrp: 140,
+        aliases: ['sbl nux vomica q', 'nux vomica q', 'nux vomica mother q', 'nux vomica tincture']
+      }
+    ],
+    dietAndRegimen: 'Sip cold ice chips or lukewarm mint/ginger water in small spoonfuls. Avoid solid, spicy, or fried meals until vomiting ceases. Maintain hydration with electrolyte water.',
+    warningNotes: 'If vomiting is accompanied by blood (hematemesis), severe abdominal rigidity, or acute dehydration, immediately refer for intravenous fluid support and ultrasound.'
+  },
+  {
+    id: 'body-pain-myalgia',
+    nameEn: 'Body Pain, Generalized Aches & Myalgia',
+    nameBn: 'গা হাত পা ব্যথা, শরীর ব্যথা ও মাংসপেশির যন্ত্রণা',
+    chipLabel: 'Body Pain / শরীর ব্যথা',
+    pathology: 'Generalized Myalgia, Musculoskeletal Strain, Post-viral Bodyache & Fibrositis',
+    miasm: 'Psoric-Sycotic Musculoskeletal Diathesis',
+    typicalPresentation: 'Generalized soreness, aching in limbs and trunk, stiffness after rest, muscular fatigue',
+    keywords: [
+      'body pain', 'pain', 'body ache', 'myalgia', 'aching', 'muscular pain', 'sore muscles',
+      'muscle ache', 'generalized ache', 'physical exhaustion',
+      // Bengali
+      'ব্যথা', 'গা হাত পা ব্যথা', 'শরীর ব্যথা', 'গা ব্যথা', 'মাংসপেশির ব্যথা', 'বেদনা', 'যন্ত্রণা', 'শরীর ম্যাচ ম্যাচ করা'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Rhus Tox 200C',
+        commonName: 'Poison Ivy',
+        potency: '200C',
+        dosage: '4 pills twice daily in morning and evening',
+        keynotes: [
+          'Severe stiffness and aching in muscles and fibrous tissues; worse on first beginning to move',
+          'Distinctly relieved by continued gentle motion, walking, and warm dry applications',
+          'Ailments from getting wet in rain, cold damp weather, or severe over-exertion'
+        ],
+        materiaMedicaNotes: 'Boericke: Rhus Tox is the premier remedy for strained, stiff, painful muscles and ligaments relieved by continuous movement.',
+        modalities: {
+          worse: 'Rest, beginning of motion, cold damp weather, midnight',
+          better: 'Continued motion, warm dry heat, warm baths'
+        },
+        aliases: ['rhus tox', 'rhus toxicodendron', 'rhus tox 200c']
+      },
+      {
+        name: 'Bryonia Alba 200C',
+        commonName: 'White Bryony',
+        potency: '200C',
+        dosage: '4 pills twice daily before meals',
+        keynotes: [
+          'Sharp, tearing, stitching muscular aches aggravated by the slightest motion',
+          'Great desire to lie perfectly still in bed; pressure on painful side gives relief',
+          'Associated with excessive dryness of mucous membranes and thirst for large drinks of cold water'
+        ],
+        materiaMedicaNotes: 'Kent: Cardinal modality is aggravation from any movement, even breathing deeply. Relief from absolute quiet and pressure.',
+        modalities: {
+          worse: 'Any movement, morning, warm rooms',
+          better: 'Lying on painful side, absolute rest, cold drinks'
+        },
+        aliases: ['bryonia', 'bryonia alba', 'bryonia alba 200c']
+      },
+      {
+        name: 'Mag Phos 6X',
+        commonName: 'Phosphate of Magnesia',
+        potency: '6X',
+        dosage: '4 tablets dissolved in warm water 3 times daily',
+        keynotes: [
+          'Spasmodic muscular cramps, sudden shooting darting pains, and neuralgic twitches',
+          'Prompt and unmistakable relief from hot water bottles, warm fomentation, and hard pressure',
+          'Worse from cold drafts, cold touch, and exposure to cold wind'
+        ],
+        materiaMedicaNotes: 'Boericke: The great analgesic and antispasmodic tissue remedy for cramps and sharp pains. Heat and pressure are keynotes.',
+        modalities: {
+          worse: 'Cold drafts, cold touch, cold air',
+          better: 'Warmth, hot fomentation, pressure, doubling up'
+        },
+        aliases: ['mag phos', 'magnesia phos', 'mag phos 6x']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R11 (Lumbago & Body Pain Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Acute and chronic muscular aches, lumbago, backache, and rheumatic stiffness.',
+        dosage: '10-15 drops in water 3 times daily; in acute flare-ups every 2 hours.',
+        mrp: 310,
+        aliases: ['r11', 'r-11', 'reckeweg 11', 'dr reckeweg r11']
+      },
+      {
+        name: 'Bakson Rheum Aid',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '115 ml Syrup / 75 Tablets',
+        indications: 'Relieves general bodyaches, muscular tension, limb pain, fatigue and stiffness.',
+        dosage: '1 teaspoonful or 1 tablet dissolved in warm water 3 times daily.',
+        mrp: 155,
+        aliases: ['rheum aid', 'bakson rheum aid', 'b11']
+      },
+      {
+        name: 'SBL Orthomuv',
+        brand: 'SBL',
+        company: 'SBL Pvt Ltd',
+        country: 'India',
+        bottleSize: '180 ml Syrup / 60 ml Oil',
+        indications: 'Soothing biological formula for musculoskeletal aches, joint stiffness, and physical exhaustion.',
+        dosage: '1 teaspoonful 3 times daily after meals.',
+        mrp: 190,
+        aliases: ['orthomuv', 'sbl orthomuv', 'orthomuv oil']
+      }
+    ],
+    dietAndRegimen: 'Keep warm and protected from cold drafts. Drink warm soups or ginger decoction. Ensure adequate physical rest and avoid heavy strenuous lifting.',
+    warningNotes: 'If body pain is accompanied by high spiking fever with rash or neck stiffness, evaluate for acute systemic infection.'
   }
 ];
 
 /**
  * Dynamically constructs a tailored ClinicalCondition for symptoms that do not match
- * any predefined database condition. This guarantees that unrelated symptoms (e.g. skin, fever,
- * pain, headache) NEVER default to Kidney Stone.
+ * any predefined database condition. This guarantees that unrelated symptoms (e.g. vomiting, fever,
+ * pain, headache) NEVER default to Kidney Stone or static Arnica Montana.
  */
 function buildDynamicCondition(symptomQuery: string): ClinicalCondition {
   const q = symptomQuery.toLowerCase().trim();
 
-  // 1. Fever / Pyrexia / গা গরম
+  // 1. VOMITING / NAUSEA / বমি
+  if (q.includes('vomit') || q.includes('nausea') || q.includes('বমি') || q.includes('nauseous') || q.includes('retching') || q.includes('emesis') || q.includes('গা গুলানো') || q.includes('morning sickness')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'vomiting-nausea');
+    if (cond) return cond;
+  }
+
+  // 2. FEVER / PYREXIA / জ্বর
   if (q.includes('fever') || q.includes('জ্বর') || q.includes('গা গরম') || q.includes('pyrexia') || q.includes('febrile') || q.includes('তাপমাত্রা') || q.includes('chills') || q.includes('rigor')) {
     const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'fever-pyrexia');
     if (cond) return cond;
   }
 
-  // 2. Dysentery & Diarrhea / আমাশয় ও পেট খারাপ
+  // 3. DYSENTERY & DIARRHEA / আমাশয় ও পেট খারাপ
   if (q.includes('dysentery') || q.includes('diarrhea') || q.includes('diarrhoea') || q.includes('loose motion') || q.includes('loose stool') || q.includes('আমাশয়') || q.includes('আমআশা') || q.includes('ডায়রিয়া') || q.includes('পেট খারাপ') || q.includes('পাতলা পায়খানা') || q.includes('পেটে মোচড়') || q.includes('tenesmus') || q.includes('amoebic')) {
     const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'dysentery-diarrhea');
     if (cond) return cond;
   }
 
-  // 3. Sciatica & Nerve Pain / সায়াটিকা ও কোমর-পা ব্যথা
-  if (q.includes('sciatica') || q.includes('sitica') || q.includes('সায়াটিকা') || q.includes('সায়াটিকা') || q.includes('সিটিকা') || q.includes('কোমর থেকে পা') || q.includes('পা ব্যথা') || q.includes('পায়ে টান') || q.includes('রগে টান') || q.includes('shooting pain') || q.includes('radiculopathy') || q.includes('sciatic')) {
+  // 4. SCIATICA & NERVE PAIN / সায়াটিকা ও কোমর-পা ব্যথা
+  if (q.includes('sciatica') || q.includes('sitica') || q.includes('সায়াটিকা') || q.includes('সায়াটিকা') || q.includes('সিটিকা') || q.includes('কোমর থেকে পা') || q.includes('কোমর-পা') || q.includes('কোমর-পা ব্যথা') || q.includes('পা ব্যথা') || q.includes('পায়ে টান') || q.includes('রগে টান') || q.includes('shooting pain') || q.includes('radiculopathy') || q.includes('sciatic')) {
     const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'sciatica-nerve-pain');
     if (cond) return cond;
   }
 
-  // 4. Neuro Problem / Neuropathy / নার্ভের সমস্যা
+  // 5. NEURO PROBLEM / NEUROPATHY / নার্ভের সমস্যা
   if (q.includes('neuro') || q.includes('nerve') || q.includes('neuropathy') || q.includes('paralysis') || q.includes('paresis') || q.includes('numbness') || q.includes('tingling') || q.includes('pins and needles') || q.includes('burning soles') || q.includes('নার্ভ') || q.includes('নার্ভের সমস্যা') || q.includes('স্নায়বিক') || q.includes('অসারতা') || q.includes('প্যারালাইসিস') || q.includes('ঝিঁঝিঁ') || q.includes('হাত পা কাঁপা')) {
     const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'neuro-problem-neuropathy');
     if (cond) return cond;
   }
 
-  // 5. Arthritis & Joint Pain / বাত ও গাঁটের ব্যথা
+  // 6. BODY PAIN / GENERAL PAIN / ব্যথা / গা হাত পা ব্যথা
+  if (q.includes('pain') || q.includes('body pain') || q.includes('body ache') || q.includes('ব্যথা') || q.includes('গা হাত পা ব্যথা') || q.includes('শরীর ব্যথা') || q.includes('গা ব্যথা') || q.includes('myalgia') || q.includes('মাংসপেশির ব্যথা') || q.includes('বেদনা') || q.includes('যন্ত্রণা') || q.includes('ম্যাচ ম্যাচ')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'body-pain-myalgia');
+    if (cond) return cond;
+  }
+
+  // 7. ARTHRITIS & JOINT PAIN / বাত ও গাঁটের ব্যথা
   if (q.includes('arthritis') || q.includes('osteoarthritis') || q.includes('joint pain') || q.includes('knee') || q.includes('gout') || q.includes('morning stiffness') || q.includes('বাত') || q.includes('বাতের ব্যথা') || q.includes('হাঁটু ব্যথা') || q.includes('হাঁটু') || q.includes('গাঁটের ব্যথা') || q.includes('গাঁটে ব্যথা') || q.includes('ইউরিক অ্যাসিড') || q.includes('বাতরোগ')) {
     const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'arthritis-joint-pain');
     if (cond) return cond;
   }
 
-  // 6. Uterine Fibroid & Tumors / ফাইব্রয়েড ও টিউমার
+  // 8. UTERINE FIBROID & TUMORS / ফাইব্রয়েড ও টিউমার
   if (q.includes('fibroid') || q.includes('tumor') || q.includes('tumour') || q.includes('ফাইব্রয়েড') || q.includes('ফাইব্রয়েড') || q.includes('টিউমার') || q.includes('myoma') || q.includes('আর্বুদ') || q.includes('গিলটি') || q.includes('uterine fibroid')) {
     const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'uterine-fibroid-tumor');
     if (cond) return cond;
   }
 
-  // 7. Headache / Migraine
-  if (q.includes('headache') || q.includes('migraine') || q.includes('মাথা') || q.includes('শিরঃপীড়া')) {
+  // 9. KIDNEY STONE / রেনাল স্টোন
+  if (q.includes('kidney stone') || q.includes('renal calculus') || q.includes('পাথর') || q.includes('কিডনি পাথর') || q.includes('nephrolithiasis') || q.includes('ureteric stone') || q.includes('calculi')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'kidney-stone');
+    if (cond) return cond;
+  }
+
+  // 10. ACIDITY / GERD / গ্যাস
+  if (q.includes('acidity') || q.includes('gas') || q.includes('heartburn') || q.includes('gerd') || q.includes('গ্যাস') || q.includes('এসিডিটি') || q.includes('অম্বল') || q.includes('বুক জ্বালা') || q.includes('ঢেকুর')) {
+    const cond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'acidity-gerd');
+    if (cond) return cond;
+  }
+
+  // 11. HEADACHE / MIGRAINE
+  if (q.includes('headache') || q.includes('migraine') || q.includes('মাথা') || q.includes('শিরঃপীড়া') || q.includes('মাথাব্যথা')) {
     return {
       id: 'dynamic-headache',
       nameEn: `Headache & Cephalalgia: ${symptomQuery}`,
@@ -2514,8 +2765,8 @@ function buildDynamicCondition(symptomQuery: string): ClinicalCondition {
     };
   }
 
-  // 2. Skin / Itching / Eczema / Rash
-  if (q.includes('skin') || q.includes('itch') || q.includes('rash') || q.includes('eczema') || q.includes('চুলকানি') || q.includes('চর্মরোগ')) {
+  // 12. SKIN / ITCHING / ECZEMA / RASH
+  if (q.includes('skin') || q.includes('itch') || q.includes('rash') || q.includes('eczema') || q.includes('চুলকানি') || q.includes('চর্মরোগ') || q.includes('দাদ') || q.includes('পাঁচড়া')) {
     return {
       id: 'dynamic-skin',
       nameEn: `Dermatological & Skin Condition: ${symptomQuery}`,
@@ -2597,7 +2848,98 @@ function buildDynamicCondition(symptomQuery: string): ClinicalCondition {
     };
   }
 
-  // 3. General Fallback Targeted Condition (NEVER Kidney Stone)
+  // 13. DYNAMIC CONSTITUTIONAL INDIVIDUALIZATION (STRICTLY NO ARBITRARY ARNICA)
+  const isExhaustion = q.includes('weak') || q.includes('fatigue') || q.includes('tired') || q.includes('দুর্বলতা') || q.includes('ক্লান্তি');
+  const isCough = q.includes('cough') || q.includes('chest') || q.includes('cold') || q.includes('throat') || q.includes('কাশি') || q.includes('কফ') || q.includes('গলা');
+
+  if (isExhaustion) {
+    return {
+      id: `dynamic-vitality-${Date.now()}`,
+      nameEn: `Vital Debility & Asthenia: ${symptomQuery}`,
+      nameBn: 'শারীরিক দুর্বলতা ও শক্তিক্ষয় বিশ্লেষণ',
+      chipLabel: 'Vitality Repertory',
+      pathology: `Vital Energy Depletion & Debility: ${symptomQuery}`,
+      miasm: 'Psoric Constitutional Asthenia',
+      typicalPresentation: symptomQuery,
+      keywords: [symptomQuery],
+      classicalRemedies: [
+        {
+          name: 'China Officinalis (Cinchona)',
+          commonName: 'Peruvian Bark',
+          potency: '30C',
+          dosage: '4 pills twice daily after meals',
+          keynotes: ['Debility from loss of vital fluids, exhaustive discharges, prolonged illness or perspiration', 'Periodicity of symptoms, tympanitic abdominal distension, hypersensitive nervous system'],
+          materiaMedicaNotes: 'Kent: Premier restorative when vitality is exhausted by hemorrhage, diarrhea or vital loss.',
+          modalities: { worse: 'Slightest touch, drafts of air, periodic', better: 'Hard pressure, warmth' },
+          aliases: ['china', 'cinchona', 'china off']
+        },
+        {
+          name: 'Kali Phosphoricum',
+          commonName: 'Phosphate of Potassium',
+          potency: '6X / 30C',
+          dosage: '4 tablets dissolved in warm water 3 times daily',
+          keynotes: ['Great biochemic nerve restorative for brain fag, physical prostration and nervous exhaustion', 'Weakness of heart and limbs with gloomy mental despondency'],
+          materiaMedicaNotes: 'Boericke: Conditions arising from lack of nerve power. Restores nervous energy.',
+          modalities: { worse: 'Mental & physical exertion, cold', better: 'Warmth, rest, nourishment' },
+          aliases: ['kali phos', 'kali phosphoricum']
+        },
+        {
+          name: 'Ferrum Metallicum',
+          commonName: 'Metallic Iron',
+          potency: '30C',
+          dosage: '4 pills in morning and evening',
+          keynotes: ['Pseudo-plethora; flushing of face on least excitement or exertion with severe underlying anemia and weakness', 'Extreme pallor of mucous membranes, debility from least effort'],
+          materiaMedicaNotes: 'Boericke: Irregular distribution of blood, severe prostration and anemia with sudden vasomotor flushing.',
+          modalities: { worse: 'At rest, midnight, sweating', better: 'Slow gentle walking' },
+          aliases: ['ferrum met', 'ferrum metallicum']
+        }
+      ],
+      patentFormulations: [
+        {
+          name: 'SBL Alfalfa Tonic',
+          brand: 'SBL',
+          company: 'SBL Pvt Ltd',
+          country: 'India',
+          bottleSize: '115 ml Syrup',
+          indications: 'Wholesome natural tonic for general debility, loss of appetite, convalescence and nervous fatigue.',
+          dosage: '1-2 teaspoonfuls twice daily before meals.',
+          mrp: 150,
+          aliases: ['alfalfa', 'sbl alfalfa tonic']
+        },
+        {
+          name: 'Bakson Tone Aid',
+          brand: "Bakson's",
+          company: 'Bakson Drugs & Pharmaceuticals',
+          country: 'India',
+          bottleSize: '115 ml Syrup',
+          indications: 'Revitalizes nervous and muscular exhaustion, restores mental stamina and physical vigor.',
+          dosage: '1 teaspoonful twice daily.',
+          mrp: 160,
+          aliases: ['tone aid', 'bakson tone aid']
+        },
+        {
+          name: 'SBL Five Phos 6X',
+          brand: 'SBL',
+          company: 'SBL Pvt Ltd',
+          country: 'India',
+          bottleSize: '25g Tablets',
+          indications: 'Classic biochemic combination of 5 phosphates to nourish tissue cells and combat chronic exhaustion.',
+          dosage: '4 tablets 3 times daily with warm water.',
+          mrp: 135,
+          aliases: ['five phos', 'sbl five phos']
+        }
+      ],
+      dietAndRegimen: 'Nourishing warm soups, fresh milk or almond beverage, soaked raisins and fresh fruits. Avoid skipping meals and mental over-strain.',
+      warningNotes: 'If debility is progressive with severe unprovoked weight loss, screen for occult anemia, thyroid dysfunction, or chronic infection.'
+    };
+  }
+
+  if (isCough) {
+    const coughCond = CLINICAL_REPERTORY_DATABASE.find(c => c.id === 'cough-bronchitis');
+    if (coughCond) return coughCond;
+  }
+
+  // General Acute Symptomatic Analysis with tailored constitutional polychrests
   return {
     id: `dynamic-${Date.now()}`,
     nameEn: `Clinical Presentation Analysis: ${symptomQuery.length > 55 ? symptomQuery.slice(0, 55) + '...' : symptomQuery}`,
@@ -2609,51 +2951,51 @@ function buildDynamicCondition(symptomQuery: string): ClinicalCondition {
     keywords: [symptomQuery],
     classicalRemedies: [
       {
-        name: 'Arnica Montana',
-        commonName: 'Leopards Bane',
-        potency: '30C / 200C',
-        dosage: '4 pills 3 times daily',
+        name: 'Belladonna 30C',
+        commonName: 'Deadly Nightshade',
+        potency: '30C',
+        dosage: '4 pills 3 times daily in water',
         keynotes: [
-          'Sore, bruised, lame feeling throughout the system; bed feels too hard, must constantly change position',
-          'Ailments from physical trauma, over-exertion, muscular strain or generalized aching sore sensation',
-          'Fear of being touched or approached; claims nothing is wrong despite severe suffering'
+          'Acute onset of redness, heat, throbbing pain and localized vascular congestion',
+          'Hypersensitive to touch, cold drafts, noise, and sudden movement or jarring',
+          'Flushed face, sudden flare-up and prompt therapeutic response'
         ],
-        materiaMedicaNotes: 'Kent Repertory: Pre-eminent trauma and constitutional restorative for all bruised, sore, aching conditions with circulatory stasis.',
-        modalities: { worse: 'Touch, jarring, rest, damp cold', better: 'Lying flat with head low, gentle warmth' },
-        aliases: ['arnica', 'arnica montana']
+        materiaMedicaNotes: 'Kent: King of acute hyperemic, congestive, and violent inflammatory states. Sudden onset and rapid progression.',
+        modalities: { worse: 'Touch, jar, noise, draught of air, after 3 PM', better: 'Semi-erect position, resting quietly' },
+        aliases: ['belladonna', 'bell', 'belladonna 30c']
       },
       {
-        name: 'Pulsatilla Nigricans',
-        commonName: 'Wind Flower',
-        potency: '30C / 200C',
-        dosage: '4 pills in morning and evening',
-        keynotes: [
-          'Highly changeable and wandering symptoms; never two symptoms or pains alike',
-          'Mild, yielding, gentle disposition; easily moved to weeping; craves comforting sympathy',
-          'Complete thirstlessness with dry mouth; intensely aggravated by warm enclosed rooms; craving cool open air'
-        ],
-        materiaMedicaNotes: 'Boericke Materia Medica: Primary remedy for wandering, shifting complaints with thirstlessness and relief in cool fresh open air.',
-        modalities: { worse: 'Heat, warm close rooms, rich fat food, evening', better: 'Open cool air, gentle walking, cold applications' },
-        aliases: ['pulsatilla', 'puls']
-      },
-      {
-        name: 'Nux Vomica',
+        name: 'Nux Vomica 30C',
         commonName: 'Poison Nut',
-        potency: '30C / 200C',
+        potency: '30C',
         dosage: '4 pills at bedtime',
         keynotes: [
-          'Oversensitive to all impressions (noise, light, odors); irritable and impatient disposition',
-          'Digestive disturbances, sluggish toxic elimination from sedentary strain, medications or irregular living',
-          'Chilly patient; cannot uncover the slightest without feeling shivering, chilliness, and bodyache'
+          'Sedentary lifestyle strain, digestive disharmony, and autonomic nervous hypersensitivity',
+          'Chilly disposition, cannot uncover without feeling shivering and irritability',
+          'Ailments from dietary excesses, mental overwork, and pharmaceutical over-medication'
         ],
-        materiaMedicaNotes: 'Boericke: Deep-acting polychrest for nervous, visceral and metabolic disharmony from modern stresses.',
-        modalities: { worse: 'Morning, cold air, mental strain, stimulants', better: 'Warmth, rest, evening' },
-        aliases: ['nux vomica', 'nux']
+        materiaMedicaNotes: 'Boericke: Master polychrest for modern stresses, visceral congestion, and toxic visceral elimination.',
+        modalities: { worse: 'Morning, cold air, mental strain, stimulants', better: 'Warmth, evening rest' },
+        aliases: ['nux vomica', 'nux', 'nux vomica 30c']
+      },
+      {
+        name: 'Arsenicum Album 30C',
+        commonName: 'White Oxide of Arsenic',
+        potency: '30C',
+        dosage: '4 pills twice daily away from meals',
+        keynotes: [
+          'Profound mental restlessness, anxiety, and weakness with burning pains relieved by heat',
+          'Thirst for small sips of warm water at frequent intervals; chilly patient',
+          'Deep-acting constitutional polychrest for catarrhal and constitutional disharmony'
+        ],
+        materiaMedicaNotes: 'Boericke: Restlessness, burning, and prostration. Ameliorated by warmth.',
+        modalities: { worse: 'Cold, after midnight, cold food/drinks', better: 'Warmth, hot applications, company' },
+        aliases: ['arsenicum album', 'ars alb', 'arsenicum']
       }
     ],
     patentFormulations: [
       {
-        name: 'Dr. Reckeweg R1 (Anginacid / Inflammation Drops)',
+        name: 'Dr. Reckeweg R1 (Biological Inflammation Drops)',
         brand: 'Dr. Reckeweg',
         company: 'Dr. Reckeweg & Co (Germany)',
         country: 'Germany',
@@ -2664,32 +3006,33 @@ function buildDynamicCondition(symptomQuery: string): ClinicalCondition {
         aliases: ['r1', 'r-1', 'reckeweg 1', 'dr reckeweg r1']
       },
       {
+        name: 'Bakson Biochemic Combination BC-1',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '25g Tablets',
+        indications: 'Universal biochemic formulation for acute inflammatory discomfort, heat and systemic irritation.',
+        dosage: '4 tablets dissolved in warm water 3 times daily.',
+        mrp: 135,
+        aliases: ['bc-1', 'bc 1', 'bakson bc 1']
+      },
+      {
         name: 'SBL Alfalfa Tonic',
         brand: 'SBL',
         company: 'SBL Pvt Ltd',
         country: 'India',
         bottleSize: '115 ml Syrup',
-        indications: 'General constitutional restorative, strengthens natural immune resilience, appetite and vitality.',
+        indications: 'Natural constitutional tonic to strengthen resistance, improve vitality and restore metabolic tone.',
         dosage: '1-2 teaspoonfuls twice daily before meals.',
         mrp: 150,
         aliases: ['alfalfa', 'sbl alfalfa tonic']
-      },
-      {
-        name: 'Bakson Rheum Aid / Tone Aid',
-        brand: "Bakson's",
-        company: 'Bakson Drugs & Pharmaceuticals',
-        country: 'India',
-        bottleSize: '115 ml Syrup',
-        indications: 'Relieves general bodyaches, muscular tension, fatigue and physical weariness.',
-        dosage: '1 teaspoonful twice daily.',
-        mrp: 160,
-        aliases: ['bakson tone', 'bakson rheum aid']
       }
     ],
     dietAndRegimen: 'Sip fresh warm filtered water regularly. Maintain a wholesome, balanced diet rich in boiled greens and seasonal fruits. Avoid heavy fried, greasy, and excessively spicy foods during treatment.',
     warningNotes: 'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo). Correlate with thorough clinical examination.'
   };
 }
+
 
 export function findRepertoryMatch(symptomQuery: string): ClinicalCondition | null {
   const query = (symptomQuery || '').toLowerCase().trim();

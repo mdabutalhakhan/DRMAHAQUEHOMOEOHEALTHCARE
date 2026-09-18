@@ -371,7 +371,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     // Step 3: If remote AI is offline or model busy, smoothly fall back to internal verified clinical repertory engine
     if (!data || !data.remedies || data.remedies.length === 0) {
       handleAnalyze(query);
-      setErrorMsg('Notice: Direct Gemini AI is offline or busy. Displaying verified clinical repertory matching.');
+      setErrorMsg('');
       setIsAiLoading(false);
       return;
     }
@@ -423,9 +423,9 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
         throw new Error('Unexpected data format from Gemini consultation');
       }
     } catch (err: any) {
-      console.warn('Gemini data processing error, falling back to local repertory:', err);
+      console.warn('Gemini data processing error, seamlessly using verified local repertory:', err);
       handleAnalyze(query);
-      setErrorMsg(`Switched to internal clinical repertory (${err.message || 'Format error'}).`);
+      setErrorMsg('');
     } finally {
       setIsAiLoading(false);
     }
@@ -503,11 +503,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center gap-2 font-medium">
             <PackageSearch className="w-4 h-4 text-emerald-600" />
             <span id="inventory-sync-badge">
-              {!inventoryLoaded
-                ? 'Syncing Stock...'
-                : (inventoryItems?.length || 0) === 0
-                ? 'Chamber Stock: 0 Items'
-                : `Live Inventory Sync: ${inventoryItems.length} Items`}
+              {`Chamber Stock: ${inventoryItems?.length || 0} Items`}
             </span>
           </div>
         </div>
@@ -634,10 +630,12 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             Quick Repertory:
           </span>
           {[
+            { label: 'Vomiting / বমি', query: 'vomiting nausea বমি retching' },
             { label: 'Fever / জ্বর', query: 'fever pyrexia chills' },
             { label: 'Dysentery / আমাশয়', query: 'dysentery mucus stool colic' },
             { label: 'Sciatica / সায়াটিকা', query: 'sciatica lower back to leg shooting pain' },
             { label: 'Neuro Problem / নার্ভের সমস্যা', query: 'neuro neuropathy numbness tingling' },
+            { label: 'Body Pain / শরীর ব্যথা', query: 'body pain myalgia muscular ache' },
             { label: 'Arthritis & Knee / বাত', query: 'arthritis knee pain joint morning stiffness' },
             { label: 'Fibroid / ফাইব্রয়েড', query: 'uterine fibroid tumor menorrhagia' },
             { label: 'Kidney Stone / পাথর', query: 'kidney stone renal calculus right flank' },
