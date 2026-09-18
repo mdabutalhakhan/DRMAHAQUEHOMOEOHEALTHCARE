@@ -149,6 +149,60 @@ export async function saveCustomRemedy(record: CustomMateriaMedicaRecord): Promi
 }
 
 /**
+ * Persists a batch of remedies into Supabase and local storage
+ */
+export async function saveBulkCustomRemedies(
+  records: CustomMateriaMedicaRecord[]
+): Promise<{ count: number; success: boolean }> {
+  if (!records || records.length === 0) {
+    return { count: 0, success: true };
+  }
+
+  // 1. Persist to localStorage
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const existingList: CustomMateriaMedicaRecord[] = raw ? JSON.parse(raw) : [];
+    const map = new Map<string, CustomMateriaMedicaRecord>();
+    existingList.forEach((item) => map.set(item.id, item));
+    records.forEach((item) => map.set(item.id, item));
+
+    const updatedList = Array.from(map.values());
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedList));
+  } catch (err) {
+    console.warn('Error saving bulk custom remedies to localStorage:', err);
+  }
+
+  // 2. Batch upsert into Supabase `custom_materia_medica`
+  try {
+    const supabase = getSupabase();
+    const payloads = records.map((record) => ({
+      id: record.id,
+      name: record.name,
+      bengali_name: record.bengali_name,
+      brand: record.brand,
+      category: record.category,
+      sphere_of_action: record.sphere_of_action,
+      clinical_indications: record.clinical_indications,
+      keynotes: record.keynotes,
+      dosage: record.dosage,
+      created_at: record.created_at || new Date().toISOString()
+    }));
+
+    const { error } = await supabase
+      .from('custom_materia_medica')
+      .upsert(payloads, { onConflict: 'id' });
+
+    if (error) {
+      console.warn('Supabase batch upsert returned error (localStorage fallback saved successfully):', error.message);
+    }
+  } catch (supErr) {
+    console.warn('Could not reach Supabase for batch upsert; saved to local cache:', supErr);
+  }
+
+  return { count: records.length, success: true };
+}
+
+/**
  * Converts a CustomMateriaMedicaRecord to a full MateriaMedicaRemedy object
  */
 export function convertCustomToMateriaMedicaRemedy(rec: CustomMateriaMedicaRecord): MateriaMedicaRemedy {

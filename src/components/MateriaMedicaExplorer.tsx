@@ -30,7 +30,9 @@ import {
   Bot,
   RefreshCw,
   SlidersHorizontal,
-  Volume2
+  Volume2,
+  Globe,
+  Building2
 } from 'lucide-react';
 import {
   MateriaMedicaRemedy,
@@ -49,6 +51,7 @@ import {
   convertCustomToMateriaMedicaRemedy,
   convertCustomToRemedyIndexItem
 } from '../services/customMateriaMedicaService';
+import { CompanyCatalogImportModal } from './CompanyCatalogImportModal';
 
 interface MateriaMedicaExplorerProps {
   onAddRemedyToBilling?: (remedyName: string, potency?: string) => void;
@@ -115,6 +118,7 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
 
   // Auto-Add / AI Enrich Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isCatalogImportModalOpen, setIsCatalogImportModalOpen] = useState(false);
   const [isEnrichingAI, setIsEnrichingAI] = useState(false);
   const [isSavingCustom, setIsSavingCustom] = useState(false);
   const [isModalDictating, setIsModalDictating] = useState(false);
@@ -433,6 +437,33 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
     setTimeout(() => setSaveSuccessMsg(null), 4000);
   };
 
+  // Bulk Import Success Callback
+  const handleBulkImportSuccess = (importedRecords: CustomMateriaMedicaRecord[]) => {
+    if (!importedRecords || importedRecords.length === 0) return;
+
+    setCustomRemedies((prev) => {
+      const map = new Map<string, CustomMateriaMedicaRecord>();
+      // Prepend newly imported items so they appear at the top
+      importedRecords.forEach((rec) => map.set(rec.id, rec));
+      prev.forEach((rec) => {
+        if (!map.has(rec.id)) {
+          map.set(rec.id, rec);
+        }
+      });
+      return Array.from(map.values());
+    });
+
+    // Select the first imported remedy immediately
+    const first = importedRecords[0];
+    const fullRemedy = convertCustomToMateriaMedicaRemedy(first);
+    setSelectedRemedyId(first.id);
+    setActiveRemedy(fullRemedy);
+    setSearchQuery(fullRemedy.latinName);
+
+    setSaveSuccessMsg(`✅ সফলভাবে ${importedRecords.length} টি কোম্পানি ওষুধ ক্যাটালগ থেকে ডাটাবেসে সেভ ও যুক্ত হয়েছে!`);
+    setTimeout(() => setSaveSuccessMsg(null), 5000);
+  };
+
   // Quick chips popular remedies
   const popularRemedies: Array<{ id: string; name: string; nameBn: string }> = [
     { id: 'arnica-montana', name: 'Arnica Mont', nameBn: 'আর্নিকা' },
@@ -593,6 +624,17 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsCatalogImportModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-emerald-950 text-white dark:text-emerald-200 border border-slate-700 dark:border-emerald-800 text-xs font-bold transition shadow-xs hover:bg-slate-800 dark:hover:bg-emerald-900 cursor-pointer"
+            title="Bulk Import Pharmaceutical Company Catalog or Website URL"
+          >
+            <Globe className="w-3.5 h-3.5 text-emerald-400" />
+            <span>🌐 কোম্পানি ক্যাটালগ ইমপোর্ট</span>
+            <span className="hidden sm:inline text-[10px] text-slate-300 dark:text-emerald-300 font-normal">(Bulk Import)</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
@@ -1761,6 +1803,13 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
           </div>
         </div>
       )}
+
+      {/* Company Catalog Bulk Importer Modal */}
+      <CompanyCatalogImportModal
+        isOpen={isCatalogImportModalOpen}
+        onClose={() => setIsCatalogImportModalOpen(false)}
+        onImportSuccess={handleBulkImportSuccess}
+      />
     </div>
   );
 };
