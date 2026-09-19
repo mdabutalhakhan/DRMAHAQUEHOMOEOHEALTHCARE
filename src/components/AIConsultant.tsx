@@ -43,7 +43,8 @@ import {
   getGroqApiKey, 
   setGroqApiKey, 
   hasGroqApiKey, 
-  buildGroqConsultQuery 
+  buildGroqConsultQuery,
+  parseGroqResponse
 } from '../services/groqClient';
 
 interface AIConsultantProps {
@@ -446,50 +447,108 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       const groqUserQuery = buildGroqConsultQuery(query);
       const data = await callGroqAPI(groqUserQuery, { apiKey: groqApiKey });
 
-      if (!data || (!data.remedies?.length && !data.patent_formulations?.length && !data.analysis_summary)) {
+      if (!data) {
         throw new Error('Groq AI response did not contain clinical remedies.');
       }
 
-      const classicalRemedies = (data.remedies || []).map((r: any) => ({
-        name: r.remedy_name || r.name,
-        commonName: r.common_name || r.commonName || '',
-        potency: r.potency || '30C / 200C',
-        dosage: r.dosage || '4 pills twice daily in water',
-        keynotes: r.key_indications || r.keynotes || [],
-        materiaMedicaNotes: r.materia_medica_notes || r.materiaMedicaNotes || '',
-        modalities: r.modalities || { worse: 'Motion / Cold drafts', better: 'Warmth / Rest' },
-        aliases: [r.remedy_name, r.name, r.common_name, r.commonName].filter(Boolean),
-      }));
+      // 1. ROBUST JSON PARSER: Clean and parse Groq's response safely (handling Markdown code blocks, truncation, or wrapping text)
+      let parsedData: any = data;
+      if (typeof data.raw_text === 'string' && (!data.remedies?.length || typeof data.analysis_summary !== 'string')) {
+        const directParsed = parseGroqResponse(data.raw_text);
+        if (directParsed && typeof directParsed === 'object') {
+          parsedData = directParsed;
+        }
+      }
 
-      const patentFormulations = (data.patent_formulations || []).map((p: any) => {
+      // Ensure pathology is clean human text, NEVER raw JSON like {"analysis_summary": ...}
+      let pathologyText = parsedData?.analysis_summary || data.analysis_summary || `Constitutional & Pathological Synthesis for: ${query}`;
+      if (typeof pathologyText === 'string' && (pathologyText.trim().startsWith('{') || pathologyText.includes('"analysis_summary"'))) {
+        const inner = parseGroqResponse(pathologyText);
+        if (inner?.analysis_summary && typeof inner.analysis_summary === 'string' && !inner.analysis_summary.startsWith('{')) {
+          pathologyText = inner.analysis_summary;
+        } else {
+          pathologyText = `Constitutional & Pathological Synthesis for: ${query}`;
+        }
+      }
+
+      // Map classical remedies conforming to system prompt schema:
+      // { name, potency, commonName, guidingKeynotes, aggravation, amelioration, dosage }
+      const rawRemedies = Array.isArray(parsedData?.remedies)
+        ? parsedData.remedies
+        : Array.isArray(data.remedies)
+        ? data.remedies
+        : [];
+
+      const classicalRemedies = rawRemedies.map((r: any) => {
+        const rawKeynotes = r.guidingKeynotes || r.key_indications || r.keynotes || '';
+        const keynotesList: string[] = Array.isArray(rawKeynotes)
+          ? rawKeynotes.map((k: any) => String(k).trim().replace(/^[-*•]\s*/, '')).filter(Boolean)
+          : typeof rawKeynotes === 'string' && rawKeynotes.trim()
+          ? rawKeynotes.split('\n').map((s: string) => s.trim().replace(/^[-*•]\s*/, '')).filter(Boolean)
+          : [String(rawKeynotes || 'Guiding clinical keynote symptom')];
+
+        const worse = r.aggravation || r.modalities?.worse || 'Weather changes, motion, or cold';
+        const better = r.amelioration || r.modalities?.better || 'Warmth, rest, or fresh air';
+        const remedyName = r.name || r.remedy_name || 'Homeopathic Simillimum';
+        const commonName = r.commonName || r.common_name || '';
+
+        return {
+          name: remedyName,
+          commonName,
+          potency: r.potency || '30C',
+          dosage: r.dosage || '4 pills 3 times daily',
+          keynotes: keynotesList.length > 0 ? keynotesList : ['Classical keynote symptom'],
+          materiaMedicaNotes: typeof r.guidingKeynotes === 'string' ? r.guidingKeynotes : keynotesList.join('. '),
+          modalities: { worse, better },
+          aliases: [remedyName, commonName].filter(Boolean),
+        };
+      });
+
+      // Map patents conforming to system prompt schema:
+      // { brand, name, indications, dosage }
+      const rawPatents = Array.isArray(parsedData?.patents)
+        ? parsedData.patents
+        : Array.isArray(parsedData?.patent_formulations)
+        ? parsedData.patent_formulations
+        : Array.isArray(data.patents)
+        ? data.patents
+        : Array.isArray(data.patent_formulations)
+        ? data.patent_formulations
+        : [];
+
+      const patentFormulations = rawPatents.map((p: any) => {
         const b = (p.brand || '').toLowerCase();
         const isGerman = b.includes('reckeweg') || b.includes('adel') || (p.company || '').toLowerCase().includes('germany');
         return {
-          name: p.name,
-          brand: p.brand || 'Patent',
-          company: p.company || 'Homoeopathic Laboratories',
+          name: p.name || 'Patent Formulation',
+          brand: p.brand || 'Dr. Reckeweg',
+          company: p.company || (p.brand ? `${p.brand} Homoeopathic Laboratories` : 'Homoeopathic Laboratories'),
           country: isGerman ? 'Germany' : 'India',
-          bottleSize: p.bottle_size || p.bottleSize || '30 ml Drops',
+          bottleSize: p.bottleSize || p.bottle_size || '22-30 ml Drops',
           indications: p.indications || '',
-          dosage: p.dosage || '10-15 drops in water 3 times daily.',
-          mrp: p.mrp || 180,
-          aliases: p.aliases || [p.name, p.brand].filter(Boolean),
+          dosage: p.dosage || '10-15 drops in water 3 times daily',
+          mrp: Number(p.mrp) || 220,
+          aliases: Array.isArray(p.aliases) ? p.aliases : [p.name, p.brand].filter(Boolean),
         };
       });
+
+      if (classicalRemedies.length === 0 && patentFormulations.length === 0) {
+        throw new Error('Groq AI response did not contain clinical remedies.');
+      }
 
       const aiCondition: ClinicalCondition = {
         id: `groq-consult-${Date.now()}`,
         nameEn: `AI Repertorization: ${query.length > 50 ? query.slice(0, 50) + '...' : query}`,
         nameBn: 'এআই প্রেসক্রিপশন ও মাল্টি-ব্র্যান্ড পেটেন্ট ফরমুলেশন',
         chipLabel: 'Powered by Groq LPU (GPT-OSS / Llama Engine)',
-        pathology: data.analysis_summary || `Constitutional & Pathological Synthesis for: ${query}`,
-        miasm: 'Miasmatic Synthesis (Kent/Boericke & Commercial Patents)',
+        pathology: pathologyText,
+        miasm: parsedData?.miasm || data.miasm || 'Psora / Sycosis / Syphilis / Tubercular',
         keywords: [query],
         typicalPresentation: query,
         classicalRemedies,
         patentFormulations,
-        dietAndRegimen: data.diet_and_regimen || 'Sip warm water. Avoid raw onion, garlic, menthol, camphor and strong coffee during homoeopathic treatment.',
-        warningNotes: data.warning_notes || 'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo). Final clinical decisions rest with the attending homeopathic physician.',
+        dietAndRegimen: parsedData?.diet_and_regimen || data.diet_and_regimen || 'Sip warm water. Avoid raw onion, garlic, menthol, camphor and strong coffee during homoeopathic treatment.',
+        warningNotes: parsedData?.warning_notes || data.warning_notes || 'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo). Final clinical decisions rest with the attending homeopathic physician.',
       };
 
       setSelectedCondition(aiCondition);
