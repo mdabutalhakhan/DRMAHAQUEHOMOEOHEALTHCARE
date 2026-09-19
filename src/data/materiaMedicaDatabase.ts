@@ -691,27 +691,7 @@ Object.assign(
  * Enables instant autocomplete and lookup for any remedy
  */
 export const COMPREHENSIVE_REMEDY_INDEX: RemedyIndexItem[] = [
-  // Top Polycrests & Dilutions
-  { id: 'arnica-montana', name: 'Arnica Montana', nameBn: 'আর্নিকা মন্টানা', commonName: "Leopard's Bane", category: 'dilution', aliases: ['arnica', 'arn'] },
-  { id: 'aconitum-napellus', name: 'Aconitum Napellus', nameBn: 'একোনাইটাম ন্যাপেলাস', commonName: 'Monkshood', category: 'dilution', aliases: ['aconite', 'acon'] },
-  { id: 'belladonna', name: 'Belladonna', nameBn: 'বেলাডোনা', commonName: 'Deadly Nightshade', category: 'dilution', aliases: ['bell'] },
-  { id: 'bryonia-alba', name: 'Bryonia Alba', nameBn: 'ব্রায়োনিয়া অ্যালবা', commonName: 'Wild Hops', category: 'dilution', aliases: ['bryonia', 'bry'] },
-  { id: 'arsenicum-album', name: 'Arsenicum Album', nameBn: 'আর্সেনিকাম অ্যালবাম', commonName: 'White Arsenic', category: 'dilution', aliases: ['arsenic', 'ars alb'] },
-  { id: 'calcarea-carbonica', name: 'Calcarea Carbonica', nameBn: 'ক্যালকেরিয়া কার্বোনিকা', commonName: 'Oyster Shell', category: 'dilution', aliases: ['calc carb'] },
-  { id: 'nux-vomica', name: 'Nux Vomica', nameBn: 'নাক্স ভমিকা', commonName: 'Poison Nut', category: 'dilution', aliases: ['nux'] },
-  { id: 'lycopodium-clavatum', name: 'Lycopodium Clavatum', nameBn: 'লাইকোপোডিয়াম ক্লাভাটাম', commonName: 'Club Moss', category: 'dilution', aliases: ['lycopodium', 'lyc'] },
-  { id: 'pulsatilla-nigricans', name: 'Pulsatilla Nigricans', nameBn: 'পালসেটিলা নাইগ্রিক্যানস', commonName: 'Wind Flower', category: 'dilution', aliases: ['pulsatilla', 'puls'] },
-  { id: 'rhus-toxicodendron', name: 'Rhus Toxicodendron', nameBn: 'রাস টক্সিকোডেনড্রন', commonName: 'Poison Ivy', category: 'dilution', aliases: ['rhus tox'] },
-  { id: 'silicea', name: 'Silicea (Silica)', nameBn: 'সিলিসিয়া', commonName: 'Pure Flint', category: 'biochemic', aliases: ['silica', 'sil'] },
-  { id: 'thuja-occidentalis', name: 'Thuja Occidentalis', nameBn: 'থুজা অক্সিডেন্টালিস', commonName: 'Arbor Vitae', category: 'dilution', aliases: ['thuja', 'thuj'] },
-  { id: 'berberis-vulgaris', name: 'Berberis Vulgaris Q', nameBn: 'বারবারিস ভালগারিস', commonName: 'Barberry', category: 'mother_tincture', aliases: ['berberis', 'berb'] },
-  { id: 'passiflora-incarnata', name: 'Passiflora Incarnata Q', nameBn: 'প্যাসিফ্লোরা ইনকারনেটা', commonName: 'Passion Flower', category: 'mother_tincture', aliases: ['passiflora'] },
-  { id: 'kali-phosphoricum', name: 'Kali Phosphoricum 6X', nameBn: 'ক্যালি ফসফোরিকাম', commonName: 'Phosphate of Potassium', category: 'biochemic', aliases: ['kali phos'] },
-  { id: 'magnesia-phosphorica', name: 'Magnesia Phosphorica 6X', nameBn: 'ম্যাগনেসিয়া ফসফোরিকা', commonName: 'Phosphate of Magnesium', category: 'biochemic', aliases: ['mag phos'] },
-  { id: 'reckeweg-r41', name: 'Dr. Reckeweg R41', nameBn: 'ডাঃ রেকেওয়েগ আর৪১', commonName: 'Sexual Asthenia Drops', category: 'patent', aliases: ['r41', 'reckeweg 41'] },
-  { id: 'reckeweg-r1', name: 'Dr. Reckeweg R1', nameBn: 'ডাঃ রেকেওয়েগ আর১', commonName: 'Inflammation Drops', category: 'patent', aliases: ['r1', 'reckeweg 1'] },
-
-  // Additional 50+ Classical Dilutions
+  // Additional Classical Dilutions
   { id: 'antim-crud', name: 'Antimonium Crudum', nameBn: 'অ্যান্টিমোনিয়াম ক্রুডাম', commonName: 'Black Sulphuret of Antimony', category: 'dilution', aliases: ['antim crud', 'অ্যান্টিম ক্রুড'] },
   { id: 'antim-tart', name: 'Antimonium Tartaricum', nameBn: 'অ্যান্টিমোনিয়াম টারটারিকাম', commonName: 'Tartar Emetic', category: 'dilution', aliases: ['antim tart', 'অ্যান্টিম টার্ট'] },
   { id: 'apis-mellifica', name: 'Apis Mellifica', nameBn: 'এপিস মেলिफিকা', commonName: 'Honey Bee', category: 'dilution', aliases: ['apis', 'এপিস'] },
@@ -897,40 +877,61 @@ export function getOrSynthesizeMateriaMedica(item: RemedyIndexItem): MateriaMedi
  * Returns a fully consolidated list of 500+ remedies across all categories
  */
 export function getAllIndexedRemedies(): RemedyIndexItem[] {
-  const existingIds = new Set<string>();
+  const seenIds = new Set<string>();
+  const seenNormalizedNames = new Set<string>();
   const fullList: RemedyIndexItem[] = [];
+
+  const normalize = (text: string) =>
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .trim();
+
+  const addUnique = (item: RemedyIndexItem) => {
+    if (!item || !item.id) return;
+    const cleanId = item.id.toLowerCase().trim();
+    if (seenIds.has(cleanId)) return;
+
+    // Check normalized name to prevent duplicate titles under different IDs
+    const normName = normalize(item.name);
+    if (normName && seenNormalizedNames.has(normName)) return;
+
+    seenIds.add(cleanId);
+    if (normName) seenNormalizedNames.add(normName);
+    fullList.push({
+      ...item,
+      id: cleanId
+    });
+  };
 
   // 1. Add all fully verified items from TOP_MATERIA_MEDICA_DATABASE
   Object.values(TOP_MATERIA_MEDICA_DATABASE).forEach((remedy) => {
-    const lower = remedy.latinName.toLowerCase();
-    if (!existingIds.has(lower)) {
-      existingIds.add(lower);
-      existingIds.add(remedy.id.toLowerCase());
-      fullList.push({
-        id: remedy.id,
-        name: remedy.latinName,
-        nameBn: remedy.nameBn,
-        commonName: remedy.commonName,
-        category: remedy.category,
-        aliases: remedy.aliases || [remedy.latinName.toLowerCase()]
-      });
-    }
+    addUnique({
+      id: remedy.id,
+      name: remedy.latinName,
+      nameBn: remedy.nameBn,
+      commonName: remedy.commonName,
+      category: remedy.category,
+      aliases: remedy.aliases || [remedy.latinName.toLowerCase()]
+    });
   });
 
   // 2. Add COMPREHENSIVE_REMEDY_INDEX items
   COMPREHENSIVE_REMEDY_INDEX.forEach((item) => {
-    const lower = item.name.toLowerCase();
-    if (!existingIds.has(lower)) {
-      existingIds.add(lower);
-      existingIds.add(item.id.toLowerCase());
-      fullList.push(item);
-    }
+    addUnique(item);
   });
 
   // 3. Add catalog items
   HOMEOPATHIC_MEDICINES_CATALOG.forEach((rawName) => {
-    const lower = rawName.toLowerCase();
-    if (existingIds.has(lower)) return;
+    const cleanId = rawName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    if (!cleanId || seenIds.has(cleanId)) return;
+
+    const normName = normalize(rawName);
+    if (seenNormalizedNames.has(normName)) return;
 
     // Detect category
     let category: 'dilution' | 'mother_tincture' | 'biochemic' | 'patent' = 'dilution';
@@ -955,13 +956,7 @@ export function getAllIndexedRemedies(): RemedyIndexItem[] {
       category = 'patent';
     }
 
-    const cleanId = rawName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-
-    existingIds.add(lower);
-    fullList.push({
+    addUnique({
       id: cleanId,
       name: rawName,
       nameBn: rawName,

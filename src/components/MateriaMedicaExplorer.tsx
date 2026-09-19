@@ -20,6 +20,7 @@ import {
   FileText,
   Activity,
   HeartPulse,
+  Stethoscope,
   Info,
   X,
   Mic,
@@ -32,7 +33,9 @@ import {
   SlidersHorizontal,
   Volume2,
   Globe,
-  Building2
+  Building2,
+  ArrowLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   MateriaMedicaRemedy,
@@ -52,6 +55,17 @@ import {
   convertCustomToRemedyIndexItem
 } from '../services/customMateriaMedicaService';
 import { CompanyCatalogImportModal } from './CompanyCatalogImportModal';
+import {
+  ORGAN_LIST,
+  SYMPTOM_LIST,
+  OrganFilterItem,
+  SymptomFilterItem,
+  OrganRemedyProfile,
+  SymptomDifferentialRemedy
+} from '../data/materiaMedicaRepertory';
+
+export { ORGAN_LIST, SYMPTOM_LIST };
+export type { OrganFilterItem, SymptomFilterItem, OrganRemedyProfile, SymptomDifferentialRemedy };
 
 interface MateriaMedicaExplorerProps {
   onAddRemedyToBilling?: (remedyName: string, potency?: string) => void;
@@ -65,14 +79,21 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
   // Custom remedies from Supabase + localStorage
   const [customRemedies, setCustomRemedies] = useState<CustomMateriaMedicaRecord[]>([]);
 
-  // Master index of 500+ remedies combined with custom remedies
+  // Master index of 500+ remedies combined with custom remedies, guaranteed 100% unique IDs
   const masterRemedies = useMemo(() => {
     const base = getAllIndexedRemedies();
-    if (!customRemedies.length) return base;
-
     const customItems = customRemedies.map((rec) => convertCustomToRemedyIndexItem(rec));
-    const customIds = new Set(customItems.map((c) => c.id));
-    return [...customItems, ...base.filter((b) => !customIds.has(b.id))];
+    const all = [...customItems, ...base];
+
+    const seen = new Set<string>();
+    const uniqueList: (RemedyIndexItem & { isCustom?: boolean })[] = [];
+    for (const item of all) {
+      if (item && item.id && !seen.has(item.id)) {
+        seen.add(item.id);
+        uniqueList.push(item);
+      }
+    }
+    return uniqueList;
   }, [customRemedies]);
 
   // Load custom remedies on mount
@@ -86,10 +107,13 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'medicine' | 'organ' | 'symptom'>('medicine');
+  const [selectedOrgan, setSelectedOrgan] = useState<string | null>(null);
+  const [selectedSymptom, setSelectedSymptom] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<
     'all' | 'dilution' | 'mother_tincture' | 'biochemic' | 'patent'
   >('all');
-  const [selectedRemedyId, setSelectedRemedyId] = useState<string>('arnica-montana');
+  const [selectedRemedyId, setSelectedRemedyId] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
 
@@ -97,10 +121,8 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
   const [isListeningVoice, setIsListeningVoice] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
 
-  // Active Remedy Data
-  const [activeRemedy, setActiveRemedy] = useState<MateriaMedicaRemedy>(() => {
-    return TOP_MATERIA_MEDICA_DATABASE['arnica-montana'];
-  });
+  // Active Remedy Data - null by default (empty state first)
+  const [activeRemedy, setActiveRemedy] = useState<MateriaMedicaRemedy | null>(null);
 
   // UI States
   const [copied, setCopied] = useState(false);
@@ -160,25 +182,55 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Filtered dropdown matches based on query and category
+  // Mode 1: Filtered medicines (Only active in medicine mode)
   const filteredMatches = useMemo(() => {
+    if (searchMode !== 'medicine') return [];
     const q = searchQuery.trim().toLowerCase();
+
     return masterRemedies.filter((item) => {
-      // Category check
       if (selectedCategory !== 'all' && item.category !== selectedCategory) {
         return false;
       }
       if (!q) return true;
-
-      // Autocomplete check (2+ characters or matches start/aliases)
       const matchesName = item.name.toLowerCase().includes(q);
       const matchesBn = item.nameBn.toLowerCase().includes(q);
       const matchesCommon = item.commonName.toLowerCase().includes(q);
       const matchesAlias = item.aliases.some((a) => a.toLowerCase().includes(q));
-
       return matchesName || matchesBn || matchesCommon || matchesAlias;
     });
-  }, [masterRemedies, searchQuery, selectedCategory]);
+  }, [masterRemedies, searchQuery, searchMode, selectedCategory]);
+
+  // Mode 2: Filtered organs (Only active in organ mode)
+  const filteredOrgans = useMemo(() => {
+    if (searchMode !== 'organ') return [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return ORGAN_LIST;
+
+    return ORGAN_LIST.filter((org) => {
+      const matchesName = org.nameEn.toLowerCase().includes(q);
+      const matchesBn = org.nameBn.toLowerCase().includes(q);
+      const matchesDescEn = org.descriptionEn.toLowerCase().includes(q);
+      const matchesDescBn = org.descriptionBn.toLowerCase().includes(q);
+      const matchesKeywords = org.keywords.some((k) => k.toLowerCase().includes(q));
+      return matchesName || matchesBn || matchesDescEn || matchesDescBn || matchesKeywords;
+    });
+  }, [searchQuery, searchMode]);
+
+  // Mode 3: Filtered symptoms (Only active in symptom mode)
+  const filteredSymptoms = useMemo(() => {
+    if (searchMode !== 'symptom') return [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return SYMPTOM_LIST;
+
+    return SYMPTOM_LIST.filter((sym) => {
+      const matchesName = sym.nameEn.toLowerCase().includes(q);
+      const matchesBn = sym.nameBn.toLowerCase().includes(q);
+      const matchesDefEn = sym.definitionEn.toLowerCase().includes(q);
+      const matchesDefBn = sym.definitionBn.toLowerCase().includes(q);
+      const matchesKeywords = sym.keywords.some((k) => k.toLowerCase().includes(q));
+      return matchesName || matchesBn || matchesDefEn || matchesDefBn || matchesKeywords;
+    });
+  }, [searchQuery, searchMode]);
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -229,6 +281,38 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
     }
   }, [activeRemedy]);
 
+  // Tab mode switcher: strictly resets active remedy and query
+  const handleSwitchTab = (mode: 'medicine' | 'organ' | 'symptom') => {
+    setSearchMode(mode);
+    setSearchQuery('');
+    setIsDropdownOpen(false);
+    setActiveRemedy(null);
+    setSelectedRemedyId(null);
+    setHighlightedIndex(0);
+    if (mode === 'medicine') {
+      setSelectedOrgan(null);
+      setSelectedSymptom(null);
+    }
+  };
+
+  // Select an organ: resets active remedy to show dedicated Organ Clinical Repertory
+  const handleSelectOrgan = (organId: string | null) => {
+    setSelectedOrgan(organId);
+    setActiveRemedy(null);
+    setSelectedRemedyId(null);
+    setSearchQuery('');
+    setIsDropdownOpen(false);
+  };
+
+  // Select a symptom: resets active remedy to show dedicated Clinical Indication Guide
+  const handleSelectSymptom = (symptomId: string | null) => {
+    setSelectedSymptom(symptomId);
+    setActiveRemedy(null);
+    setSelectedRemedyId(null);
+    setSearchQuery('');
+    setIsDropdownOpen(false);
+  };
+
   // Select a remedy (supports custom and preloaded database)
   const handleSelectRemedy = (item: RemedyIndexItem & { isCustom?: boolean }) => {
     setSelectedRemedyId(item.id);
@@ -243,6 +327,41 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
     setSearchQuery(item.name);
     setIsDropdownOpen(false);
     setExtendedTreatise(null);
+  };
+
+  // Select a remedy directly by its database ID
+  const handleSelectRemedyById = (id: string) => {
+    const match = masterRemedies.find((r) => r.id === id);
+    if (match) {
+      handleSelectRemedy(match);
+    } else if (TOP_MATERIA_MEDICA_DATABASE[id]) {
+      const full = TOP_MATERIA_MEDICA_DATABASE[id];
+      setActiveRemedy(full);
+      setSelectedRemedyId(full.id);
+      setSearchQuery(full.latinName);
+      setIsDropdownOpen(false);
+      setExtendedTreatise(null);
+    } else {
+      const synthetic = getOrSynthesizeMateriaMedica({
+        id,
+        name: id.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+        nameBn: id,
+        commonName: 'Homoeopathic Specific',
+        category: 'dilution',
+        aliases: []
+      });
+      setActiveRemedy(synthetic);
+      setSelectedRemedyId(synthetic.id);
+      setSearchQuery(synthetic.latinName);
+      setIsDropdownOpen(false);
+      setExtendedTreatise(null);
+    }
+  };
+
+  // View full monograph from within organ or symptom views
+  const handleViewFullMonograph = (remedyId: string) => {
+    handleSelectRemedyById(remedyId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Voice Search recognition for main search input
@@ -278,15 +397,38 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
           setIsDropdownOpen(true);
           setVoiceFeedback(`Recognized: "${transcript}"`);
 
-          // Look for direct or alias matches
+          // Mode-specific voice matching
           const lower = transcript.toLowerCase();
-          const match = masterRemedies.find(
-            (r) =>
-              r.name.toLowerCase().includes(lower) ||
-              r.aliases.some((a) => a.toLowerCase().includes(lower))
-          );
-          if (match) {
-            handleSelectRemedy(match);
+          if (searchMode === 'organ') {
+            const matchOrg = ORGAN_LIST.find(
+              (o) =>
+                o.nameEn.toLowerCase().includes(lower) ||
+                o.nameBn.toLowerCase().includes(lower) ||
+                o.keywords.some((k) => k.toLowerCase().includes(lower))
+            );
+            if (matchOrg) {
+              handleSelectOrgan(matchOrg.id);
+            }
+          } else if (searchMode === 'symptom') {
+            const matchSym = SYMPTOM_LIST.find(
+              (s) =>
+                s.nameEn.toLowerCase().includes(lower) ||
+                s.nameBn.toLowerCase().includes(lower) ||
+                s.keywords.some((k) => k.toLowerCase().includes(lower))
+            );
+            if (matchSym) {
+              handleSelectSymptom(matchSym.id);
+            }
+          } else {
+            const match = masterRemedies.find(
+              (r) =>
+                r.name.toLowerCase().includes(lower) ||
+                r.nameBn.toLowerCase().includes(lower) ||
+                r.aliases.some((a) => a.toLowerCase().includes(lower))
+            );
+            if (match) {
+              handleSelectRemedy(match);
+            }
           }
         }
         setTimeout(() => setVoiceFeedback(null), 3500);
@@ -646,27 +788,31 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
             <span className="hidden sm:inline text-[10px] text-emerald-200 font-normal">(নতুন ঔষধ যোগ)</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
-            title="Print Materia Medica Sheet"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Print Sheet</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleCopyProfile}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
-              copied
-                ? 'bg-emerald-600 text-white'
-                : 'bg-[#1B4332] hover:bg-emerald-800 text-white'
-            }`}
-          >
-            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied to Clipboard!' : 'Copy Clinical Profile'}</span>
-          </button>
+          {activeRemedy && (
+            <>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+                title="Print Materia Medica Sheet"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Print Sheet</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyProfile}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+                  copied
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-[#1B4332] hover:bg-emerald-800 text-white'
+                }`}
+              >
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Copied to Clipboard!' : 'Copy Clinical Profile'}</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -696,58 +842,199 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
       )}
 
       {/* SEARCH AND FILTER CONTROL PANEL */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {[
-            { id: 'all', label: 'All Remedies (সকল)', count: masterRemedies.length },
-            {
-              id: 'dilution',
-              label: 'Dilutions (ডাইলুশন)',
-              count: masterRemedies.filter((r) => r.category === 'dilution').length
-            },
-            {
-              id: 'mother_tincture',
-              label: 'Mother Tinctures (মাদার Ø)',
-              count: masterRemedies.filter((r) => r.category === 'mother_tincture').length
-            },
-            {
-              id: 'biochemic',
-              label: 'Biochemic Salts (বায়োকেমিক)',
-              count: masterRemedies.filter((r) => r.category === 'biochemic').length
-            },
-            {
-              id: 'patent',
-              label: 'Patent Formulations (পেটেন্ট)',
-              count: masterRemedies.filter((r) => r.category === 'patent').length
-            }
-          ].map((cat) => (
+      <div className="p-4 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        {/* TRIPLE SEARCH MODE CONTROLLER (MEDICINE / ORGAN / SYMPTOM) */}
+        <div>
+          <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
             <button
-              key={cat.id}
               type="button"
-              onClick={() => {
-                setSelectedCategory(cat.id as any);
-                setIsDropdownOpen(true);
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
-                selectedCategory === cat.id
+              onClick={() => handleSwitchTab('medicine')}
+              className={`flex-1 min-w-[140px] py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                searchMode === 'medicine'
                   ? 'bg-[#1B4332] text-white shadow-xs'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
               }`}
             >
-              <span>{cat.label}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+              <Pill className="w-4 h-4" />
+              <span>💊 By Medicine Name (ঔষধের নাম)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSwitchTab('organ')}
+              className={`flex-1 min-w-[140px] py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                searchMode === 'organ'
+                  ? 'bg-[#1B4332] text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
+              }`}
+            >
+              <Activity className="w-4 h-4 text-rose-400" />
+              <span>🫀 By Body Organ / System (অঙ্গভিত্তিক)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSwitchTab('symptom')}
+              className={`flex-1 min-w-[140px] py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                searchMode === 'symptom'
+                  ? 'bg-[#1B4332] text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
+              }`}
+            >
+              <Stethoscope className="w-4 h-4 text-sky-400" />
+              <span>🩺 By Symptom / Indication (লক্ষণভিত্তিক)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* MODE-SPECIFIC SUB-CONTROLS */}
+        {searchMode === 'medicine' && (
+          /* Category Pills */
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar animate-fade-in">
+            {[
+              { id: 'all', label: 'All Remedies (সকল)', count: masterRemedies.length },
+              {
+                id: 'dilution',
+                label: 'Dilutions (ডাইলুশন)',
+                count: masterRemedies.filter((r) => r.category === 'dilution').length
+              },
+              {
+                id: 'mother_tincture',
+                label: 'Mother Tinctures (মাদার Ø)',
+                count: masterRemedies.filter((r) => r.category === 'mother_tincture').length
+              },
+              {
+                id: 'biochemic',
+                label: 'Biochemic Salts (বায়োকেমিক)',
+                count: masterRemedies.filter((r) => r.category === 'biochemic').length
+              },
+              {
+                id: 'patent',
+                label: 'Patent Formulations (পেটেন্ট)',
+                count: masterRemedies.filter((r) => r.category === 'patent').length
+              }
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  setSelectedCategory(cat.id as any);
+                  setIsDropdownOpen(true);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
                   selectedCategory === cat.id
-                    ? 'bg-white/20 text-white'
-                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                    ? 'bg-[#1B4332] text-white shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                {cat.count}
+                <span>{cat.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    selectedCategory === cat.id
+                      ? 'bg-white/20 text-white'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  {cat.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {searchMode === 'organ' && (
+          /* Quick Organ Filter Chips */
+          <div className="space-y-1.5 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                Select Anatomical Organ / System (নির্দিষ্ট শারীরিক অঙ্গ নির্বাচন করুন):
               </span>
-            </button>
-          ))}
-        </div>
+              {selectedOrgan && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectOrgan(null)}
+                  className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer"
+                >
+                  Show All Organs (সব অঙ্গ দেখুন)
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {ORGAN_LIST.map((org) => {
+                const isSelected = selectedOrgan === org.id;
+                return (
+                  <button
+                    key={org.id}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        handleSelectOrgan(null);
+                      } else {
+                        handleSelectOrgan(org.id);
+                      }
+                    }}
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-[#1B4332] text-white border-[#1B4332] shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-slate-700 hover:border-emerald-300'
+                    }`}
+                  >
+                    <span>{org.icon}</span>
+                    <span>{org.nameEn.split('/')[0].trim()}</span>
+                    <span className="text-[10px] opacity-80">({org.nameBn.split('/')[0].trim()})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {searchMode === 'symptom' && (
+          /* Quick Symptom Filter Chips */
+          <div className="space-y-1.5 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                Select Clinical Indication / Condition (ক্লিনিক্যাল লক্ষণ নির্বাচন করুন):
+              </span>
+              {selectedSymptom && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectSymptom(null)}
+                  className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer"
+                >
+                  Show All Symptoms (সব লক্ষণ দেখুন)
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {SYMPTOM_LIST.map((sym) => {
+                const isSelected = selectedSymptom === sym.id;
+                return (
+                  <button
+                    key={sym.id}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        handleSelectSymptom(null);
+                      } else {
+                        handleSelectSymptom(sym.id);
+                      }
+                    }}
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-[#1B4332] text-white border-[#1B4332] shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-sky-50 dark:hover:bg-slate-700 hover:border-sky-300'
+                    }`}
+                  >
+                    <span>{sym.icon}</span>
+                    <span>{sym.nameEn.split('&')[0].trim()}</span>
+                    <span className="text-[10px] opacity-80">({sym.nameBn.split('ও')[0].trim()})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Intelligent Autocomplete Input Bar with Voice Search */}
         <div className="relative">
@@ -768,22 +1055,39 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
               onFocus={() => setIsDropdownOpen(true)}
               onKeyDown={(e) => {
                 if (!isDropdownOpen) return;
+                const activeListLength =
+                  searchMode === 'medicine'
+                    ? filteredMatches.length
+                    : searchMode === 'organ'
+                    ? filteredOrgans.length
+                    : filteredSymptoms.length;
+
                 if (e.key === 'ArrowDown') {
                   e.preventDefault();
-                  setHighlightedIndex((prev) => Math.min(prev + 1, filteredMatches.length - 1));
+                  setHighlightedIndex((prev) => Math.min(prev + 1, activeListLength - 1));
                 } else if (e.key === 'ArrowUp') {
                   e.preventDefault();
                   setHighlightedIndex((prev) => Math.max(prev - 1, 0));
                 } else if (e.key === 'Enter') {
                   e.preventDefault();
-                  if (filteredMatches[highlightedIndex]) {
+                  if (searchMode === 'medicine' && filteredMatches[highlightedIndex]) {
                     handleSelectRemedy(filteredMatches[highlightedIndex]);
+                  } else if (searchMode === 'organ' && filteredOrgans[highlightedIndex]) {
+                    handleSelectOrgan(filteredOrgans[highlightedIndex].id);
+                  } else if (searchMode === 'symptom' && filteredSymptoms[highlightedIndex]) {
+                    handleSelectSymptom(filteredSymptoms[highlightedIndex].id);
                   }
                 } else if (e.key === 'Escape') {
                   setIsDropdownOpen(false);
                 }
               }}
-              placeholder="Type 2+ letters (e.g., 'Ar', 'Bel', 'Thu', 'Rhus', 'Berb', 'আর্নিকা', 'R41')..."
+              placeholder={
+                searchMode === 'organ'
+                  ? "Search organs or systems (e.g., 'Heart', 'হৃদপিণ্ড', 'Liver', 'Stomach', 'Joints', 'Skin', 'Spine')..."
+                  : searchMode === 'symptom'
+                  ? "Search symptoms or conditions (e.g., 'Sprain', 'মচকানো', 'Acidity', 'Migraine', 'Vomiting', 'Sciatica')..."
+                  : "Search 500+ medicines by Latin, Bengali, or common name (e.g., 'Arnica', 'Nux Vomica', 'R41', 'আর্নিকা')..."
+              }
               className="w-full pl-11 pr-32 py-3 sm:py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm sm:text-base font-medium placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#1B4332] transition"
             />
             <div className="absolute right-3 flex items-center gap-1.5">
@@ -816,7 +1120,11 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
                 </button>
               )}
               <span className="hidden sm:inline-block px-2 py-1 rounded-lg bg-slate-200/80 dark:bg-slate-700 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                {filteredMatches.length} Found
+                {searchMode === 'medicine'
+                  ? `${filteredMatches.length} Found`
+                  : searchMode === 'organ'
+                  ? `${filteredOrgans.length} Organs`
+                  : `${filteredSymptoms.length} Indications`}
               </span>
             </div>
           </div>
@@ -827,139 +1135,344 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
               ref={dropdownRef}
               className="absolute top-full left-0 right-0 mt-2 max-h-80 overflow-y-auto rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl z-50 p-2 space-y-1"
             >
-              {filteredMatches.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
-                  <p className="font-semibold text-slate-700 dark:text-slate-300">
-                    কোনো ওষুধ খুঁজে পাওয়া যায়নি (No matching remedy found).
-                  </p>
-                  <p className="text-[11px] mt-0.5 mb-2">
-                    Try searching by common Latin name, Bengali spelling, or category filter above.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setModalForm((prev) => ({
-                        ...prev,
-                        name: searchQuery.trim(),
-                        bengaliName: searchQuery.trim()
-                      }));
-                      setIsDropdownOpen(false);
-                      setIsAddModalOpen(true);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1B4332] text-white text-xs font-bold hover:bg-emerald-800 transition"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    <span>+ AI Enrich '{searchQuery}' Now</span>
-                  </button>
-                </div>
-              ) : (
-                filteredMatches.slice(0, 40).map((item, index) => {
-                  const isHighlighted = highlightedIndex === index;
-                  const isSelected = selectedRemedyId === item.id;
-                  const isCustom = 'isCustom' in item && (item as any).isCustom;
-                  return (
+              {/* TAB 1: MEDICINE AUTOCOMPLETE */}
+              {searchMode === 'medicine' && (
+                filteredMatches.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                    <p className="font-semibold text-slate-700 dark:text-slate-300">
+                      কোনো ওষুধ খুঁজে পাওয়া যায়নি (No matching remedy found).
+                    </p>
+                    <p className="text-[11px] mt-0.5 mb-2">
+                      Try searching by common Latin name or Bengali spelling.
+                    </p>
                     <button
-                      key={item.id}
                       type="button"
-                      onClick={() => handleSelectRemedy(item)}
-                      onMouseEnter={() => setHighlightedIndex(index)}
-                      className={`w-full p-2.5 rounded-xl text-left transition flex items-center justify-between gap-3 cursor-pointer ${
-                        isSelected
-                          ? 'bg-emerald-50 dark:bg-emerald-950/50 text-[#1B4332] dark:text-emerald-300 font-bold'
-                          : isHighlighted
-                          ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                      }`}
+                      onClick={() => {
+                        setModalForm((prev) => ({
+                          ...prev,
+                          name: searchQuery.trim(),
+                          bengaliName: searchQuery.trim()
+                        }));
+                        setIsDropdownOpen(false);
+                        setIsAddModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1B4332] text-white text-xs font-bold hover:bg-emerald-800 transition cursor-pointer"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0 ${
-                            isCustom
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
-                              : item.category === 'mother_tincture'
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-                              : item.category === 'biochemic'
-                              ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
-                              : item.category === 'patent'
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
-                              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                          }`}
-                        >
-                          <Pill className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="truncate">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-extrabold text-sm">{item.name}</span>
-                            {isCustom && (
-                              <span className="px-1.5 py-0.2 rounded-md bg-purple-200 dark:bg-purple-900 text-purple-800 dark:text-purple-200 text-[9px] font-bold">
-                                Chamber
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            ({item.nameBn})
-                          </span>
-                          <span className="text-[11px] text-slate-400 block truncate">
-                            {item.commonName}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="shrink-0 flex items-center gap-2">
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                            item.category === 'mother_tincture'
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-                              : item.category === 'biochemic'
-                              ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
-                              : item.category === 'patent'
-                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
-                              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                          }`}
-                        >
-                          {item.category.replace('_', ' ')}
-                        </span>
-                        {isSelected && <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
-                      </div>
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <span>+ AI Enrich '{searchQuery}' Now</span>
                     </button>
-                  );
-                })
+                  </div>
+                ) : (
+                  filteredMatches.slice(0, 40).map((item, index) => {
+                    const isHighlighted = highlightedIndex === index;
+                    const isSelected = selectedRemedyId === item.id;
+                    const isCustom = 'isCustom' in item && (item as any).isCustom;
+
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectRemedy(item)}
+                        onMouseEnter={() => setHighlightedIndex(index)}
+                        className={`w-full p-2.5 rounded-xl text-left transition flex items-center justify-between gap-3 cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-[#1B4332] dark:text-emerald-300 font-bold'
+                            : isHighlighted
+                            ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0 ${
+                              isCustom
+                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+                                : item.category === 'mother_tincture'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                : item.category === 'biochemic'
+                                ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                                : item.category === 'patent'
+                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                            }`}
+                          >
+                            <Pill className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="truncate">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-sm">{item.name}</span>
+                              {isCustom && (
+                                <span className="px-1.5 py-0.2 rounded-md bg-purple-200 dark:bg-purple-900 text-purple-800 dark:text-purple-200 text-[9px] font-bold">
+                                  Chamber
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              ({item.nameBn})
+                            </span>
+                            <span className="text-[11px] text-slate-400 block truncate">
+                              {item.commonName}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                              item.category === 'mother_tincture'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                                : item.category === 'biochemic'
+                                ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                                : item.category === 'patent'
+                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                            }`}
+                          >
+                            {item.category.replace('_', ' ')}
+                          </span>
+                          {isSelected && <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+                        </div>
+                      </button>
+                    );
+                  })
+                )
+              )}
+
+              {/* TAB 2: ORGAN AUTOCOMPLETE (NEVER SHOWS MEDICINE NAMES) */}
+              {searchMode === 'organ' && (
+                filteredOrgans.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                    <p className="font-semibold text-slate-700 dark:text-slate-300">
+                      কোনো অঙ্গ বা সিস্টেম খুঁজে পাওয়া যায়নি (No matching organ found).
+                    </p>
+                    <p className="text-[11px] mt-0.5">
+                      Try searching 'Heart', 'হৃদপিণ্ড', 'Liver', 'যকৃৎ', 'Stomach', 'Joints', 'Skin', etc.
+                    </p>
+                  </div>
+                ) : (
+                  filteredOrgans.map((org, index) => {
+                    const isHighlighted = highlightedIndex === index;
+                    const isSelected = selectedOrgan === org.id;
+
+                    return (
+                      <button
+                        key={org.id}
+                        type="button"
+                        onClick={() => handleSelectOrgan(org.id)}
+                        onMouseEnter={() => setHighlightedIndex(index)}
+                        className={`w-full p-2.5 rounded-xl text-left transition flex items-center justify-between gap-3 cursor-pointer ${
+                          isSelected
+                            ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-900 dark:text-rose-200 font-bold'
+                            : isHighlighted
+                            ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 flex items-center justify-center text-base shrink-0">
+                            {org.icon}
+                          </div>
+                          <div className="truncate">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-sm">{org.nameEn}</span>
+                              <span className="text-xs text-slate-500 dark:text-slate-400">({org.nameBn})</span>
+                            </div>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+                              {org.descriptionEn}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300">
+                            {org.primaryRemedies.length} Curated Remedies
+                          </span>
+                          {isSelected && <Check className="w-4 h-4 text-rose-600 dark:text-rose-400" />}
+                        </div>
+                      </button>
+                    );
+                  })
+                )
+              )}
+
+              {/* TAB 3: SYMPTOM AUTOCOMPLETE (NEVER SHOWS MEDICINE NAMES) */}
+              {searchMode === 'symptom' && (
+                filteredSymptoms.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
+                    <p className="font-semibold text-slate-700 dark:text-slate-300">
+                      কোনো ক্লিনিক্যাল লক্ষণ পাওয়া যায়নি (No matching symptom found).
+                    </p>
+                    <p className="text-[11px] mt-0.5">
+                      Try searching 'Sprain', 'মচকানো', 'Acidity', 'বুকজ্বালা', 'Migraine', 'Vomiting', 'Sciatica', etc.
+                    </p>
+                  </div>
+                ) : (
+                  filteredSymptoms.map((sym, index) => {
+                    const isHighlighted = highlightedIndex === index;
+                    const isSelected = selectedSymptom === sym.id;
+
+                    return (
+                      <button
+                        key={sym.id}
+                        type="button"
+                        onClick={() => handleSelectSymptom(sym.id)}
+                        onMouseEnter={() => setHighlightedIndex(index)}
+                        className={`w-full p-2.5 rounded-xl text-left transition flex items-center justify-between gap-3 cursor-pointer ${
+                          isSelected
+                            ? 'bg-sky-50 dark:bg-sky-950/50 text-sky-900 dark:text-sky-200 font-bold'
+                            : isHighlighted
+                            ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 flex items-center justify-center text-base shrink-0">
+                            {sym.icon}
+                          </div>
+                          <div className="truncate">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-sm">{sym.nameEn}</span>
+                              <span className="text-xs text-slate-500 dark:text-slate-400">({sym.nameBn})</span>
+                            </div>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+                              {sym.definitionEn}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-sky-100 text-sky-800 dark:bg-sky-900/60 dark:text-sky-300">
+                            {sym.differentials.length} Differentials
+                          </span>
+                          {isSelected && <Check className="w-4 h-4 text-sky-600 dark:text-sky-400" />}
+                        </div>
+                      </button>
+                    );
+                  })
+                )
               )}
             </div>
           )}
         </div>
 
-        {/* Quick Popular Remedies Chips */}
-        <div>
-          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">
-            Quick Polycrests & Specifics (বহুল ব্যবহৃত ঔষধসমূহ):
-          </span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {popularRemedies.map((pop) => (
-              <button
-                key={pop.id}
-                type="button"
-                onClick={() => {
-                  const match = masterRemedies.find((r) => r.id === pop.id);
-                  if (match) handleSelectRemedy(match);
-                }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer flex items-center gap-1 ${
-                  selectedRemedyId === pop.id
-                    ? 'bg-[#1B4332] text-white border-[#1B4332]'
-                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-slate-700 hover:border-emerald-300'
-                }`}
-              >
-                <span>{pop.name}</span>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500">({pop.nameBn})</span>
-              </button>
-            ))}
+        {/* MODE-SPECIFIC QUICK RECOMMENDATION CHIPS */}
+        {searchMode === 'medicine' && (
+          <div>
+            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">
+              Quick Polycrests & Specifics (বহুল ব্যবহৃত ঔষধসমূহ):
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {popularRemedies.map((pop) => (
+                <button
+                  key={pop.id}
+                  type="button"
+                  onClick={() => handleSelectRemedyById(pop.id)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer flex items-center gap-1 ${
+                    selectedRemedyId === pop.id
+                      ? 'bg-[#1B4332] text-white border-[#1B4332]'
+                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-slate-700 hover:border-emerald-300'
+                  }`}
+                >
+                  <span>{pop.name}</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">({pop.nameBn})</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {searchMode === 'organ' && (
+          <div>
+            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">
+              Anatomical Systems & Organ Affinities (অঙ্গভিত্তিক দ্রুত বাছাই):
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {ORGAN_LIST.map((org) => {
+                const isSelected = selectedOrgan === org.id;
+                return (
+                  <button
+                    key={org.id}
+                    type="button"
+                    onClick={() => handleSelectOrgan(org.id)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-[#1B4332] text-white border-[#1B4332] shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-slate-700 hover:border-rose-300'
+                    }`}
+                  >
+                    <span>{org.icon}</span>
+                    <span>{org.nameEn.split('/')[0].trim()}</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">({org.nameBn.split('/')[0].trim()})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {searchMode === 'symptom' && (
+          <div>
+            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">
+              Key Clinical Conditions & Symptoms (লক্ষণভিত্তিক দ্রুত নির্দেশিকা):
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {SYMPTOM_LIST.map((sym) => {
+                const isSelected = selectedSymptom === sym.id;
+                return (
+                  <button
+                    key={sym.id}
+                    type="button"
+                    onClick={() => handleSelectSymptom(sym.id)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-[#1B4332] text-white border-[#1B4332] shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-sky-50 dark:hover:bg-slate-700 hover:border-sky-300'
+                    }`}
+                  >
+                    <span>{sym.icon}</span>
+                    <span>{sym.nameEn.split('&')[0].trim()}</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">({sym.nameBn.split('ও')[0].trim()})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* DETAILED MATERIA MEDICA PROFILE SHEET */}
       {activeRemedy && (
         <div className="space-y-6 animate-fade-in print:space-y-4">
+          {/* Contextual Back Navigation */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 px-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveRemedy(null);
+                setSelectedRemedyId(null);
+              }}
+              className="inline-flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-[#1B4332] dark:hover:text-emerald-400 transition cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              {searchMode === 'organ' && selectedOrgan ? (
+                <span>Back to {ORGAN_LIST.find((o) => o.id === selectedOrgan)?.nameEn || 'Organ Clinical Repertory'}</span>
+              ) : searchMode === 'symptom' && selectedSymptom ? (
+                <span>Back to {SYMPTOM_LIST.find((s) => s.id === selectedSymptom)?.nameEn || 'Clinical Indication Guide'}</span>
+              ) : (
+                <span>Back to Search & Explorer Overview (সংক্ষিপ্ত সূচী)</span>
+              )}
+            </button>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                Mode:
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                {searchMode === 'organ' ? 'Body Organ / System' : searchMode === 'symptom' ? 'Clinical Indication' : 'Medicine Name'}
+              </span>
+            </div>
+          </div>
+
           {/* SECTION 1: HEADER CARD */}
           <div className="p-5 sm:p-7 rounded-3xl bg-gradient-to-br from-emerald-900 via-[#1B4332] to-[#2D6A4F] text-white shadow-xl shadow-emerald-950/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
@@ -1003,25 +1516,11 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
 
               {/* Action Buttons in Header */}
               <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleAddToBilling}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition cursor-pointer shadow-md ${
-                    addedToBill
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-white text-[#1B4332] hover:bg-emerald-50'
-                  }`}
-                  title="Add to Patient Invoice"
-                >
-                  {addedToBill ? <Check className="w-4 h-4" /> : <PlusCircle className="w-4 h-4" />}
-                  <span>{addedToBill ? 'Added to Prescription!' : '+ Add to Patient Bill'}</span>
-                </button>
-
                 {onNavigateToInventory && (
                   <button
                     type="button"
                     onClick={() => onNavigateToInventory(activeRemedy.latinName)}
-                    className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-white/15 hover:bg-white/25 text-white flex items-center gap-1.5 transition cursor-pointer border border-white/20"
+                    className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-white/15 hover:bg-white/25 text-white flex items-center gap-1.5 transition cursor-pointer border border-white/20 shadow-xs"
                     title="Check stock in chamber pharmacy"
                   >
                     <PackageSearch className="w-4 h-4" />
@@ -1359,6 +1858,569 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
 
               <div className="prose dark:prose-invert max-w-none text-xs sm:text-sm text-slate-800 dark:text-slate-200 whitespace-pre-line leading-relaxed font-sans bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-700">
                 {extendedTreatise}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* DEDICATED RESULTS VIEWS WHEN NO SINGLE REMEDY IS SELECTED */}
+      {!activeRemedy && (
+        <div className="space-y-6 animate-fade-in">
+          {/* ========================================================================= */}
+          {/* MODE 2: ORGAN & SYSTEM CLINICAL REPERTORY VIEW                            */}
+          {/* ========================================================================= */}
+          {searchMode === 'organ' && (
+            selectedOrgan ? (
+              /* SPECIFIC ORGAN SELECTED: SHOW DEDICATED CLINICAL REPERTORY */
+              (() => {
+                const activeOrgan = ORGAN_LIST.find((o) => o.id === selectedOrgan) || ORGAN_LIST[0];
+                return (
+                  <div className="space-y-6">
+                    {/* Organ Banner */}
+                    <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-rose-900 via-rose-950 to-slate-900 text-white shadow-xl shadow-rose-950/20 relative overflow-hidden border border-rose-800/40">
+                      <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+                      
+                      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex items-start gap-4">
+                          <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-3xl shrink-0 border border-white/15 shadow-inner">
+                            {activeOrgan.icon}
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-rose-400 text-slate-950">
+                                Organ Clinical Repertory
+                              </span>
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white/10 text-rose-200 border border-white/10">
+                                {activeOrgan.primaryRemedies.length} Curated Specifics
+                              </span>
+                            </div>
+                            <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+                              {activeOrgan.nameEn}
+                              <span className="text-lg sm:text-xl font-bold text-rose-200 ml-2 font-bengali">
+                                ({activeOrgan.nameBn})
+                              </span>
+                            </h2>
+                            <p className="text-xs sm:text-sm text-rose-100/90 max-w-3xl leading-relaxed">
+                              {activeOrgan.descriptionEn}
+                            </p>
+                            <p className="text-xs text-rose-300 font-bengali">
+                              {activeOrgan.descriptionBn}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrgan(null)}
+                            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition border border-white/20 cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span>Browse All Organs (সব অঙ্গ)</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Curated Primary Remedies for this Organ */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                          <Activity className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                          <span>Primary Remedies with Specific Tissue Affinity</span>
+                        </h3>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Click any card to inspect full Materia Medica monograph
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {activeOrgan.primaryRemedies.map((rem) => (
+                          <div
+                            key={rem.remedyId}
+                            className="p-5 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-700 transition shadow-xs hover:shadow-md flex flex-col justify-between space-y-4 group"
+                          >
+                            <div className="space-y-3">
+                              {/* Header: Name + Category */}
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <h4 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition">
+                                    {rem.name}
+                                  </h4>
+                                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-bengali">
+                                    {rem.nameBn}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase shrink-0 ${
+                                    rem.category === 'mother_tincture'
+                                      ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-300'
+                                      : rem.category === 'biochemic'
+                                      ? 'bg-sky-100 text-sky-900 dark:bg-sky-950/80 dark:text-sky-300'
+                                      : rem.category === 'patent'
+                                      ? 'bg-purple-100 text-purple-900 dark:bg-purple-950/80 dark:text-purple-300'
+                                      : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                  }`}
+                                >
+                                  {rem.category.replace('_', ' ')}
+                                </span>
+                              </div>
+
+                              {/* Specific Action */}
+                              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 space-y-1">
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-600 dark:text-rose-400 block">
+                                  Specific Organ Action (অঙ্গে ক্রিয়া):
+                                </span>
+                                <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+                                  {rem.specificActionEn}
+                                </p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bengali">
+                                  {rem.specificActionBn}
+                                </p>
+                              </div>
+
+                              {/* Differentiator & Potency */}
+                              <div className="space-y-2 text-xs">
+                                <div className="flex items-start gap-2">
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                  <div>
+                                    <span className="font-bold text-slate-900 dark:text-slate-200">Keynote: </span>
+                                    <span className="text-slate-600 dark:text-slate-400">{rem.keyDifferentiator}</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Pill className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <div>
+                                    <span className="font-bold text-slate-900 dark:text-slate-200">Potency: </span>
+                                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold">{rem.recommendedPotency}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* View Monograph Trigger */}
+                            <button
+                              type="button"
+                              onClick={() => handleViewFullMonograph(rem.remedyId)}
+                              className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-[#1B4332] dark:bg-slate-700 hover:text-white dark:hover:bg-[#1B4332] text-slate-800 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                            >
+                              <span>View Full Monograph (সম্পূর্ণ মনোগ্রাফ)</span>
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              /* NO ORGAN SELECTED YET: SHOW DIRECTORY OF ALL 10 ORGANS */
+              <div className="space-y-6">
+                <div className="p-6 sm:p-8 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-3xl mx-auto space-y-2.5">
+                  <div className="w-14 h-14 rounded-2xl bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto text-2xl">
+                    <Activity className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                    Organ & System Clinical Repertory (অঙ্গভিত্তিক ক্লিনিক্যাল রেপার্টরি)
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                    Select any anatomical organ or body system below to compare primary specifics, clinical tissue affinities, and key differential monographs.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {ORGAN_LIST.map((org) => (
+                    <button
+                      key={org.id}
+                      type="button"
+                      onClick={() => handleSelectOrgan(org.id)}
+                      className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-rose-400 dark:hover:border-rose-600 hover:shadow-md transition text-left space-y-3 cursor-pointer group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-3xl">{org.icon}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-50 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                          {org.primaryRemedies.length} Specifics
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4 className="font-extrabold text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition text-base">
+                          {org.nameEn}
+                        </h4>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-bengali">
+                          {org.nameBn}
+                        </p>
+                      </div>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                        {org.descriptionEn}
+                      </p>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs font-bold text-rose-600 dark:text-rose-400">
+                        <span>Explore Repertory</span>
+                        <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          )}
+
+          {/* ========================================================================= */}
+          {/* MODE 3: SYMPTOM & INDICATION DIFFERENTIAL GUIDE VIEW                      */}
+          {/* ========================================================================= */}
+          {searchMode === 'symptom' && (
+            selectedSymptom ? (
+              /* SPECIFIC SYMPTOM SELECTED: SHOW DEDICATED DIFFERENTIAL GUIDE */
+              (() => {
+                const activeSymptom = SYMPTOM_LIST.find((s) => s.id === selectedSymptom) || SYMPTOM_LIST[0];
+                return (
+                  <div className="space-y-6">
+                    {/* Symptom Banner */}
+                    <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-sky-900 via-sky-950 to-slate-900 text-white shadow-xl shadow-sky-950/20 relative overflow-hidden border border-sky-800/40">
+                      <div className="absolute top-0 right-0 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+
+                      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex items-start gap-4">
+                          <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-3xl shrink-0 border border-white/15 shadow-inner">
+                            {activeSymptom.icon}
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-sky-300 text-slate-950">
+                                Clinical Indication Guide
+                              </span>
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white/10 text-sky-200 border border-white/10">
+                                {activeSymptom.differentials.length} Differential Remedies
+                              </span>
+                            </div>
+                            <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+                              {activeSymptom.nameEn}
+                              <span className="text-lg sm:text-xl font-bold text-sky-200 ml-2 font-bengali">
+                                ({activeSymptom.nameBn})
+                              </span>
+                            </h2>
+                            <p className="text-xs sm:text-sm text-sky-100/90 max-w-3xl leading-relaxed">
+                              {activeSymptom.definitionEn}
+                            </p>
+                            <p className="text-xs text-sky-300 font-bengali">
+                              {activeSymptom.definitionBn}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSymptom(null)}
+                            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition border border-white/20 cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span>Browse All Symptoms (সব লক্ষণ)</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Differential Remedy Comparison Section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                          <Stethoscope className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                          <span>Differential Remedy Comparison & Keynotes</span>
+                        </h3>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Differentiate by acute modality and symptom character
+                        </span>
+                      </div>
+
+                      {/* Desktop / Tablet Comparison Table */}
+                      <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 font-extrabold uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                              <th className="py-3.5 px-4">Remedy (ঔষধ)</th>
+                              <th className="py-3.5 px-4">Keynote Indication (লক্ষণ নির্দেশিকা)</th>
+                              <th className="py-3.5 px-4">Modalities (হ্রাস-বৃদ্ধি)</th>
+                              <th className="py-3.5 px-4">Differentiating Feature (স্বাতন্ত্র্য)</th>
+                              <th className="py-3.5 px-4">Potency (মাত্রা)</th>
+                              <th className="py-3.5 px-4 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                            {activeSymptom.differentials.map((diff) => (
+                              <tr key={diff.remedyId} className="hover:bg-sky-50/50 dark:hover:bg-slate-800/50 transition">
+                                <td className="py-4 px-4 align-top">
+                                  <div className="font-extrabold text-sm text-slate-900 dark:text-white">
+                                    {diff.name}
+                                  </div>
+                                  <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-bengali">
+                                    {diff.nameBn}
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 align-top max-w-xs leading-relaxed">
+                                  <div className="font-medium text-slate-900 dark:text-slate-200">
+                                    {diff.keynoteEn}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 font-bengali mt-0.5">
+                                    {diff.keynoteBn}
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 align-top max-w-xs leading-relaxed">
+                                  <span className="px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-medium block">
+                                    {diff.modalityEn}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-bengali mt-0.5 block">
+                                    {diff.modalityBn}
+                                  </span>
+                                </td>
+                                <td className="py-4 px-4 align-top max-w-xs leading-relaxed">
+                                  <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-medium border border-amber-200/60 dark:border-amber-900/40">
+                                    {diff.differentiatingFeature}
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 align-top whitespace-nowrap">
+                                  <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800">
+                                    {diff.potency}
+                                  </span>
+                                </td>
+                                <td className="py-4 px-4 align-top text-right whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleViewFullMonograph(diff.remedyId)}
+                                    className="px-3 py-1.5 rounded-xl bg-[#1B4332] text-white hover:bg-emerald-800 text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer shadow-xs"
+                                  >
+                                    <span>Monograph</span>
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile Stacked Differential Cards */}
+                      <div className="md:hidden space-y-3">
+                        {activeSymptom.differentials.map((diff) => (
+                          <div
+                            key={diff.remedyId}
+                            className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                  {diff.name}
+                                </h4>
+                                <p className="text-xs text-slate-500 font-bengali">{diff.nameBn}</p>
+                              </div>
+                              <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-xs">
+                                {diff.potency}
+                              </span>
+                            </div>
+
+                            <div className="space-y-1.5 text-xs">
+                              <p className="text-slate-800 dark:text-slate-200 font-medium">
+                                <span className="font-bold">Indication: </span>
+                                {diff.keynoteEn}
+                              </p>
+                              <p className="text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 p-2 rounded-lg font-medium">
+                                <span className="font-bold">Modalities: </span>
+                                {diff.modalityEn}
+                              </p>
+                              <p className="text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg font-medium">
+                                <span className="font-bold">Differentiator: </span>
+                                {diff.differentiatingFeature}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleViewFullMonograph(diff.remedyId)}
+                              className="w-full py-2 px-3 rounded-xl bg-[#1B4332] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                            >
+                              <span>View Full Monograph</span>
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              /* NO SYMPTOM SELECTED YET: SHOW DIRECTORY OF ALL 10 SYMPTOMS */
+              <div className="space-y-6">
+                <div className="p-6 sm:p-8 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-3xl mx-auto space-y-2.5">
+                  <div className="w-14 h-14 rounded-2xl bg-sky-100 dark:bg-sky-950/70 text-sky-600 dark:text-sky-400 flex items-center justify-center mx-auto text-2xl">
+                    <Stethoscope className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                    Clinical Indication & Keynote Guide (লক্ষণভিত্তিক ক্লিনিক্যাল নির্দেশিকা)
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                    Select any clinical indication or keynote condition below to compare acute differentials, modalities, and characteristic symptoms.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {SYMPTOM_LIST.map((sym) => (
+                    <button
+                      key={sym.id}
+                      type="button"
+                      onClick={() => handleSelectSymptom(sym.id)}
+                      className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-sky-400 dark:hover:border-sky-600 hover:shadow-md transition text-left space-y-3 cursor-pointer group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-3xl">{sym.icon}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-sky-50 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                          {sym.differentials.length} Differentials
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4 className="font-extrabold text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition text-base">
+                          {sym.nameEn}
+                        </h4>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-bengali">
+                          {sym.nameBn}
+                        </p>
+                      </div>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                        {sym.definitionEn}
+                      </p>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs font-bold text-sky-600 dark:text-sky-400">
+                        <span>Compare Differentials</span>
+                        <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          )}
+
+          {/* ========================================================================= */}
+          {/* MODE 1: MEDICINE SEARCH EMPTY STATE WELCOMING CONTAINER                   */}
+          {/* ========================================================================= */}
+          {searchMode === 'medicine' && (
+            <div className="p-8 sm:p-12 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm text-center space-y-8">
+              {/* Hero Emblem & Titles */}
+              <div className="max-w-2xl mx-auto space-y-3">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800/80 flex items-center justify-center mx-auto text-[#1B4332] dark:text-emerald-300 shadow-sm">
+                  <BookOpen className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                  Materia Medica & Repertory Explorer
+                </h2>
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                  Search by Medicine Name, Body Organ, or Clinical Symptoms above, or pick from the quick pills to view comprehensive clinical monographs.
+                </p>
+                <p className="text-xs sm:text-sm text-emerald-800 dark:text-emerald-300/90 font-medium font-bengali">
+                  ওষুধের নাম, শারীরিক অঙ্গ বা ক্লিনিক্যাল লক্ষণ দিয়ে উপরে সার্চ করুন অথবা নিচের যেকোনো বোতামে ক্লিক করে বিস্তারিত মনোগ্রাফ দেখুন।
+                </p>
+              </div>
+
+              {/* 3 Quick Launch Guidance Sections */}
+              <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                {/* 1. By Medicine Name */}
+                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-[#1B4332] dark:text-emerald-300 font-bold text-sm">
+                      <Pill className="w-4 h-4" />
+                      <span>Popular Remedies (ঔষধসমূহ)</span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Select a classical polycrest remedy to open its monograph immediately:
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: 'arnica-montana', name: 'Arnica Mont', bn: 'আর্নিকা' },
+                      { id: 'nux-vomica', name: 'Nux Vomica', bn: 'নাক্স ভমিকা' },
+                      { id: 'belladonna', name: 'Belladonna', bn: 'বেলেডোনা' },
+                      { id: 'rhus-toxicodendron', name: 'Rhus Tox', bn: 'রাস টক্স' },
+                      { id: 'bryonia-alba', name: 'Bryonia', bn: 'ব্রায়োনিয়া' },
+                      { id: 'arsenicum-album', name: 'Arsenic Alb', bn: 'আর্সেনিক' },
+                      { id: 'lycopodium-clavatum', name: 'Lycopodium', bn: 'লাইকোপোডিয়াম' },
+                      { id: 'berberis-vulgaris', name: 'Berberis Vulg Q', bn: 'বার্বারিস' }
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSelectRemedyById(item.id)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-slate-600 hover:border-emerald-400 transition cursor-pointer"
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. By Organ & System */}
+                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-sm">
+                      <Activity className="w-4 h-4" />
+                      <span>By Organ / System (অঙ্গভিত্তিক)</span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Target remedies with primary tissue affinity for specific body systems:
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {ORGAN_LIST.slice(0, 8).map((org) => (
+                      <button
+                        key={org.id}
+                        type="button"
+                        onClick={() => {
+                          handleSwitchTab('organ');
+                          handleSelectOrgan(org.id);
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-rose-50 dark:hover:bg-slate-600 hover:border-rose-400 transition cursor-pointer flex items-center gap-1"
+                      >
+                        <span>{org.icon}</span>
+                        <span>{org.nameEn.split('/')[0].trim()}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. By Symptom & Indication */}
+                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between space-y-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-bold text-sm">
+                      <Stethoscope className="w-4 h-4" />
+                      <span>By Clinical Keynote (লক্ষণভিত্তিক)</span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Quickly repertorize and compare differential keynotes for common conditions:
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {SYMPTOM_LIST.slice(0, 8).map((sym) => (
+                      <button
+                        key={sym.id}
+                        type="button"
+                        onClick={() => {
+                          handleSwitchTab('symptom');
+                          handleSelectSymptom(sym.id);
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-600 hover:border-sky-400 transition cursor-pointer flex items-center gap-1"
+                      >
+                        <span>{sym.icon}</span>
+                        <span>{sym.nameEn.split('&')[0].trim()}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
