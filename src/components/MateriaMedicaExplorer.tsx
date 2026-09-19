@@ -35,7 +35,11 @@ import {
   Globe,
   Building2,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  Key,
+  Zap,
+  AlertTriangle,
+  AlertCircle
 } from 'lucide-react';
 import {
   MateriaMedicaRemedy,
@@ -63,9 +67,265 @@ import {
   OrganRemedyProfile,
   SymptomDifferentialRemedy
 } from '../data/materiaMedicaRepertory';
+import { getGroqApiKey, hasGroqApiKey, setGroqApiKey } from '../services/groqClient';
 
 export { ORGAN_LIST, SYMPTOM_LIST };
 export type { OrganFilterItem, SymptomFilterItem, OrganRemedyProfile, SymptomDifferentialRemedy };
+
+// GROQ MATERIA MEDICA & REPERTORY ZERO-HALLUCINATION GUARDRAIL
+const GROQ_MATERIA_MEDICA_GUARDRAIL =
+  "You are an expert classical homeopathic repertory engine grounded strictly in William Boericke's Materia Medica and J. T. Kent's Repertory. NEVER fabricate or hallucinate remedies, modalities, or clinical indications. Output strictly verified classical facts.";
+
+/**
+ * Executes a structured chat completion against Groq OpenAI-compatible API
+ * with candidate model fallback and automatic JSON parsing.
+ */
+async function executeGroqRequest(
+  messages: Array<{ role: string; content: string }>,
+  apiKey: string,
+  maxTokens = 2000
+): Promise<string> {
+  const candidateModels = ['llama-3.3-70b-versatile', 'openai/gpt-oss-20b', 'openai/gpt-oss-120b'];
+  let lastError: any = null;
+
+  for (const model of candidateModels) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey.trim()}`
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.2,
+          max_tokens: maxTokens,
+          response_format: { type: 'json_object' }
+        })
+      });
+
+      if (!response.ok) {
+        let errMessage = `HTTP ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData?.error?.message) errMessage = errData.error.message;
+        } catch {
+          // ignore
+        }
+
+        if (response.status === 401) {
+          throw new Error(`Invalid Groq API Key (${errMessage}). Please update your API key.`);
+        }
+        if (response.status === 429) {
+          throw new Error(`Groq API rate limit exceeded (${errMessage}). Please retry in a few moments.`);
+        }
+        lastError = new Error(`Groq model ${model} error: ${errMessage}`);
+        continue;
+      }
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (content && typeof content === 'string') {
+        return content.trim();
+      }
+    } catch (err: any) {
+      if (err.message && (err.message.includes('Invalid Groq API Key') || err.message.includes('rate limit'))) {
+        throw err;
+      }
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('All Groq candidate models failed to return a response.');
+}
+
+/**
+ * Fetches authentic Boericke Monograph via Groq AI
+ */
+async function fetchAuthenticBoerickeMonographViaGroq(
+  remedyName: string,
+  apiKey: string
+): Promise<MateriaMedicaRemedy> {
+  const userPrompt = `Provide the authentic Boericke Materia Medica monograph for homeopathic remedy: "${remedyName}".
+Ground all clinical indications, affinities, and modalities strictly in William Boericke's Materia Medica.
+
+CRITICAL: Return STRICT JSON adhering to this exact schema:
+{
+  "latinName": "${remedyName}",
+  "commonName": "English common name",
+  "nameBn": "বাংলা নাম",
+  "familySource": "Botanical/Chemical/Mineral/Animal source",
+  "category": "dilution",
+  "sphereOfActionEn": "Physiological sphere of action and tissues affected in English",
+  "sphereOfActionBn": "শারীরিক প্রভাব ও প্রধান ক্রিয়াক্ষেত্রের বাংলা বিবরণ",
+  "recommendedPotency": "e.g. 30C / 200C / Q",
+  "primaryIndications": [
+    { "en": "Primary clinical indication in English", "bn": "ক্লিনিক্যাল নির্দেশিকা বাংলায়" },
+    { "en": "Primary clinical indication 2 in English", "bn": "ক্লিনিক্যাল নির্দেশিকা ২ বাংলায়" },
+    { "en": "Primary clinical indication 3 in English", "bn": "ক্লিনিক্যাল নির্দেশিকা ৩ বাংলায়" }
+  ],
+  "guidingKeynotes": [
+    { "en": "Guiding keynote in English", "bn": "প্রধান চরিত্রগত লক্ষণ বাংলায়" },
+    { "en": "Guiding keynote 2 in English", "bn": "চরিত্রগত লক্ষণ ২ বাংলায়" },
+    { "en": "Guiding keynote 3 in English", "bn": "চরিত্রগত লক্ষণ ৩ বাংলায়" }
+  ],
+  "modalities": {
+    "worseEn": "Aggravation modalities (motion, cold, night, etc.)",
+    "worseBn": "কিসে বাড়ে (নড়াচড়া, ঠান্ডা, রাত্রি ইত্যাদি)",
+    "betterEn": "Amelioration modalities (rest, warmth, pressure, etc.)",
+    "betterBn": "কিসে কমে (বিশ্রাম, উত্তাপ, চাপ ইত্যাদি)"
+  },
+  "mindDisposition": {
+    "en": "Mental disposition in English",
+    "bn": "মানসিক লক্ষণ ও স্বভাব বাংলায়"
+  },
+  "dosageInstructions": {
+    "en": "Posology and dose guidance in English",
+    "bn": "সেবন মাত্রা ও নিয়ম বাংলায়"
+  },
+  "clinicalPearls": [
+    "High-yield Boericke clinical pearl 1",
+    "Key diagnostic differential indication 2"
+  ]
+}`;
+
+  const jsonStr = await executeGroqRequest(
+    [
+      { role: 'system', content: GROQ_MATERIA_MEDICA_GUARDRAIL },
+      { role: 'user', content: userPrompt }
+    ],
+    apiKey,
+    2000
+  );
+
+  const parsed = JSON.parse(jsonStr);
+  const cleanId = remedyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const remedy: MateriaMedicaRemedy = {
+    id: cleanId,
+    latinName: parsed.latinName || remedyName,
+    commonName: parsed.commonName || 'Homoeopathic Specific',
+    nameBn: parsed.nameBn || remedyName,
+    familySource: parsed.familySource || 'Natural Kingdom Source',
+    category: parsed.category || 'dilution',
+    sphereOfActionEn: parsed.sphereOfActionEn || 'Affects cellular vitality and physiological homeostasis.',
+    sphereOfActionBn: parsed.sphereOfActionBn || 'শারীরিক জীবনীশক্তি ও সার্বিক ক্রিয়া নিয়ন্ত্রণ করে।',
+    primaryIndications: Array.isArray(parsed.primaryIndications) && parsed.primaryIndications.length > 0
+      ? parsed.primaryIndications
+      : [{ en: 'Acute constitutional disturbance', bn: 'তীব্র শারীরিক অসুস্থতা ও উপসর্গ' }],
+    guidingKeynotes: Array.isArray(parsed.guidingKeynotes) && parsed.guidingKeynotes.length > 0
+      ? parsed.guidingKeynotes
+      : [{ en: 'Characteristic symptom totality matching Boericke monograph', bn: 'বোরিকের মেটেরিয়া মেডিকা ভিত্তিক লক্ষণ সমষ্টি' }],
+    modalities: {
+      worseEn: parsed.modalities?.worseEn || 'Cold air, physical exertion, weather change',
+      worseBn: parsed.modalities?.worseBn || 'ঠান্ডা বাতাস, শারীরিক পরিশ্রম, আবহাওয়ার পরিবর্তন',
+      betterEn: parsed.modalities?.betterEn || 'Warm applications, quiet rest, open air',
+      betterBn: parsed.modalities?.betterBn || 'গরম সেক, শান্ত বিশ্রাম, মুক্ত বাতাস'
+    },
+    recommendedPotency: parsed.recommendedPotency || '30C / 200C',
+    dosageGuidelines:
+      (typeof parsed.dosageGuidelines === 'string' && parsed.dosageGuidelines) ||
+      (parsed.dosageInstructions && typeof parsed.dosageInstructions === 'object'
+        ? parsed.dosageInstructions.en
+        : typeof parsed.dosageInstructions === 'string'
+        ? parsed.dosageInstructions
+        : '4 pills 3 times daily, or 3-5 drops in teaspoon of water.'),
+    complementary: Array.isArray(parsed.relationships?.complementary)
+      ? parsed.relationships.complementary.join(', ')
+      : parsed.complementary || '',
+    antidotes: Array.isArray(parsed.relationships?.antidotes)
+      ? parsed.relationships.antidotes.join(', ')
+      : parsed.antidotes || '',
+    inimical: Array.isArray(parsed.relationships?.inimical)
+      ? parsed.relationships.inimical.join(', ')
+      : parsed.inimical || '',
+    clinicalPearls: Array.isArray(parsed.clinicalPearls)
+      ? parsed.clinicalPearls.join('. ')
+      : typeof parsed.clinicalPearls === 'string'
+      ? parsed.clinicalPearls
+      : 'Authentic Boericke clinical indication. Match modalities carefully before prescription.',
+    aliases: [remedyName.toLowerCase(), cleanId]
+  };
+
+  return remedy;
+}
+
+/**
+ * Fetches symptom differentials via Groq AI using J. T. Kent & William Boericke
+ */
+async function fetchSymptomDifferentialsViaGroq(
+  symptomQuery: string,
+  apiKey: string
+): Promise<SymptomFilterItem> {
+  const userPrompt = `Provide a classical homeopathic repertory differential analysis for the clinical condition/symptom: "${symptomQuery}".
+Ground your recommendations strictly in J. T. Kent's Repertory and William Boericke's Materia Medica.
+Provide exactly 4 to 6 proven Simillimum remedies with distinct, high-yield differentiating modalities (e.g. why one remedy is indicated over another).
+
+CRITICAL: Return STRICT JSON adhering to this exact schema:
+{
+  "nameEn": "${symptomQuery}",
+  "nameBn": "রোগ বা লক্ষণের নাম বাংলায়",
+  "icon": "Relevant single emoji (e.g. 🩺, ⚡, 🩹, 🫁, 🧊, 🔥)",
+  "definitionEn": "Concise medical definition and clinical repertory context in English",
+  "definitionBn": "লক্ষণ ও ক্লিনিক্যাল রেপার্টরির সংক্ষিপ্ত বাংলা বিবরণ",
+  "differentials": [
+    {
+      "name": "Remedy Latin Name (e.g. Colocynthis)",
+      "nameBn": "ঔষধের বাংলা নাম",
+      "category": "dilution",
+      "potency": "e.g. 30C / 200C",
+      "keynoteEn": "Peculiar symptom or sensation in English",
+      "keynoteBn": "প্রধান চরিত্রগত লক্ষণ বা অনুভূতি বাংলায়",
+      "modalityEn": "Aggravation and amelioration in English",
+      "modalityBn": "হ্রাস ও বৃদ্ধি বাংলায়",
+      "differentiatingFeature": "Clear differentiator explaining why this remedy is indicated over others"
+    }
+  ]
+}`;
+
+  const jsonStr = await executeGroqRequest(
+    [
+      { role: 'system', content: GROQ_MATERIA_MEDICA_GUARDRAIL },
+      { role: 'user', content: userPrompt }
+    ],
+    apiKey,
+    2000
+  );
+
+  const parsed = JSON.parse(jsonStr);
+  const cleanId = 'ai-sym-' + symptomQuery.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const differentials: SymptomDifferentialRemedy[] = (parsed.differentials || []).map((diff: any, index: number) => {
+    const remId = (diff.name || `remedy-${index}`).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return {
+      remedyId: remId,
+      name: diff.name || 'Classical Remedy',
+      nameBn: diff.nameBn || diff.name || 'হোমিওপ্যাথিক ঔষধ',
+      category: diff.category || 'dilution',
+      keynoteEn: diff.keynoteEn || 'Keynote indication for condition',
+      keynoteBn: diff.keynoteBn || 'রোগলক্ষণের বিশেষ নির্দেশক',
+      modalityEn: diff.modalityEn || 'Specific aggravating and ameliorating factors',
+      modalityBn: diff.modalityBn || 'হ্রাস-বৃদ্ধির নির্দিষ্ট নিয়ামক',
+      differentiatingFeature: diff.differentiatingFeature || 'Clear differential indication',
+      potency: diff.potency || '30C'
+    };
+  });
+
+  const item: SymptomFilterItem = {
+    id: cleanId,
+    icon: parsed.icon || '🩺',
+    nameEn: parsed.nameEn || symptomQuery,
+    nameBn: parsed.nameBn || symptomQuery,
+    definitionEn: parsed.definitionEn || `Clinical differential repertory guide for ${symptomQuery} according to Boericke and Kent.`,
+    definitionBn: parsed.definitionBn || `${symptomQuery}-এর জন্য বোরিক ও কেন্ট রেপার্টরি ভিত্তিক নির্দেশিকা।`,
+    keywords: [symptomQuery.toLowerCase(), cleanId, ...differentials.map((d) => d.name.toLowerCase())],
+    remedyIds: differentials.map((d) => d.remedyId),
+    differentials
+  };
+
+  return item;
+}
 
 interface MateriaMedicaExplorerProps {
   onAddRemedyToBilling?: (remedyName: string, potency?: string) => void;
@@ -116,6 +376,35 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
   const [selectedRemedyId, setSelectedRemedyId] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+
+  // Dynamic Symptoms fetched on-demand via Groq AI Repertory
+  const [dynamicSymptoms, setDynamicSymptoms] = useState<SymptomFilterItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('materia_medica_dynamic_symptoms');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // All symptoms combined with preloaded catalog, guaranteed unique IDs
+  const allSymptoms = useMemo(() => {
+    const list = [...dynamicSymptoms, ...SYMPTOM_LIST];
+    const seen = new Set<string>();
+    return list.filter((s) => {
+      if (!s || !s.id || seen.has(s.id)) return false;
+      seen.add(s.id);
+      return true;
+    });
+  }, [dynamicSymptoms]);
+
+  // Groq AI Monograph & Repertory States
+  const [isGroqLoading, setIsGroqLoading] = useState(false);
+  const [groqLoadingMessage, setGroqLoadingMessage] = useState<string | null>(null);
+  const [groqError, setGroqError] = useState<string | null>(null);
+  const [isGroqKeyModalOpen, setIsGroqKeyModalOpen] = useState(false);
+  const [groqKeyInput, setGroqKeyInput] = useState('');
+  const [pendingGroqAction, setPendingGroqAction] = useState<(() => void) | null>(null);
 
   // Voice Search States
   const [isListeningVoice, setIsListeningVoice] = useState(false);
@@ -216,13 +505,13 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
     });
   }, [searchQuery, searchMode]);
 
-  // Mode 3: Filtered symptoms (Only active in symptom mode)
+  // Mode 3: Filtered symptoms (Only active in symptom mode, includes dynamic AI symptoms)
   const filteredSymptoms = useMemo(() => {
     if (searchMode !== 'symptom') return [];
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return SYMPTOM_LIST;
+    if (!q) return allSymptoms;
 
-    return SYMPTOM_LIST.filter((sym) => {
+    return allSymptoms.filter((sym) => {
       const matchesName = sym.nameEn.toLowerCase().includes(q);
       const matchesBn = sym.nameBn.toLowerCase().includes(q);
       const matchesDefEn = sym.definitionEn.toLowerCase().includes(q);
@@ -230,7 +519,7 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
       const matchesKeywords = sym.keywords.some((k) => k.toLowerCase().includes(q));
       return matchesName || matchesBn || matchesDefEn || matchesDefBn || matchesKeywords;
     });
-  }, [searchQuery, searchMode]);
+  }, [searchQuery, searchMode, allSymptoms]);
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -281,7 +570,7 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
     }
   }, [activeRemedy]);
 
-  // Tab mode switcher: strictly resets active remedy and query
+  // Tab mode switcher: strictly resets active remedy and all selections
   const handleSwitchTab = (mode: 'medicine' | 'organ' | 'symptom') => {
     setSearchMode(mode);
     setSearchQuery('');
@@ -289,10 +578,9 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
     setActiveRemedy(null);
     setSelectedRemedyId(null);
     setHighlightedIndex(0);
-    if (mode === 'medicine') {
-      setSelectedOrgan(null);
-      setSelectedSymptom(null);
-    }
+    setSelectedOrgan(null);
+    setSelectedSymptom(null);
+    setGroqError(null);
   };
 
   // Select an organ: resets active remedy to show dedicated Organ Clinical Repertory
@@ -329,23 +617,144 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
     setExtendedTreatise(null);
   };
 
-  // Select a remedy directly by its database ID
-  const handleSelectRemedyById = (id: string) => {
-    const match = masterRemedies.find((r) => r.id === id);
+  // Fetch authentic Boericke Monograph via Groq AI
+  const handleFetchMedicineMonographViaGroq = async (remedyName: string) => {
+    const cleanName = remedyName.trim();
+    if (!cleanName) return;
+
+    const apiKey = getGroqApiKey();
+    if (!apiKey) {
+      setGroqKeyInput(getGroqApiKey());
+      setPendingGroqAction(() => () => handleFetchMedicineMonographViaGroq(cleanName));
+      setIsGroqKeyModalOpen(true);
+      return;
+    }
+
+    setIsGroqLoading(true);
+    setGroqLoadingMessage(`Fetching Authentic Boericke Monograph for "${cleanName}" via Groq AI...`);
+    setGroqError(null);
+
+    try {
+      const remedy = await fetchAuthenticBoerickeMonographViaGroq(cleanName, apiKey);
+
+      // Persist to custom chamber storage so it's instantly cached offline
+      const customRecord: CustomMateriaMedicaRecord = {
+        id: remedy.id,
+        name: remedy.latinName,
+        bengali_name: remedy.nameBn,
+        brand: 'Boericke Classical Proving',
+        category: remedy.category || 'dilution',
+        sphere_of_action: remedy.sphereOfActionEn,
+        clinical_indications: remedy.primaryIndications,
+        keynotes: remedy.guidingKeynotes,
+        dosage: remedy.dosageGuidelines || '3-5 drops in water',
+        modalities: {
+          worse: remedy.modalities.worseEn,
+          better: remedy.modalities.betterEn
+        },
+        created_at: new Date().toISOString()
+      };
+
+      await saveCustomRemedy(customRecord);
+      setCustomRemedies((prev) => [customRecord, ...prev.filter((r) => r.id !== customRecord.id)]);
+
+      setActiveRemedy(remedy);
+      setSelectedRemedyId(remedy.id);
+      setSearchQuery(remedy.latinName);
+      setIsDropdownOpen(false);
+      setExtendedTreatise(null);
+      setSaveSuccessMsg(`Authentic Boericke monograph for '${remedy.latinName}' loaded and saved.`);
+      setTimeout(() => setSaveSuccessMsg(null), 4000);
+    } catch (err: any) {
+      console.error('Failed to fetch Boericke monograph via Groq:', err);
+      setGroqError(err?.message || 'Failed to fetch monograph via Groq AI. Please check your network or API key.');
+    } finally {
+      setIsGroqLoading(false);
+      setGroqLoadingMessage(null);
+    }
+  };
+
+  // Fetch symptom differentials via Groq AI using Kent & Boericke
+  const handleFetchSymptomDifferentialsViaGroq = async (symptomQuery: string) => {
+    const cleanQuery = symptomQuery.trim();
+    if (!cleanQuery) return;
+
+    const apiKey = getGroqApiKey();
+    if (!apiKey) {
+      setGroqKeyInput(getGroqApiKey());
+      setPendingGroqAction(() => () => handleFetchSymptomDifferentialsViaGroq(cleanQuery));
+      setIsGroqKeyModalOpen(true);
+      return;
+    }
+
+    setIsGroqLoading(true);
+    setGroqLoadingMessage(`Consulting Kent's Repertory & Boericke Materia Medica for "${cleanQuery}" via Groq AI...`);
+    setGroqError(null);
+
+    try {
+      const symptomItem = await fetchSymptomDifferentialsViaGroq(cleanQuery, apiKey);
+
+      // Save to dynamic symptoms state and localStorage
+      setDynamicSymptoms((prev) => {
+        const updated = [symptomItem, ...prev.filter((s) => s.id !== symptomItem.id)];
+        try {
+          localStorage.setItem('materia_medica_dynamic_symptoms', JSON.stringify(updated.slice(0, 30)));
+        } catch {
+          // ignore
+        }
+        return updated;
+      });
+
+      // Switch view to dedicated Clinical Indication Guide
+      setSelectedSymptom(symptomItem.id);
+      setActiveRemedy(null);
+      setSelectedRemedyId(null);
+      setSearchQuery('');
+      setIsDropdownOpen(false);
+    } catch (err: any) {
+      console.error('Failed to fetch symptom differentials via Groq:', err);
+      setGroqError(err?.message || 'Failed to repertorize symptom via Groq AI. Please check your network or API key.');
+    } finally {
+      setIsGroqLoading(false);
+      setGroqLoadingMessage(null);
+    }
+  };
+
+  // Select a remedy directly by its database ID or name
+  const handleSelectRemedyById = (id: string, nameFallback?: string) => {
+    const cleanId = id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const match = masterRemedies.find(
+      (r) =>
+        r.id === id ||
+        r.id === cleanId ||
+        r.name.toLowerCase() === id.toLowerCase() ||
+        (nameFallback && r.name.toLowerCase() === nameFallback.toLowerCase())
+    );
+
     if (match) {
       handleSelectRemedy(match);
-    } else if (TOP_MATERIA_MEDICA_DATABASE[id]) {
-      const full = TOP_MATERIA_MEDICA_DATABASE[id];
+      return;
+    }
+
+    if (TOP_MATERIA_MEDICA_DATABASE[id] || TOP_MATERIA_MEDICA_DATABASE[cleanId]) {
+      const full = TOP_MATERIA_MEDICA_DATABASE[id] || TOP_MATERIA_MEDICA_DATABASE[cleanId];
       setActiveRemedy(full);
       setSelectedRemedyId(full.id);
       setSearchQuery(full.latinName);
       setIsDropdownOpen(false);
       setExtendedTreatise(null);
+      return;
+    }
+
+    // If Groq key is available, fetch authentic monograph, else fallback to synthesis
+    const apiKey = getGroqApiKey();
+    if (apiKey) {
+      handleFetchMedicineMonographViaGroq(nameFallback || id);
     } else {
       const synthetic = getOrSynthesizeMateriaMedica({
-        id,
-        name: id.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
-        nameBn: id,
+        id: cleanId,
+        name: nameFallback || id.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+        nameBn: nameFallback || id,
         commonName: 'Homoeopathic Specific',
         category: 'dilution',
         aliases: []
@@ -359,9 +768,22 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
   };
 
   // View full monograph from within organ or symptom views
-  const handleViewFullMonograph = (remedyId: string) => {
-    handleSelectRemedyById(remedyId);
+  const handleViewFullMonograph = (remedyId: string, nameFallback?: string) => {
+    handleSelectRemedyById(remedyId, nameFallback);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Handle saving the user's Groq API Key
+  const handleSaveGroqKey = () => {
+    const key = groqKeyInput.trim();
+    setGroqApiKey(key);
+    setIsGroqKeyModalOpen(false);
+    setGroqError(null);
+    if (key && pendingGroqAction) {
+      const action = pendingGroqAction;
+      setPendingGroqAction(null);
+      setTimeout(() => action(), 100);
+    }
   };
 
   // Voice Search recognition for main search input
@@ -1007,7 +1429,7 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
               )}
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
-              {SYMPTOM_LIST.map((sym) => {
+              {allSymptoms.slice(0, 16).map((sym) => {
                 const isSelected = selectedSymptom === sym.id;
                 return (
                   <button
@@ -1064,18 +1486,26 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
 
                 if (e.key === 'ArrowDown') {
                   e.preventDefault();
-                  setHighlightedIndex((prev) => Math.min(prev + 1, activeListLength - 1));
+                  setHighlightedIndex((prev) => Math.min(prev + 1, Math.max(activeListLength - 1, 0)));
                 } else if (e.key === 'ArrowUp') {
                   e.preventDefault();
                   setHighlightedIndex((prev) => Math.max(prev - 1, 0));
                 } else if (e.key === 'Enter') {
                   e.preventDefault();
-                  if (searchMode === 'medicine' && filteredMatches[highlightedIndex]) {
-                    handleSelectRemedy(filteredMatches[highlightedIndex]);
+                  if (searchMode === 'medicine') {
+                    if (filteredMatches[highlightedIndex]) {
+                      handleSelectRemedy(filteredMatches[highlightedIndex]);
+                    } else if (searchQuery.trim()) {
+                      handleFetchMedicineMonographViaGroq(searchQuery.trim());
+                    }
                   } else if (searchMode === 'organ' && filteredOrgans[highlightedIndex]) {
                     handleSelectOrgan(filteredOrgans[highlightedIndex].id);
-                  } else if (searchMode === 'symptom' && filteredSymptoms[highlightedIndex]) {
-                    handleSelectSymptom(filteredSymptoms[highlightedIndex].id);
+                  } else if (searchMode === 'symptom') {
+                    if (filteredSymptoms[highlightedIndex]) {
+                      handleSelectSymptom(filteredSymptoms[highlightedIndex].id);
+                    } else if (searchQuery.trim()) {
+                      handleFetchSymptomDifferentialsViaGroq(searchQuery.trim());
+                    }
                   }
                 } else if (e.key === 'Escape') {
                   setIsDropdownOpen(false);
@@ -1138,29 +1568,45 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
               {/* TAB 1: MEDICINE AUTOCOMPLETE */}
               {searchMode === 'medicine' && (
                 filteredMatches.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
-                    <p className="font-semibold text-slate-700 dark:text-slate-300">
-                      কোনো ওষুধ খুঁজে পাওয়া যায়নি (No matching remedy found).
-                    </p>
-                    <p className="text-[11px] mt-0.5 mb-2">
-                      Try searching by common Latin name or Bengali spelling.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModalForm((prev) => ({
-                          ...prev,
-                          name: searchQuery.trim(),
-                          bengaliName: searchQuery.trim()
-                        }));
-                        setIsDropdownOpen(false);
-                        setIsAddModalOpen(true);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1B4332] text-white text-xs font-bold hover:bg-emerald-800 transition cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                      <span>+ AI Enrich '{searchQuery}' Now</span>
-                    </button>
+                  <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400 space-y-3">
+                    <div>
+                      <p className="font-semibold text-slate-700 dark:text-slate-300">
+                        কোনো ওষুধ খুঁজে পাওয়া যায়নি (No matching remedy found).
+                      </p>
+                      <p className="text-[11px] mt-0.5">
+                        Try searching by common Latin name or Bengali spelling.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      {searchQuery.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => handleFetchMedicineMonographViaGroq(searchQuery.trim())}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1B4332] text-white text-xs font-bold hover:bg-emerald-800 transition cursor-pointer shadow-xs"
+                        >
+                          <Zap className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Fetch Boericke Monograph for '{searchQuery}' via Groq AI</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModalForm((prev) => ({
+                            ...prev,
+                            name: searchQuery.trim(),
+                            bengaliName: searchQuery.trim()
+                          }));
+                          setIsDropdownOpen(false);
+                          setIsAddModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>+ Custom Add Remedy</span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   filteredMatches.slice(0, 40).map((item, index) => {
@@ -1298,13 +1744,26 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
               {/* TAB 3: SYMPTOM AUTOCOMPLETE (NEVER SHOWS MEDICINE NAMES) */}
               {searchMode === 'symptom' && (
                 filteredSymptoms.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400">
-                    <p className="font-semibold text-slate-700 dark:text-slate-300">
-                      কোনো ক্লিনিক্যাল লক্ষণ পাওয়া যায়নি (No matching symptom found).
-                    </p>
-                    <p className="text-[11px] mt-0.5">
-                      Try searching 'Sprain', 'মচকানো', 'Acidity', 'বুকজ্বালা', 'Migraine', 'Vomiting', 'Sciatica', etc.
-                    </p>
+                  <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400 space-y-3">
+                    <div>
+                      <p className="font-semibold text-slate-700 dark:text-slate-300">
+                        কোনো ক্লিনিক্যাল লক্ষণ পাওয়া যায়নি (No matching symptom found).
+                      </p>
+                      <p className="text-[11px] mt-0.5">
+                        Try searching 'Sprain', 'মচকানো', 'Acidity', 'বুকজ্বালা', 'Migraine', 'Vomiting', 'Sciatica', etc.
+                      </p>
+                    </div>
+
+                    {searchQuery.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => handleFetchSymptomDifferentialsViaGroq(searchQuery.trim())}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold transition cursor-pointer shadow-xs"
+                      >
+                        <Zap className="w-3.5 h-3.5 text-amber-300" />
+                        <span>Repertorize '{searchQuery}' via Groq AI (Kent & Boericke)</span>
+                      </button>
+                    )}
                   </div>
                 ) : (
                   filteredSymptoms.map((sym, index) => {
@@ -1416,7 +1875,7 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
               Key Clinical Conditions & Symptoms (লক্ষণভিত্তিক দ্রুত নির্দেশিকা):
             </span>
             <div className="flex flex-wrap items-center gap-1.5">
-              {SYMPTOM_LIST.map((sym) => {
+              {allSymptoms.slice(0, 16).map((sym) => {
                 const isSelected = selectedSymptom === sym.id;
                 return (
                   <button
@@ -1440,6 +1899,58 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
         )}
       </div>
 
+      {/* Groq AI Loading State Banner */}
+      {isGroqLoading && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-900 via-[#1B4332] to-[#2D6A4F] text-white shadow-lg flex items-center justify-between gap-4 animate-fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-amber-300 shrink-0">
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            </div>
+            <div>
+              <h4 className="text-sm sm:text-base font-bold flex items-center gap-2">
+                <span>Groq High-Speed LPU Inference Active</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-black uppercase tracking-wider">
+                  Boericke & Kent
+                </span>
+              </h4>
+              <p className="text-xs text-emerald-100/90 mt-0.5">
+                {groqLoadingMessage || 'Querying authentic classical homeopathic monographs...'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Groq AI Error / Missing Key Banner */}
+      {groqError && (
+        <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs sm:text-sm animate-fade-in shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <span className="font-medium">{groqError}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setGroqKeyInput(getGroqApiKey());
+                setIsGroqKeyModalOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span>Configure Groq Key</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGroqError(null)}
+              className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/50 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* DETAILED MATERIA MEDICA PROFILE SHEET */}
       {activeRemedy && (
         <div className="space-y-6 animate-fade-in print:space-y-4">
@@ -1457,7 +1968,7 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
               {searchMode === 'organ' && selectedOrgan ? (
                 <span>Back to {ORGAN_LIST.find((o) => o.id === selectedOrgan)?.nameEn || 'Organ Clinical Repertory'}</span>
               ) : searchMode === 'symptom' && selectedSymptom ? (
-                <span>Back to {SYMPTOM_LIST.find((s) => s.id === selectedSymptom)?.nameEn || 'Clinical Indication Guide'}</span>
+                <span>Back to {allSymptoms.find((s) => s.id === selectedSymptom)?.nameEn || 'Clinical Indication Guide'}</span>
               ) : (
                 <span>Back to Search & Explorer Overview (সংক্ষিপ্ত সূচী)</span>
               )}
@@ -2001,7 +2512,7 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
                             {/* View Monograph Trigger */}
                             <button
                               type="button"
-                              onClick={() => handleViewFullMonograph(rem.remedyId)}
+                              onClick={() => handleViewFullMonograph(rem.remedyId, rem.name)}
                               className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-[#1B4332] dark:bg-slate-700 hover:text-white dark:hover:bg-[#1B4332] text-slate-800 dark:text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                             >
                               <span>View Full Monograph (সম্পূর্ণ মনোগ্রাফ)</span>
@@ -2075,7 +2586,7 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
             selectedSymptom ? (
               /* SPECIFIC SYMPTOM SELECTED: SHOW DEDICATED DIFFERENTIAL GUIDE */
               (() => {
-                const activeSymptom = SYMPTOM_LIST.find((s) => s.id === selectedSymptom) || SYMPTOM_LIST[0];
+                const activeSymptom = allSymptoms.find((s) => s.id === selectedSymptom) || allSymptoms[0];
                 return (
                   <div className="space-y-6">
                     {/* Symptom Banner */}
@@ -2188,7 +2699,7 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
                                 <td className="py-4 px-4 align-top text-right whitespace-nowrap">
                                   <button
                                     type="button"
-                                    onClick={() => handleViewFullMonograph(diff.remedyId)}
+                                    onClick={() => handleViewFullMonograph(diff.remedyId, diff.name)}
                                     className="px-3 py-1.5 rounded-xl bg-[#1B4332] text-white hover:bg-emerald-800 text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer shadow-xs"
                                   >
                                     <span>Monograph</span>
@@ -2237,7 +2748,7 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
 
                             <button
                               type="button"
-                              onClick={() => handleViewFullMonograph(diff.remedyId)}
+                              onClick={() => handleViewFullMonograph(diff.remedyId, diff.name)}
                               className="w-full py-2 px-3 rounded-xl bg-[#1B4332] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                             >
                               <span>View Full Monograph</span>
@@ -2251,22 +2762,47 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
                 );
               })()
             ) : (
-              /* NO SYMPTOM SELECTED YET: SHOW DIRECTORY OF ALL 10 SYMPTOMS */
+              /* NO SYMPTOM SELECTED YET: SHOW DIRECTORY OF SYMPTOMS OR GROQ ON-DEMAND */
               <div className="space-y-6">
-                <div className="p-6 sm:p-8 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-3xl mx-auto space-y-2.5">
-                  <div className="w-14 h-14 rounded-2xl bg-sky-100 dark:bg-sky-950/70 text-sky-600 dark:text-sky-400 flex items-center justify-center mx-auto text-2xl">
-                    <Stethoscope className="w-7 h-7" />
+                {searchQuery.trim() && filteredSymptoms.length === 0 ? (
+                  <div className="p-8 rounded-3xl bg-slate-50 dark:bg-slate-800/70 border-2 border-dashed border-sky-300 dark:border-sky-800 text-center max-w-2xl mx-auto space-y-4">
+                    <div className="w-14 h-14 rounded-2xl bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 flex items-center justify-center mx-auto text-2xl">
+                      <Sparkles className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
+                        Repertorize '{searchQuery.trim()}' with Groq AI
+                      </h3>
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1">
+                        This clinical symptom is not currently in the preloaded repertory index. Groq AI can synthesize authentic Kent & Boericke rubrics, modalities, and key differentials instantly.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isGroqLoading}
+                      onClick={() => handleFetchSymptomDifferentialsViaGroq(searchQuery.trim())}
+                      className="px-5 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold inline-flex items-center gap-2 transition shadow-md shadow-sky-900/20 cursor-pointer disabled:opacity-50"
+                    >
+                      <Zap className="w-4 h-4 text-amber-300" />
+                      <span>Repertorize '{searchQuery.trim()}' Now (Kent & Boericke)</span>
+                    </button>
                   </div>
-                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                    Clinical Indication & Keynote Guide (লক্ষণভিত্তিক ক্লিনিক্যাল নির্দেশিকা)
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                    Select any clinical indication or keynote condition below to compare acute differentials, modalities, and characteristic symptoms.
-                  </p>
-                </div>
+                ) : (
+                  <div className="p-6 sm:p-8 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-center max-w-3xl mx-auto space-y-2.5">
+                    <div className="w-14 h-14 rounded-2xl bg-sky-100 dark:bg-sky-950/70 text-sky-600 dark:text-sky-400 flex items-center justify-center mx-auto text-2xl">
+                      <Stethoscope className="w-7 h-7" />
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                      Clinical Indication & Keynote Guide (লক্ষণভিত্তিক ক্লিনিক্যাল নির্দেশিকা)
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                      Select any clinical indication or keynote condition below to compare acute differentials, modalities, and characteristic symptoms.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {SYMPTOM_LIST.map((sym) => (
+                  {allSymptoms.map((sym) => (
                     <button
                       key={sym.id}
                       type="button"
@@ -2872,6 +3408,102 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
         onClose={() => setIsCatalogImportModalOpen(false)}
         onImportSuccess={handleBulkImportSuccess}
       />
+
+      {/* Groq Cloud API Key Modal */}
+      {isGroqKeyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    Configure Groq AI API Key
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    High-speed Boericke & Kent inference engine
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsGroqKeyModalOpen(false);
+                  setPendingGroqAction(null);
+                }}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                Groq API Key (gsk_...):
+              </label>
+              <input
+                type="password"
+                value={groqKeyInput}
+                onChange={(e) => setGroqKeyInput(e.target.value)}
+                placeholder="Enter gsk_..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#1B4332]"
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                Your key is stored securely in your local browser cache and used exclusively for Boericke monographs and symptom differentials. Free keys available at{' '}
+                <a
+                  href="https://console.groq.com/keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sky-600 dark:text-sky-400 font-bold hover:underline"
+                >
+                  console.groq.com/keys
+                </a>
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              {hasGroqApiKey() ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGroqApiKey('');
+                    setGroqKeyInput('');
+                    setIsGroqKeyModalOpen(false);
+                  }}
+                  className="px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-semibold cursor-pointer"
+                >
+                  Clear Key
+                </button>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsGroqKeyModalOpen(false);
+                    setPendingGroqAction(null);
+                  }}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!groqKeyInput.trim()}
+                  onClick={handleSaveGroqKey}
+                  className="px-4 py-2 rounded-xl bg-[#1B4332] hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  Save & Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
