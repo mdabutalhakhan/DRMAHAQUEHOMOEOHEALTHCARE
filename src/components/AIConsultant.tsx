@@ -68,7 +68,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   const [searchedQuery, setSearchedQuery] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
 
-  // Groq Llama 3.1 API Key State & Settings Modal
+  // Groq LPU API Key State & Settings Modal
   const [groqKeyInput, setGroqKeyInput] = useState('');
   const [activeGroqKey, setActiveGroqKey] = useState<string>('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -88,7 +88,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     setActiveGroqKey(updated);
     setGroqKeyInput(updated);
     if (updated) {
-      showToast('Groq API Key saved successfully. Llama 3.1 Inference is active.', 'success');
+      showToast('Groq API Key saved successfully. Groq LPU Inference is active.', 'success');
     } else {
       showToast('Groq API Key removed.', 'info');
     }
@@ -132,8 +132,11 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     }
   }, [initialSymptoms]);
 
-  // Load Inventory directly from Supabase (or empty store)
+  // Dynamic Chamber Stock: Query Supabase medicines table with real-time updates
   useEffect(() => {
+    let isMounted = true;
+    let channel: any = null;
+
     const fetchInventory = async () => {
       let items: Array<{ id: string; name: string; rack_location?: string; stock_qty: number; mrp?: number }> = [];
       const supabase = getSupabase();
@@ -142,7 +145,8 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
         try {
           const { data, error } = await supabase
             .from('medicines')
-            .select('id, name, rack_location, stock_qty, mrp');
+            .select('id, name, rack_location, stock_qty, mrp')
+            .order('name', { ascending: true });
           
           if (!error && data && data.length > 0) {
             items = data.map((d: any) => ({
@@ -154,11 +158,11 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             }));
           }
         } catch (err) {
-          console.warn('Supabase medicines query error:', err);
+          console.warn('Supabase medicines query error in AIConsultant:', err);
         }
       }
 
-      // Check local store if Supabase was uninitialized or empty
+      // Check local store if Supabase was uninitialized or returned no items
       if (items.length === 0) {
         try {
           const localInv = getInventory();
@@ -172,15 +176,48 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             }));
           }
         } catch (err) {
-          console.warn('Local inventory load error:', err);
+          console.warn('Local inventory load error in AIConsultant:', err);
         }
       }
 
-      setInventoryItems(items);
-      setInventoryLoaded(true);
+      if (isMounted) {
+        setInventoryItems(items);
+        setInventoryLoaded(true);
+      }
     };
 
     fetchInventory();
+
+    // Subscribe to live Postgres changes on the medicines table
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        channel = supabase
+          .channel('ai-consultant-medicines-realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines' }, () => {
+            fetchInventory();
+          })
+          .subscribe();
+      } catch (subErr) {
+        console.warn('Realtime subscription error in AIConsultant:', subErr);
+      }
+    }
+
+    // Also listen to local storage changes for cross-tab or offline updates
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'hhc_inventory_v2' || e.key === 'medicines') {
+        fetchInventory();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      isMounted = false;
+      if (supabase && channel) {
+        supabase.removeChannel(channel);
+      }
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   // Voice Dictation Handler with EN / বাংলা Language Switching
@@ -381,7 +418,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     }
   };
 
-  // Analyze symptoms through Groq Cloud Llama 3.1 Inference Engine
+  // Analyze symptoms through Groq Cloud LPU Inference Engine (GPT-OSS / Llama)
   const handleGroqConsult = async (overrideQuery?: string) => {
     const query = (overrideQuery !== undefined ? overrideQuery : symptoms).trim();
     if (!query) {
@@ -442,9 +479,9 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
 
       const aiCondition: ClinicalCondition = {
         id: `groq-consult-${Date.now()}`,
-        nameEn: `Llama 3.1 AI Repertorization: ${query.length > 50 ? query.slice(0, 50) + '...' : query}`,
+        nameEn: `AI Repertorization: ${query.length > 50 ? query.slice(0, 50) + '...' : query}`,
         nameBn: 'এআই প্রেসক্রিপশন ও মাল্টি-ব্র্যান্ড পেটেন্ট ফরমুলেশন',
-        chipLabel: 'Powered by Llama 3.1 (Ultra-Fast Inference)',
+        chipLabel: 'Powered by Groq LPU (GPT-OSS / Llama Engine)',
         pathology: data.analysis_summary || `Constitutional & Pathological Synthesis for: ${query}`,
         miasm: 'Miasmatic Synthesis (Kent/Boericke & Commercial Patents)',
         keywords: [query],
@@ -459,7 +496,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       setConsultSource('groq');
       setSelectedBrandFilter('all');
       setErrorMsg('');
-      showToast('Llama 3.1 AI consultation completed successfully.', 'success');
+      showToast('Groq AI consultation completed successfully.', 'success');
     } catch (err: any) {
       console.warn('Groq API encounter, activating Boericke/Kent Emergency Repertory Engine:', err);
       const friendlyError = err?.message || 'Unable to connect to AI engine.';
@@ -547,16 +584,16 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           </div>
         </div>
 
-        {/* Header Controls: Llama 3.1 Active Badge, Settings Gear, and Chamber Stock Pill */}
+        {/* Header Controls: Groq LPU Active Badge, Settings Gear, and Dynamic Chamber Stock Pill */}
         <div className="flex flex-wrap items-center gap-2.5 self-end md:self-auto text-xs">
           {activeGroqKey ? (
             <span
               id="badge-groq-active"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shadow-xs"
-              title="Groq Cloud Llama 3.1 Inference Engine Active"
+              title="Groq LPU (GPT-OSS / Llama Engine) Active"
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span>Powered by Llama 3.1 (Ultra-Fast Inference)</span>
+              <span>Powered by Groq LPU (GPT-OSS / Llama Engine)</span>
             </span>
           ) : (
             <button
@@ -577,14 +614,14 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             type="button"
             onClick={() => setIsSettingsOpen(true)}
             className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer flex items-center gap-1.5 font-medium"
-            title="Groq API Key & Llama 3.1 Settings"
+            title="Groq API Key & LPU Engine Settings"
             aria-label="API Settings"
           >
             <Settings className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span className="hidden sm:inline text-xs font-bold text-slate-700 dark:text-slate-300">API Settings</span>
           </button>
 
-          {/* Live Inventory Status Pill */}
+          {/* Dynamic Chamber Stock Pill */}
           <div
             id="inventory-sync-pill"
             className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 font-medium transition-colors ${
@@ -592,6 +629,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
                 ? 'bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-500 dark:text-slate-400'
                 : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
             }`}
+            title={`Live Chamber Inventory: ${inventoryItems?.length || 0} active stock items`}
           >
             <PackageSearch className={`w-4 h-4 ${(inventoryItems?.length || 0) === 0 ? 'text-slate-400' : 'text-emerald-600'}`} />
             <span id="inventory-sync-badge">
@@ -750,7 +788,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           ))}
         </div>
 
-        {/* Action Buttons: Instant Repertory & Llama 3.1 AI Consult */}
+        {/* Action Buttons: Instant Repertory & Groq AI Consult */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
           <span className="text-[11px] text-slate-400 hidden sm:inline">
             Tip: Press <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Enter</kbd> to repertorize, <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Shift</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Enter</kbd> for new line
@@ -773,10 +811,10 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
               onClick={() => handleGroqConsult()}
               disabled={loading || isAiLoading}
               className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-700 to-[#1B4332] hover:opacity-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
-              title="Query Groq Llama 3.1 AI for expert repertorization, differential remedy analysis, and patent formulations"
+              title="Query Groq LPU (GPT-OSS / Llama Engine) for expert repertorization, differential remedy analysis, and patent formulations"
             >
               <Sparkles className="w-4 h-4 text-emerald-300" />
-              <span>{isAiLoading ? 'Llama 3.1 Analyzing...' : 'Llama 3.1 AI Consult'}</span>
+              <span>{isAiLoading ? 'Groq LPU Analyzing...' : 'Groq AI Consult'}</span>
             </button>
           </div>
         </div>
@@ -1297,7 +1335,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             {symptoms.trim() ? 'No Direct Offline Repertory Match' : 'Clinical Decision Support'}
           </h3>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-            Enter symptoms or click <strong>'Llama 3.1 AI Consult'</strong> to analyze with Groq AI.
+            Enter symptoms or click <strong>'Groq AI Consult'</strong> to analyze with Groq AI.
           </p>
           {symptoms.trim() && (
             <div className="pt-2">
@@ -1307,14 +1345,14 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-[#1B4332] hover:from-emerald-700 hover:to-[#235841] text-white text-xs font-bold shadow-sm transition cursor-pointer"
               >
                 <Sparkles className="w-4 h-4 text-emerald-300" />
-                <span>Run Llama 3.1 AI Consult</span>
+                <span>Run Groq AI Consult</span>
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* Groq Cloud Llama 3.1 API Key Settings Modal */}
+      {/* Groq Cloud LPU API Key Settings Modal */}
       {isSettingsOpen && (
         <div 
           id="modal-groq-settings"
@@ -1334,7 +1372,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
                     <span>Groq API Key Settings</span>
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Llama 3.1 Ultra-Fast Clinical Inference Engine
+                    Groq LPU (GPT-OSS / Llama Engine) Inference
                   </p>
                 </div>
               </div>
@@ -1357,7 +1395,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
                 </div>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-200">
                   <Zap className="w-3 h-3" />
-                  Llama 3.1 Ready
+                  Groq LPU Ready
                 </span>
               </div>
             ) : (
@@ -1399,7 +1437,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Free tier includes fast Llama 3.1 8B inference</span>
+                <span>High-speed Groq LPU inference with automatic multi-model fallback</span>
               </div>
               <a
                 href="https://console.groq.com/keys"

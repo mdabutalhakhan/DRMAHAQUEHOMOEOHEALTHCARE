@@ -1,9 +1,10 @@
 /**
- * Groq Cloud AI Client (Llama 3.1 Inference Engine)
- * Replaces Gemini API with Groq's high-speed OpenAI-compatible completions endpoint.
+ * Groq Cloud AI Client (LPU Inference Engine)
+ * High-speed OpenAI-compatible completions endpoint with automatic model fallback.
  *
  * Endpoint: https://api.groq.com/openai/v1/chat/completions
- * Model: llama-3.1-8b-instant
+ * Primary Model: openai/gpt-oss-20b
+ * Fallback Models: openai/gpt-oss-120b, llama-3.3-70b-versatile
  */
 
 export interface ClinicalGroqRemedy {
@@ -39,14 +40,22 @@ export interface ClinicalGroqConsultResponse {
   diet_and_regimen?: string;
   warning_notes?: string;
   raw_text?: string;
+  model_used?: string;
 }
 
 export const GROQ_MODELS = {
-  INSTANT: 'llama-3.1-8b-instant',
-  VERSATILE: 'llama-3.3-70b-versatile',
+  PRIMARY: 'openai/gpt-oss-20b',
+  FALLBACK_1: 'openai/gpt-oss-120b',
+  FALLBACK_2: 'llama-3.3-70b-versatile',
 };
 
-export const DEFAULT_GROQ_MODEL = GROQ_MODELS.INSTANT;
+export const DEFAULT_GROQ_MODEL = GROQ_MODELS.PRIMARY;
+
+export const FALLBACK_GROQ_MODELS = [
+  GROQ_MODELS.PRIMARY,
+  GROQ_MODELS.FALLBACK_1,
+  GROQ_MODELS.FALLBACK_2,
+];
 
 /**
  * Retrieves the Groq API Key with the following precedence:
@@ -146,7 +155,9 @@ Provide 3-4 classical remedies and 4-6 renowned patent formulations. Return ONLY
 }
 
 /**
- * Invokes Groq's OpenAI-compatible Chat Completions API with llama-3.1-8b-instant.
+ * Invokes Groq's OpenAI-compatible Chat Completions API with automatic fallback.
+ * Primary model: openai/gpt-oss-20b
+ * Fallback models: openai/gpt-oss-120b, llama-3.3-70b-versatile
  */
 export async function callGroqAPI(
   userQuery: string,
@@ -163,62 +174,117 @@ export async function callGroqAPI(
     throw new Error('Please enter your free Groq API Key to enable instant AI Clinical Consultations.');
   }
 
-  const model = options?.model || DEFAULT_GROQ_MODEL;
-  const temperature = typeof options?.temperature === 'number' ? options.temperature : 0.4;
+  const initialModel = options?.model || DEFAULT_GROQ_MODEL;
+  const candidateModels = [
+    initialModel,
+    ...FALLBACK_GROQ_MODELS.filter((m) => m !== initialModel),
+  ];
+
+  const temperature = typeof options?.temperature === 'number' ? options.temperature : 0.3;
   const max_tokens = typeof options?.max_tokens === 'number' ? options.max_tokens : 1024;
 
-  const payload = {
-    model,
-    messages: [
-      {
-        role: 'system',
-        content:
-          "You are Dr. M. A. Haque's AI Homeopathic Clinical Assistant. You provide expert repertorization, differential remedy analysis, potencies, and modalities in clear bilingual English & Bengali. Strictly emphasize that final clinical decisions rest with the attending homeopathic physician.",
-      },
-      {
-        role: 'user',
-        content: userQuery,
-      },
-    ],
-    temperature,
-    max_tokens,
-  };
+  let rawContent = '';
+  let modelUsed = initialModel;
+  let lastError: Error | null = null;
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  for (let i = 0; i < candidateModels.length; i++) {
+    const currentModel = candidateModels[i];
+    const isLastModel = i === candidateModels.length - 1;
 
-  if (!response.ok) {
-    let errorDetail = `HTTP ${response.status}`;
+    const payload = {
+      model: currentModel,
+      messages: [
+        {
+          role: 'system',
+          content:
+            "You are Dr. M. A. Haque's expert AI Homeopathic Consultant. Provide clinical repertorization, differential remedies, potency suggestions, and modalities in clear bilingual (Bengali and English). Always state that the final decision rests with the attending physician.",
+        },
+        {
+          role: 'user',
+          content: userQuery,
+        },
+      ],
+      temperature,
+      max_tokens,
+    };
+
     try {
-      const errorJson = await response.json();
-      if (errorJson?.error?.message) {
-        errorDetail = errorJson.error.message;
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        let errorDetail = `HTTP ${response.status}`;
+        let errorObj: any = null;
+        try {
+          errorObj = await response.json();
+          if (errorObj?.error?.message) {
+            errorDetail = errorObj.error.message;
+          }
+        } catch {
+          // ignore
+        }
+
+        if (response.status === 401) {
+          throw new Error(`Invalid Groq API Key. Please verify your gsk_... key. (${errorDetail})`);
+        }
+        if (response.status === 429) {
+          throw new Error(`Groq rate limit reached. Please wait a moment before retrying. (${errorDetail})`);
+        }
+
+        // Check for 404, model_not_found, deprecated, or decommissioned
+        const isModelNotFound =
+          response.status === 404 ||
+          errorObj?.error?.code === 'model_not_found' ||
+          errorDetail.toLowerCase().includes('model_not_found') ||
+          errorDetail.toLowerCase().includes('does not exist') ||
+          errorDetail.toLowerCase().includes('not found') ||
+          errorDetail.toLowerCase().includes('deprecated') ||
+          errorDetail.toLowerCase().includes('decommissioned');
+
+        if (isModelNotFound && !isLastModel) {
+          console.warn(
+            `Groq model '${currentModel}' not available (${errorDetail}). Automatically retrying with fallback model '${candidateModels[i + 1]}'...'`
+          );
+          lastError = new Error(`Groq model '${currentModel}' error: ${errorDetail}`);
+          continue;
+        }
+
+        throw new Error(`Groq API error (${currentModel}): ${errorDetail}`);
       }
-    } catch {
-      // ignore
-    }
 
-    if (response.status === 401) {
-      throw new Error(`Invalid Groq API Key. Please verify your gsk_... key. (${errorDetail})`);
-    }
-    if (response.status === 429) {
-      throw new Error(`Groq rate limit reached. Please wait a moment before retrying. (${errorDetail})`);
-    }
+      const data = await response.json();
+      rawContent = data.choices?.[0]?.message?.content || '';
+      modelUsed = currentModel;
 
-    throw new Error(`Groq API error: ${errorDetail}`);
+      if (rawContent.trim()) {
+        break; // Successfully obtained completion
+      } else {
+        lastError = new Error(`Groq model '${currentModel}' returned empty content.`);
+        if (!isLastModel) continue;
+      }
+    } catch (err: any) {
+      lastError = err;
+      if (
+        err.message?.includes('Invalid Groq API Key') ||
+        err.message?.includes('rate limit')
+      ) {
+        throw err;
+      }
+      if (!isLastModel) {
+        console.warn(`Groq request with '${currentModel}' encountered an error:`, err);
+        continue;
+      }
+    }
   }
 
-  const data = await response.json();
-  const rawContent: string = data.choices?.[0]?.message?.content || '';
-
   if (!rawContent.trim()) {
-    throw new Error('Groq returned an empty response.');
+    throw lastError || new Error('Groq API request failed across all candidate models.');
   }
 
   // Parse JSON response or extract from markdown codeblock
@@ -273,7 +339,7 @@ export async function callGroqAPI(
       analysis_summary:
         parsed.analysis_summary ||
         parsed.summary ||
-        'Llama 3.1 clinical homeopathic differential repertorization completed.',
+        'Groq LPU clinical homeopathic differential repertorization completed.',
       remedies,
       patent_formulations,
       repertory_keynotes: Array.isArray(parsed.repertory_keynotes) ? parsed.repertory_keynotes : [],
@@ -284,6 +350,7 @@ export async function callGroqAPI(
         parsed.warning_notes ||
         'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo). Final clinical decisions rest with the attending homeopathic physician.',
       raw_text: rawContent,
+      model_used: modelUsed,
     };
   } catch (parseError) {
     // If strict JSON parsing fails, construct a graceful structured response from text
@@ -312,6 +379,7 @@ export async function callGroqAPI(
       warning_notes:
         'Note: Final clinical decisions rest with the attending homeopathic physician.',
       raw_text: rawContent,
+      model_used: modelUsed,
     };
   }
 }
