@@ -31,6 +31,7 @@ import {
 import { ClinicLogo } from './ClinicLogo';
 import { getSupabase } from '../services/supabase';
 import { getInventory } from '../services/clinicStore';
+import { useRealtimeInventory } from '../services/inventoryMatcher';
 import { 
   findRepertoryMatch, 
   ClinicalCondition, 
@@ -108,11 +109,9 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(true);
 
-  // Live Inventory State from Supabase & Store (strictly 0 items if empty, no mock dummy inventory)
-  const [inventoryItems, setInventoryItems] = useState<
-    Array<{ id: string; name: string; rack_location?: string; stock_qty: number; mrp?: number }>
-  >([]);
-  const [inventoryLoaded, setInventoryLoaded] = useState(false);
+  // Real-time Normalized Inventory Matcher Hook (Supabase medicines table + Clinic Store)
+  const { inventoryList, loading: inventoryLoading, checkStock } = useRealtimeInventory();
+  const [showInStockFirst, setShowInStockFirst] = useState(true);
 
   // User Action Feedback
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -132,94 +131,6 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       handleAnalyze(initialSymptoms);
     }
   }, [initialSymptoms]);
-
-  // Dynamic Chamber Stock: Query Supabase medicines table with real-time updates
-  useEffect(() => {
-    let isMounted = true;
-    let channel: any = null;
-
-    const fetchInventory = async () => {
-      let items: Array<{ id: string; name: string; rack_location?: string; stock_qty: number; mrp?: number }> = [];
-      const supabase = getSupabase();
-      
-      if (supabase) {
-        try {
-          const { data, error } = await supabase
-            .from('medicines')
-            .select('id, name, rack_location, stock_qty, mrp')
-            .order('name', { ascending: true });
-          
-          if (!error && data && data.length > 0) {
-            items = data.map((d: any) => ({
-              id: String(d.id),
-              name: String(d.name || ''),
-              rack_location: d.rack_location || undefined,
-              stock_qty: Number(d.stock_qty) || 0,
-              mrp: Number(d.mrp) || 0,
-            }));
-          }
-        } catch (err) {
-          console.warn('Supabase medicines query error in AIConsultant:', err);
-        }
-      }
-
-      // Check local store if Supabase was uninitialized or returned no items
-      if (items.length === 0) {
-        try {
-          const localInv = getInventory();
-          if (localInv && localInv.length > 0) {
-            items = localInv.map((m) => ({
-              id: m.id,
-              name: m.medicine_name,
-              rack_location: m.rack_location,
-              stock_qty: m.stock_quantity || 0,
-              mrp: m.mrp || 0,
-            }));
-          }
-        } catch (err) {
-          console.warn('Local inventory load error in AIConsultant:', err);
-        }
-      }
-
-      if (isMounted) {
-        setInventoryItems(items);
-        setInventoryLoaded(true);
-      }
-    };
-
-    fetchInventory();
-
-    // Subscribe to live Postgres changes on the medicines table
-    const supabase = getSupabase();
-    if (supabase) {
-      try {
-        channel = supabase
-          .channel('ai-consultant-medicines-realtime')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'medicines' }, () => {
-            fetchInventory();
-          })
-          .subscribe();
-      } catch (subErr) {
-        console.warn('Realtime subscription error in AIConsultant:', subErr);
-      }
-    }
-
-    // Also listen to local storage changes for cross-tab or offline updates
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'hhc_inventory_v2' || e.key === 'medicines') {
-        fetchInventory();
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-
-    return () => {
-      isMounted = false;
-      if (supabase && channel) {
-        supabase.removeChannel(channel);
-      }
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, []);
 
   // Voice Dictation Handler with EN / বাংলা Language Switching
   const handleToggleVoice = () => {
@@ -275,50 +186,20 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     }
   };
 
-  // Stock status resolver for every remedy / patent formulation
-  const getInventoryStatus = (name: string, aliases: string[] = []) => {
-    if (!inventoryItems || inventoryItems.length === 0) {
-      return { found: false, inStock: false, stock: 0, rack: '' };
-    }
-
-    const searchTokens = [name, ...aliases]
-      .filter(Boolean)
-      .map((s) => s.toLowerCase().trim().replace(/[^a-z0-9]/g, ' '));
-
-    for (const item of inventoryItems) {
-      const itemName = (item.name || '').toLowerCase().replace(/[^a-z0-9]/g, ' ');
-
-      for (const term of searchTokens) {
-        if (!term || term.length < 2) continue;
-
-        // Direct containment
-        if (itemName.includes(term) || term.includes(itemName)) {
-          return {
-            found: true,
-            inStock: item.stock_qty > 0,
-            stock: item.stock_qty,
-            rack: item.rack_location || 'General Shelf',
-            mrp: item.mrp || 0,
-            catalogName: item.name,
-          };
-        }
-
-        // Token match (e.g., "Berberis Vulgaris" -> ["berberis", "vulgaris"])
-        const words = term.split(/\s+/).filter((w) => w.length >= 3);
-        if (words.length > 1 && words.every((w) => itemName.includes(w))) {
-          return {
-            found: true,
-            inStock: item.stock_qty > 0,
-            stock: item.stock_qty,
-            rack: item.rack_location || 'General Shelf',
-            mrp: item.mrp || 0,
-            catalogName: item.name,
-          };
-        }
-      }
-    }
-
-    return { found: false, inStock: false, stock: 0, rack: '' };
+  // Stock status resolver for every remedy / patent formulation with normalized fuzzy matching
+  const getInventoryStatus = (name: string, aliases: string[] = [], potency?: string) => {
+    const res = checkStock(name, potency, aliases);
+    return {
+      found: res.found,
+      inStock: res.inStock,
+      stock: res.current_stock,
+      current_stock: res.current_stock,
+      rack: res.rack_location || 'General Shelf',
+      rack_location: res.rack_location || 'General Shelf',
+      mrp: res.mrp || 0,
+      potencyMatched: res.potencyMatched,
+      matchedName: res.matchedName || name
+    };
   };
 
   // Brand Pill Badge Generator with Country & Styling
@@ -381,6 +262,33 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       return badge.label === selectedBrandFilter;
     });
   }, [selectedCondition, selectedBrandFilter]);
+
+  // Displayed Classical Remedies sorted by in-stock status when showInStockFirst is active
+  const displayedClassicalRemedies = useMemo(() => {
+    if (!selectedCondition?.classicalRemedies) return [];
+    if (!showInStockFirst) return selectedCondition.classicalRemedies;
+
+    return [...selectedCondition.classicalRemedies].sort((a, b) => {
+      const stockA = getInventoryStatus(a.name, a.aliases, a.potency);
+      const stockB = getInventoryStatus(b.name, b.aliases, b.potency);
+      if (stockA.inStock && !stockB.inStock) return -1;
+      if (!stockA.inStock && stockB.inStock) return 1;
+      return 0;
+    });
+  }, [selectedCondition?.classicalRemedies, showInStockFirst, inventoryList]);
+
+  // Displayed Patents sorted by in-stock status when showInStockFirst is active
+  const displayedPatents = useMemo(() => {
+    if (!filteredPatents) return [];
+    if (!showInStockFirst) return filteredPatents;
+    return [...filteredPatents].sort((a, b) => {
+      const stockA = getInventoryStatus(a.name, a.aliases);
+      const stockB = getInventoryStatus(b.name, b.aliases);
+      if (stockA.inStock && !stockB.inStock) return -1;
+      if (!stockA.inStock && stockB.inStock) return 1;
+      return 0;
+    });
+  }, [filteredPatents, showInStockFirst, inventoryList]);
 
   // Analyze symptoms through the Dual-Tier Clinical Repertory Engine (Instant Local)
   const handleAnalyze = (overrideQuery?: string) => {
@@ -684,15 +592,15 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           <div
             id="inventory-sync-pill"
             className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 font-medium transition-colors ${
-              (inventoryItems?.length || 0) === 0
+              (inventoryList?.length || 0) === 0
                 ? 'bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-500 dark:text-slate-400'
                 : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
             }`}
-            title={`Live Chamber Inventory: ${inventoryItems?.length || 0} active stock items`}
+            title={`Live Chamber Inventory: ${inventoryList?.length || 0} active stock items`}
           >
-            <PackageSearch className={`w-4 h-4 ${(inventoryItems?.length || 0) === 0 ? 'text-slate-400' : 'text-emerald-600'}`} />
+            <PackageSearch className={`w-4 h-4 ${(inventoryList?.length || 0) === 0 ? 'text-slate-400' : 'text-emerald-600'}`} />
             <span id="inventory-sync-badge">
-              {`Chamber Stock: ${inventoryItems?.length || 0} Items`}
+              {`Chamber Stock: ${inventoryList?.length || 0} Items`}
             </span>
           </div>
         </div>
@@ -1000,15 +908,32 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
                 </div>
               </div>
 
-              <span className="text-xs px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800 self-start sm:self-auto">
-                {selectedCondition.classicalRemedies.length} Classical Simillimum Matches
-              </span>
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                {/* Show In-Stock First Quick Filter Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setShowInStockFirst(!showInStockFirst)}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                    showInStockFirst
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                  }`}
+                  title="Toggle placing remedies currently available in clinic stock at the top"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Show In-Stock First {showInStockFirst ? '✓' : ''}</span>
+                </button>
+
+                <span className="text-xs px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800">
+                  {displayedClassicalRemedies.length} Classical Simillimum Matches
+                </span>
+              </div>
             </div>
 
             {/* Classical Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {selectedCondition.classicalRemedies.map((remedy, idx) => {
-                const stock = getInventoryStatus(remedy.name, remedy.aliases);
+              {displayedClassicalRemedies.map((remedy, idx) => {
+                const stock = getInventoryStatus(remedy.name, remedy.aliases, remedy.potency);
                 const cardKey = `classical-${idx}`;
                 const isCopied = copiedKey === cardKey;
                 const isAdded = addedBillKey === cardKey;
@@ -1016,7 +941,11 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
                 return (
                   <div
                     key={cardKey}
-                    className="p-5 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs hover:border-emerald-500/50 transition-all flex flex-col justify-between space-y-4"
+                    className={`p-5 rounded-3xl transition-all flex flex-col justify-between space-y-4 shadow-xs ${
+                      stock.inStock && stock.current_stock > 0
+                        ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-2 border-emerald-500/40 hover:border-emerald-500'
+                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-700'
+                    }`}
                   >
                     {/* Top Row: Remedy Name, Common Name & Badges */}
                     <div className="space-y-2">
@@ -1043,24 +972,19 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
 
                       {/* Live Inventory Lookup & Rack Location Badge */}
                       <div className="pt-1">
-                        {stock.found ? (
-                          stock.inStock ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>
-                                ✔ In Stock: {stock.stock} units • Rack: {stock.rack}
-                              </span>
+                        {stock.inStock && stock.current_stock > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>
+                              ✓ Stock Available • {stock.current_stock} Units in Rack: {stock.rack_location}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                              <span>⚠ Out of Stock (Rack: {stock.rack})</span>
-                            </span>
-                          )
+                          </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-medium bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                            <PackageSearch className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Not in Clinic Catalog (Order Needed)</span>
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-extrabold bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800 shadow-xs">
+                            <span className="w-2 h-2 rounded-full bg-rose-500" />
+                            <span>
+                              ✕ Stock Unavailable / চেম্বার স্টকে নেই
+                            </span>
                           </span>
                         )}
                       </div>
@@ -1224,7 +1148,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
 
             {/* Patent Formulations Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredPatents.map((patent, pIdx) => {
+              {displayedPatents.map((patent, pIdx) => {
                 const stock = getInventoryStatus(patent.name, patent.aliases);
                 const brandBadge = getBrandBadge(patent.brand, patent.company, patent.country);
                 const cardKey = `patent-${pIdx}-${patent.name}`;
@@ -1234,7 +1158,11 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
                 return (
                   <div
                     key={cardKey}
-                    className="p-5 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs hover:border-amber-500/50 transition-all flex flex-col justify-between space-y-3.5"
+                    className={`p-5 rounded-3xl transition-all flex flex-col justify-between space-y-3.5 shadow-xs ${
+                      stock.inStock && stock.current_stock > 0
+                        ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-2 border-emerald-500/40 hover:border-emerald-500'
+                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-700'
+                    }`}
                   >
                     {/* Top Row: Name, Brand Pill & Bottle Size */}
                     <div className="space-y-2.5">
@@ -1273,24 +1201,19 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
 
                       {/* Live Inventory Lookup & Rack Location Badge */}
                       <div className="pt-0.5">
-                        {stock.found ? (
-                          stock.inStock ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>
-                                ✔ In Stock: {stock.stock} • Rack: {stock.rack}
-                              </span>
+                        {stock.inStock && stock.current_stock > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>
+                              ✓ Stock Available • {stock.current_stock} Units in Rack: {stock.rack_location}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                              <span>⚠ Out of Stock (Rack: {stock.rack})</span>
-                            </span>
-                          )
+                          </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-medium bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                            <PackageSearch className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Not in Catalog (Order Needed)</span>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800 shadow-xs">
+                            <span className="w-2 h-2 rounded-full bg-rose-500" />
+                            <span>
+                              ✕ Stock Unavailable / চেম্বার স্টকে নেই
+                            </span>
                           </span>
                         )}
                       </div>

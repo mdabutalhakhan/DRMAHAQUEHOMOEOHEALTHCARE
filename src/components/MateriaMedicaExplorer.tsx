@@ -48,7 +48,7 @@ import {
   getAllIndexedRemedies,
   getOrSynthesizeMateriaMedica
 } from '../data/materiaMedicaDatabase';
-import { getInventory } from '../services/clinicStore';
+import { useRealtimeInventory, checkMedicineStock } from '../services/inventoryMatcher';
 import { fetchRemedyTreatiseText, enrichRemedyWithGemini } from '../services/geminiClient';
 import { synthesizeMateriaMedicaOffline } from '../services/materiaMedicaEngine';
 import {
@@ -336,6 +336,9 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
   onAddRemedyToBilling,
   onNavigateToInventory
 }) => {
+  // Real-time Supabase + local inventory matcher
+  const { inventoryList, checkStock } = useRealtimeInventory();
+
   // Custom remedies from Supabase + localStorage
   const [customRemedies, setCustomRemedies] = useState<CustomMateriaMedicaRecord[]>([]);
 
@@ -416,12 +419,6 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
   // UI States
   const [copied, setCopied] = useState(false);
   const [addedToBill, setAddedToBill] = useState(false);
-  const [inventoryMatch, setInventoryMatch] = useState<{
-    found: boolean;
-    name: string;
-    stock: number;
-    rack: string;
-  } | null>(null);
 
   // Extended Boericke Fetch State
   const [isFetchingExtended, setIsFetchingExtended] = useState(false);
@@ -537,38 +534,18 @@ export const MateriaMedicaExplorer: React.FC<MateriaMedicaExplorerProps> = ({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Check inventory whenever active remedy changes
-  useEffect(() => {
-    if (!activeRemedy) return;
-    try {
-      const allInventory = getInventory();
-      const remedyNameLower = activeRemedy.latinName.toLowerCase();
-      const firstWord = remedyNameLower.split(' ')[0];
-
-      const match = allInventory.find((item) => {
-        const itemLower = item.medicine_name.toLowerCase();
-        return itemLower.includes(remedyNameLower) || (firstWord.length > 3 && itemLower.includes(firstWord));
-      });
-
-      if (match) {
-        setInventoryMatch({
-          found: true,
-          name: match.medicine_name,
-          stock: match.stock_quantity,
-          rack: match.rack_location || 'General Shelf'
-        });
-      } else {
-        setInventoryMatch({
-          found: false,
-          name: activeRemedy.latinName,
-          stock: 0,
-          rack: 'N/A'
-        });
-      }
-    } catch (e) {
-      console.warn('Error checking inventory:', e);
-    }
-  }, [activeRemedy]);
+  // Check inventory reactively whenever active remedy or inventory updates
+  const inventoryMatch = useMemo(() => {
+    if (!activeRemedy) return null;
+    const res = checkStock(activeRemedy.latinName);
+    return {
+      found: res.found,
+      inStock: res.inStock,
+      name: res.matchedItem?.medicine_name || activeRemedy.latinName,
+      stock: res.current_stock,
+      rack: res.rack_location || 'General Shelf'
+    };
+  }, [activeRemedy, checkStock, inventoryList]);
 
   // Tab mode switcher: strictly resets active remedy and all selections
   const handleSwitchTab = (mode: 'medicine' | 'organ' | 'symptom') => {
@@ -2045,18 +2022,19 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
             {inventoryMatch && (
               <div className="mt-5 pt-4 border-t border-white/15 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2.5 h-2.5 rounded-full ${
-                      inventoryMatch.stock > 0 ? 'bg-emerald-300 animate-pulse' : 'bg-amber-300'
-                    }`}
-                  />
-                  <span className="font-semibold text-emerald-100">
-                    Chamber Stock Status:
-                  </span>
-                  <span className="font-bold text-white">
-                    {inventoryMatch.stock > 0
-                      ? `${inventoryMatch.stock} in stock (Rack: ${inventoryMatch.rack})`
-                      : 'Available on order / standard potency kit'}
+                  {inventoryMatch.stock > 0 ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-emerald-400 text-slate-950 shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse" />
+                      <span>✔ In Stock: {inventoryMatch.stock} units • Rack: {inventoryMatch.rack}</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-rose-400 text-slate-950 shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-slate-950" />
+                      <span>✕ Out of Stock / চেম্বার স্টকে নেই</span>
+                    </span>
+                  )}
+                  <span className="font-semibold text-emerald-100 hidden sm:inline">
+                    (Live Chamber Inventory)
                   </span>
                 </div>
                 <div className="text-[11px] text-emerald-200">
@@ -2446,36 +2424,52 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {activeOrgan.primaryRemedies.map((rem) => (
-                          <div
-                            key={rem.remedyId}
-                            className="p-5 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-700 transition shadow-xs hover:shadow-md flex flex-col justify-between space-y-4 group"
-                          >
-                            <div className="space-y-3">
-                              {/* Header: Name + Category */}
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <h4 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition">
-                                    {rem.name}
-                                  </h4>
-                                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-bengali">
-                                    {rem.nameBn}
-                                  </p>
+                        {activeOrgan.primaryRemedies.map((rem) => {
+                          const stockRes = checkStock(rem.name, rem.recommendedPotency);
+                          return (
+                            <div
+                              key={rem.remedyId}
+                              className="p-5 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-700 transition shadow-xs hover:shadow-md flex flex-col justify-between space-y-4 group"
+                            >
+                              <div className="space-y-3">
+                                {/* Header: Name + Category + Stock */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <h4 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition">
+                                      {rem.name}
+                                    </h4>
+                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-bengali">
+                                      {rem.nameBn}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                    <span
+                                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase shrink-0 ${
+                                        rem.category === 'mother_tincture'
+                                          ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-300'
+                                          : rem.category === 'biochemic'
+                                          ? 'bg-sky-100 text-sky-900 dark:bg-sky-950/80 dark:text-sky-300'
+                                          : rem.category === 'patent'
+                                          ? 'bg-purple-100 text-purple-900 dark:bg-purple-950/80 dark:text-purple-300'
+                                          : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                      }`}
+                                    >
+                                      {rem.category.replace('_', ' ')}
+                                    </span>
+                                    {stockRes.inStock && stockRes.current_stock > 0 ? (
+                                      <span
+                                        className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800"
+                                        title={`Rack: ${stockRes.rack_location || 'General Shelf'}`}
+                                      >
+                                        🟢 {stockRes.current_stock} in stock
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
+                                        🔴 Out of stock
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                                <span
-                                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase shrink-0 ${
-                                    rem.category === 'mother_tincture'
-                                      ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-300'
-                                      : rem.category === 'biochemic'
-                                      ? 'bg-sky-100 text-sky-900 dark:bg-sky-950/80 dark:text-sky-300'
-                                      : rem.category === 'patent'
-                                      ? 'bg-purple-100 text-purple-900 dark:bg-purple-950/80 dark:text-purple-300'
-                                      : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-300'
-                                  }`}
-                                >
-                                  {rem.category.replace('_', ' ')}
-                                </span>
-                              </div>
 
                               {/* Specific Action */}
                               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 space-y-1">
@@ -2519,7 +2513,8 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
                               <ChevronRight className="w-4 h-4" />
                             </button>
                           </div>
-                        ))}
+                        );
+                      })}
                       </div>
                     </div>
                   </div>
@@ -2660,16 +2655,32 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                            {activeSymptom.differentials.map((diff) => (
-                              <tr key={diff.remedyId} className="hover:bg-sky-50/50 dark:hover:bg-slate-800/50 transition">
-                                <td className="py-4 px-4 align-top">
-                                  <div className="font-extrabold text-sm text-slate-900 dark:text-white">
-                                    {diff.name}
-                                  </div>
-                                  <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-bengali">
-                                    {diff.nameBn}
-                                  </div>
-                                </td>
+                            {activeSymptom.differentials.map((diff) => {
+                              const diffStock = checkStock(diff.name, diff.potency);
+                              return (
+                                <tr key={diff.remedyId} className="hover:bg-sky-50/50 dark:hover:bg-slate-800/50 transition">
+                                  <td className="py-4 px-4 align-top">
+                                    <div className="font-extrabold text-sm text-slate-900 dark:text-white">
+                                      {diff.name}
+                                    </div>
+                                    <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-bengali">
+                                      {diff.nameBn}
+                                    </div>
+                                    <div className="mt-1.5">
+                                      {diffStock.inStock && diffStock.current_stock > 0 ? (
+                                        <span
+                                          className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800"
+                                          title={`Rack: ${diffStock.rack_location || 'General Shelf'}`}
+                                        >
+                                          🟢 In Stock ({diffStock.current_stock})
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
+                                          🔴 Out of stock
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
                                 <td className="py-4 px-4 align-top max-w-xs leading-relaxed">
                                   <div className="font-medium text-slate-900 dark:text-slate-200">
                                     {diff.keynoteEn}
@@ -2707,29 +2718,43 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
                                   </button>
                                 </td>
                               </tr>
-                            ))}
+                            );
+                          })}
                           </tbody>
                         </table>
                       </div>
 
                       {/* Mobile Stacked Differential Cards */}
                       <div className="md:hidden space-y-3">
-                        {activeSymptom.differentials.map((diff) => (
-                          <div
-                            key={diff.remedyId}
-                            className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                  {diff.name}
-                                </h4>
-                                <p className="text-xs text-slate-500 font-bengali">{diff.nameBn}</p>
+                        {activeSymptom.differentials.map((diff) => {
+                          const diffStock = checkStock(diff.name, diff.potency);
+                          return (
+                            <div
+                              key={diff.remedyId}
+                              className="p-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-3 shadow-xs"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
+                                    {diff.name}
+                                  </h4>
+                                  <p className="text-xs text-slate-500 font-bengali">{diff.nameBn}</p>
+                                  <div className="mt-1">
+                                    {diffStock.inStock && diffStock.current_stock > 0 ? (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                        🟢 In Stock ({diffStock.current_stock})
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
+                                        🔴 Out of stock
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-xs">
+                                  {diff.potency}
+                                </span>
                               </div>
-                              <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-xs">
-                                {diff.potency}
-                              </span>
-                            </div>
 
                             <div className="space-y-1.5 text-xs">
                               <p className="text-slate-800 dark:text-slate-200 font-medium">
@@ -2755,7 +2780,8 @@ ${activeRemedy.guidingKeynotes.map((k) => `• ${k.en}`).join('\n')}
                               <ChevronRight className="w-4 h-4" />
                             </button>
                           </div>
-                        ))}
+                        );
+                      })}
                       </div>
                     </div>
                   </div>
