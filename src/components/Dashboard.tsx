@@ -193,10 +193,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
           },
           {
             id: 'settings' as const,
-            label: 'Doctor Profile & Settings',
+            label: 'Settings',
             shortLabel: 'Settings',
             icon: Camera,
-            description: 'Doctor photo upload, chamber branding & storage assets'
+            description: 'Doctor profile photo, AI engine configuration & chamber settings'
           }
         ]
       : [])

@@ -20,13 +20,7 @@ import {
   Languages,
   X,
   Stethoscope,
-  ExternalLink,
-  Layers,
-  Settings,
-  Key,
-  Eye,
-  EyeOff,
-  Zap
+  Layers
 } from 'lucide-react';
 import { ClinicLogo } from './ClinicLogo';
 import { getSupabase } from '../services/supabase';
@@ -70,32 +64,18 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   const [searchedQuery, setSearchedQuery] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
 
-  // Groq LPU API Key State & Settings Modal
-  const [groqKeyInput, setGroqKeyInput] = useState('');
+  // Groq LPU API Key State (silent reader from Settings/localStorage)
   const [activeGroqKey, setActiveGroqKey] = useState<string>('');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [showKeySecret, setShowKeySecret] = useState(false);
 
-  // Initialize and load Groq API key on mount
+  // Initialize and load Groq API key on mount and listen to storage updates
   useEffect(() => {
-    const key = getGroqApiKey();
-    setActiveGroqKey(key);
-    setGroqKeyInput(key);
+    const syncKey = () => {
+      setActiveGroqKey(getGroqApiKey());
+    };
+    syncKey();
+    window.addEventListener('storage', syncKey);
+    return () => window.removeEventListener('storage', syncKey);
   }, []);
-
-  const handleSaveGroqKey = (keyToSave?: string) => {
-    const key = (keyToSave !== undefined ? keyToSave : groqKeyInput).trim();
-    setGroqApiKey(key);
-    const updated = getGroqApiKey();
-    setActiveGroqKey(updated);
-    setGroqKeyInput(updated);
-    if (updated) {
-      showToast('Groq API Key saved successfully. Groq LPU Inference is active.', 'success');
-    } else {
-      showToast('Groq API Key removed.', 'info');
-    }
-    setIsSettingsOpen(false);
-  };
 
   const showToast = (message: string, type: 'error' | 'success' | 'info' = 'info') => {
     setToast({ message, type });
@@ -339,10 +319,9 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
 
     const groqApiKey = getGroqApiKey();
     if (!groqApiKey) {
-      const alertMsg = 'Please enter your free Groq API Key to enable instant AI Clinical Consultations.';
+      const alertMsg = 'Please configure your Groq API Key in Settings to enable AI Clinical Consultations.';
       setErrorMsg(alertMsg);
       showToast(alertMsg, 'error');
-      setIsSettingsOpen(true);
       return;
     }
 
@@ -551,42 +530,17 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           </div>
         </div>
 
-        {/* Header Controls: Groq LPU Active Badge, Settings Gear, and Dynamic Chamber Stock Pill */}
+        {/* Header Controls: Clean AI Engine Badge and Dynamic Chamber Stock Pill */}
         <div className="flex flex-wrap items-center gap-2.5 self-end md:self-auto text-xs">
-          {activeGroqKey ? (
-            <span
-              id="badge-groq-active"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shadow-xs"
-              title="Groq LPU (GPT-OSS / Llama Engine) Active"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span>Powered by Groq LPU (GPT-OSS / Llama Engine)</span>
-            </span>
-          ) : (
-            <button
-              id="btn-groq-setup-prompt"
-              type="button"
-              onClick={() => setIsSettingsOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition cursor-pointer"
-              title="Click to enter free Groq API Key"
-            >
-              <Key className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>Configure Groq API Key</span>
-            </button>
-          )}
-
-          {/* API Settings Gear Button */}
-          <button
-            id="btn-groq-settings-gear"
-            type="button"
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer flex items-center gap-1.5 font-medium"
-            title="Groq API Key & LPU Engine Settings"
-            aria-label="API Settings"
+          <span
+            id="badge-search-with-ai"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shadow-xs"
+            title="AI Search Engine is active & ready"
           >
-            <Settings className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className="hidden sm:inline text-xs font-bold text-slate-700 dark:text-slate-300">API Settings</span>
-          </button>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>Search with AI</span>
+          </span>
 
           {/* Dynamic Chamber Stock Pill */}
           <div
@@ -1334,139 +1288,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
         </div>
       )}
 
-      {/* Groq Cloud LPU API Key Settings Modal */}
-      {isSettingsOpen && (
-        <div 
-          id="modal-groq-settings"
-          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-7 space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white shadow-md shrink-0">
-                  <Key className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                    <span>Groq API Key Settings</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Groq LPU (GPT-OSS / Llama Engine) Inference
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSettingsOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                aria-label="Close settings"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            {/* Status Indicator */}
-            {activeGroqKey ? (
-              <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Key Active: {activeGroqKey.slice(0, 7)}••••••••{activeGroqKey.slice(-4)}</span>
-                </div>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-200">
-                  <Zap className="w-3 h-3" />
-                  Groq LPU Ready
-                </span>
-              </div>
-            ) : (
-              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2 font-medium">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <span>Please enter your free Groq API Key to enable instant AI Clinical Consultations.</span>
-              </div>
-            )}
-
-            {/* Form Input */}
-            <div className="space-y-2">
-              <label htmlFor="groq-api-key-input" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Groq API Key (starts with gsk_...)
-              </label>
-              <div className="relative">
-                <input
-                  id="groq-api-key-input"
-                  type={showKeySecret ? 'text' : 'password'}
-                  value={groqKeyInput}
-                  onChange={(e) => setGroqKeyInput(e.target.value)}
-                  placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full px-3.5 py-2.5 pr-10 text-xs sm:text-sm font-mono rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-hidden transition"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKeySecret(!showKeySecret)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  title={showKeySecret ? 'Hide key' : 'Show key'}
-                >
-                  {showKeySecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                Your key is stored securely in your browser's <code className="font-mono text-emerald-600 dark:text-emerald-400">localStorage</code> and transmitted directly to Groq's official API endpoint.
-              </p>
-            </div>
-
-            {/* Free Key Registration Hint */}
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>High-speed Groq LPU inference with automatic multi-model fallback</span>
-              </div>
-              <a
-                href="https://console.groq.com/keys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold hover:underline shrink-0"
-              >
-                <span>Get Free Key</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              {activeGroqKey ? (
-                <button
-                  type="button"
-                  onClick={() => handleSaveGroqKey('')}
-                  className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 text-xs font-bold transition cursor-pointer"
-                >
-                  Clear Key
-                </button>
-              ) : (
-                <div />
-              )}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsSettingsOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  id="btn-save-groq-key"
-                  type="button"
-                  onClick={() => handleSaveGroqKey()}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Save Key</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Floating Toast Notification for API status and actions */}
       {toast && (

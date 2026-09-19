@@ -108,6 +108,55 @@ export function setGroqApiKey(key: string): void {
   }
 }
 
+/**
+ * Tests Groq API connectivity and verifies the validity of an API key.
+ * Queries Groq's model listing endpoint which returns immediately with zero token cost.
+ */
+export async function testGroqConnection(apiKey?: string): Promise<{ success: boolean; message: string }> {
+  const key = (apiKey !== undefined ? apiKey : getGroqApiKey()).trim();
+  if (!key) {
+    return { 
+      success: false, 
+      message: 'Please enter a Groq API Key (starts with gsk_...) before testing.' 
+    };
+  }
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/models', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${key}`,
+      },
+    });
+
+    if (!response.ok) {
+      let errorMsg = `HTTP ${response.status}`;
+      try {
+        const data = await response.json();
+        if (data?.error?.message) {
+          errorMsg = data.error.message;
+        }
+      } catch {
+        // ignore JSON parse error
+      }
+      return { 
+        success: false, 
+        message: `Connection failed (${response.status}): ${errorMsg}` 
+      };
+    }
+
+    return { 
+      success: true, 
+      message: 'Groq Cloud LPU connection verified! Ready for high-speed AI consultations.' 
+    };
+  } catch (err: any) {
+    return { 
+      success: false, 
+      message: `Network error reaching Groq API: ${err?.message || 'Check your network connection'}` 
+    };
+  }
+}
+
 export const GROQ_SYSTEM_PROMPT = `You are Dr. M. A. Haque's expert AI Homeopathic Consultant. Provide clinical repertorization, differential remedies, potency suggestions, and modalities in clear bilingual (Bengali and English). Always state that the final decision rests with the attending physician.
 
 CRITICAL INSTRUCTION: You MUST return STRICT JSON ONLY in the following exact structure without markdown commentary, backticks, or wrapping text:

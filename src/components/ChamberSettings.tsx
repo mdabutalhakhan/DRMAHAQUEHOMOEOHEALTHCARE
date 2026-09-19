@@ -13,7 +13,11 @@ import {
   Check,
   Stethoscope,
   Building,
-  HardDrive
+  HardDrive,
+  Key,
+  Zap,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { 
@@ -24,6 +28,11 @@ import {
   notifySubscribers
 } from '../services/clinicStore';
 import { getSupabase } from '../services/supabase';
+import { 
+  getGroqApiKey, 
+  setGroqApiKey, 
+  testGroqConnection 
+} from '../services/groqClient';
 
 interface ChamberSettingsProps {
   currentUser: UserProfile;
@@ -38,6 +47,64 @@ export const ChamberSettings: React.FC<ChamberSettingsProps> = ({ currentUser })
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [dragActive, setDragActive] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // AI Engine & API Configuration State
+  const [groqKeyInput, setGroqKeyInput] = useState<string>('');
+  const [activeGroqKey, setActiveGroqKey] = useState<string>('');
+  const [showKeySecret, setShowKeySecret] = useState<boolean>(false);
+  const [testingConnection, setTestingConnection] = useState<boolean>(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [apiSaveMessage, setApiSaveMessage] = useState<string>('');
+
+  // Load Groq API Key on mount and sync with local storage
+  useEffect(() => {
+    const key = getGroqApiKey();
+    setActiveGroqKey(key);
+    setGroqKeyInput(key);
+  }, []);
+
+  const handleSaveGroqKey = (overrideKey?: string) => {
+    const key = (overrideKey !== undefined ? overrideKey : groqKeyInput).trim();
+    setGroqApiKey(key);
+    const updated = getGroqApiKey();
+    setActiveGroqKey(updated);
+    setGroqKeyInput(updated);
+    setTestResult(null);
+    if (updated) {
+      setApiSaveMessage('Groq API Key saved successfully. AI Engine is active and ready.');
+    } else {
+      setApiSaveMessage('Groq API Key removed.');
+    }
+    // Notify all other components across the app via storage event
+    window.dispatchEvent(new Event('storage'));
+    setTimeout(() => {
+      setApiSaveMessage('');
+    }, 4500);
+  };
+
+  const handleTestConnection = async () => {
+    const keyToTest = (groqKeyInput.trim() || activeGroqKey).trim();
+    if (!keyToTest) {
+      setTestResult({
+        success: false,
+        message: 'Please enter a Groq API Key (starts with gsk_...) before testing.'
+      });
+      return;
+    }
+    setTestingConnection(true);
+    setTestResult(null);
+    try {
+      const res = await testGroqConnection(keyToTest);
+      setTestResult(res);
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: err?.message || 'Failed to reach Groq API endpoint.'
+      });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
 
   // Load current doctor photo from Supabase clinic_settings
   useEffect(() => {
@@ -227,14 +294,14 @@ export const ChamberSettings: React.FC<ChamberSettingsProps> = ({ currentUser })
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white">
-                Doctor Profile & Chamber Settings
+                Settings
               </h2>
               <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
                 Admin Control
               </span>
             </div>
             <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Dr. M. A. Haque, M.D. (Homoeo) • Supabase Storage `clinic-assets` & Live Website Branding
+              Dr. M. A. Haque, M.D. (Homoeo) • Doctor Profile, AI Engine Configuration & Chamber Assets
             </p>
           </div>
         </div>
@@ -497,6 +564,182 @@ export const ChamberSettings: React.FC<ChamberSettingsProps> = ({ currentUser })
           </div>
         </div>
       </div>
+
+      {/* Dedicated Section: AI Engine & API Configuration */}
+      <div 
+        id="section-ai-engine-configuration"
+        className="bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl border border-emerald-950/10 dark:border-slate-700 p-5 sm:p-7 shadow-xs space-y-5"
+      >
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-xs shrink-0">
+              <Sparkles className="w-5 h-5 sm:w-6 h-6 text-emerald-200" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                  AI Engine & API Configuration
+                </h3>
+                <span className="text-[10px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                  LPU Inference
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Configure Groq API Key for clinical Kent repertorization, differential remedies & prescription generation
+              </p>
+            </div>
+          </div>
+
+          {/* Status Indicator */}
+          <div>
+            {activeGroqKey ? (
+              <div 
+                id="status-indicator-groq-active"
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold shadow-xs"
+              >
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span>Key Active: {activeGroqKey.slice(0, 7)}••••••••{activeGroqKey.slice(-4)}</span>
+              </div>
+            ) : (
+              <div 
+                id="status-indicator-groq-inactive"
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-bold shadow-xs"
+              >
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                <span>API Key Not Configured (Offline Mode)</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Success Alert Banner */}
+        {apiSaveMessage && (
+          <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/40 text-emerald-900 dark:text-emerald-200 text-xs font-semibold flex items-center gap-2.5 animate-fade-in shadow-xs">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{apiSaveMessage}</span>
+          </div>
+        )}
+
+        {/* Form Controls */}
+        <div className="space-y-4 max-w-3xl">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label 
+                htmlFor="groq-api-key-input" 
+                className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider"
+              >
+                Groq API Key (starts with <code className="text-emerald-600 dark:text-emerald-400 font-mono">gsk_...</code>)
+              </label>
+              <a
+                href="https://console.groq.com/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+              >
+                <span>Get Free Groq API Key</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            <div className="relative">
+              <input
+                id="groq-api-key-input"
+                type={showKeySecret ? 'text' : 'password'}
+                value={groqKeyInput}
+                onChange={(e) => {
+                  setGroqKeyInput(e.target.value);
+                  if (testResult) setTestResult(null);
+                }}
+                placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                className="w-full px-4 py-3 pr-11 text-xs sm:text-sm font-mono rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-hidden transition shadow-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKeySecret(!showKeySecret)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer rounded-lg"
+                title={showKeySecret ? 'Hide Key' : 'Show Key'}
+                aria-label={showKeySecret ? 'Hide Key' : 'Show Key'}
+              >
+                {showKeySecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+              Your key is stored securely in your browser's chamber storage (<code className="font-mono text-emerald-600 dark:text-emerald-400">localStorage</code>) and connects directly to Groq's official LPU endpoint for high-speed homeopathic repertory queries.
+            </p>
+          </div>
+
+          {/* Test Connection Result Alert */}
+          {testResult && (
+            <div
+              id="test-connection-alert"
+              className={`p-3.5 rounded-2xl border text-xs flex items-start gap-2.5 transition-all animate-fade-in ${
+                testResult.success
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                  : 'bg-red-50 dark:bg-red-950/60 border-red-300 dark:border-red-800 text-red-900 dark:text-red-200'
+              }`}
+            >
+              {testResult.success ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              )}
+              <div className="space-y-0.5">
+                <p className="font-bold">{testResult.success ? 'Connection Successful' : 'Connection Error'}</p>
+                <p className="text-[11px] opacity-90">{testResult.message}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons: Save Key, Test Connection, Clear */}
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <button
+              id="btn-save-api-key"
+              type="button"
+              onClick={() => handleSaveGroqKey()}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#1B4332] to-[#2D6A4F] hover:from-[#2D6A4F] hover:to-[#1B4332] text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition cursor-pointer flex items-center gap-2"
+            >
+              <Check className="w-4 h-4" />
+              <span>Save API Key</span>
+            </button>
+
+            <button
+              id="btn-test-connection"
+              type="button"
+              onClick={handleTestConnection}
+              disabled={testingConnection || (!groqKeyInput.trim() && !activeGroqKey)}
+              className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-800 dark:text-slate-200 text-xs sm:text-sm font-bold shadow-xs transition cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {testingConnection ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
+                  <span>Testing Connection...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <span>Test Connection</span>
+                </>
+              )}
+            </button>
+
+            {activeGroqKey && (
+              <button
+                id="btn-clear-api-key"
+                type="button"
+                onClick={() => handleSaveGroqKey('')}
+                className="px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs sm:text-sm font-bold transition cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear Key</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
+
+export const Settings = ChamberSettings;
+export default ChamberSettings;
