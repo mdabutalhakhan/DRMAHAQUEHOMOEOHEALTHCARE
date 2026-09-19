@@ -95,7 +95,25 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   const [showInStockFirst, setShowInStockFirst] = useState(true);
 
   // Dynamic Real-Time Chamber Stock Count (Registered Medicines)
-  const totalStockCount = inventoryList ? inventoryList.length : 0;
+  const [liveStockCount, setLiveStockCount] = useState<number>(0);
+
+useEffect(() => {
+  const fetchLiveStock = async () => {
+    try {
+      const { count, error } = await getSupabase()
+        .from('medicines')
+        .select('*', { count: 'exact', head: true });
+      if (!error && count !== null) {
+        setLiveStockCount(count);
+      }
+    } catch (err) {
+      console.error("Stock count error:", err);
+    }
+  };
+  fetchLiveStock();
+}, []);
+
+const totalStockCount = liveStockCount;
 
   // Smart Local Inventory Symptom & Remedy Matching
   const matchingChamberMedicines = useMemo(() => {
