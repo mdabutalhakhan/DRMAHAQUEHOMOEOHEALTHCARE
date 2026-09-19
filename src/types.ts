@@ -124,6 +124,7 @@ export interface InventoryItem {
   low_stock_threshold: number; // default 5
   storage_location: StorageLocation;
   updated_at: string;
+  symptom?: string; // Optional symptom / clinical indication (লক্ষণ / রোগ)
 }
 
 export type StockLogType = 'dispense' | 'restock' | 'transfer' | 'adjustment';

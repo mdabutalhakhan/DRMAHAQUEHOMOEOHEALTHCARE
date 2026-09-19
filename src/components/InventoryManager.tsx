@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { getSupabase } from '../services/supabase';
 import { HOMEOPATHIC_MEDICINES_CATALOG } from '../data/homeopathicCatalog';
+import { addInventoryItem } from '../services/clinicStore';
 
 interface MedicineItem {
   id: string;
@@ -22,6 +23,7 @@ interface MedicineItem {
   purchase_price?: number;
   mrp?: number;
   expiry_date?: string;
+  symptom?: string;
   created_at?: string;
 }
 
@@ -75,7 +77,8 @@ export const InventoryManager: React.FC<any> = () => {
     storage_area: 'Clinic Shelf',
     purchase_price: '',
     mrp: '',
-    expiry_date: ''
+    expiry_date: '',
+    symptom: ''
   });
 
   const fetchMedicines = async () => {
@@ -219,7 +222,8 @@ export const InventoryManager: React.FC<any> = () => {
       storage_area: 'Clinic Shelf',
       purchase_price: '',
       mrp: '',
-      expiry_date: ''
+      expiry_date: '',
+      symptom: ''
     });
     setFormError('');
     setShowSuggestions(false);
@@ -267,6 +271,52 @@ export const InventoryManager: React.FC<any> = () => {
     setShowSuggestions(false);
   };
 
+  /**
+   * Auto-Slash Input Mask for Expiry Date:
+   * On input change, format entered numbers on the fly into DD/MM/YYYY
+   */
+  const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/\D/g, ''); // keep only numbers
+    if (val.length > 8) val = val.substring(0, 8);
+    
+    let formatted = val;
+    if (val.length > 4) {
+      formatted = `${val.substring(0, 2)}/${val.substring(2, 4)}/${val.substring(4, 8)}`;
+    } else if (val.length > 2) {
+      formatted = `${val.substring(0, 2)}/${val.substring(2, 4)}`;
+    }
+    setFormData(prev => ({ ...prev, expiry_date: formatted }));
+  };
+
+  /**
+   * Safe Date Conversion for Supabase Payload:
+   * Converts DD/MM/YYYY or DDMMYYYY into PostgreSQL-compatible YYYY-MM-DD
+   */
+  const formatForSupabase = (dateStr?: string): string | null => {
+    if (!dateStr || !dateStr.trim()) return null;
+    const cleaned = dateStr.trim();
+    
+    // If already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) return cleaned;
+    
+    // If DD/MM/YYYY
+    const parts = cleaned.split('/');
+    if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
+      const [day, month, year] = parts;
+      return `${year}-${month}-${day}`;
+    }
+    
+    // If 8 raw digits DDMMYYYY
+    if (/^\d{8}$/.test(cleaned)) {
+      const day = cleaned.substring(0, 2);
+      const month = cleaned.substring(2, 4);
+      const year = cleaned.substring(4, 8);
+      return `${year}-${month}-${day}`;
+    }
+    
+    return null; // Fallback to null instead of crashing the DB
+  };
+
   const handleAddMedicine = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -284,6 +334,9 @@ export const InventoryManager: React.FC<any> = () => {
 
     setSubmitting(true);
     try {
+      const symptomVal = formData.symptom?.trim() || null;
+      const safeExpiryDate = formatForSupabase(formData.expiry_date);
+
       const payload = {
         name: formData.name.trim(),
         category: formData.category || 'Dilution',
@@ -298,11 +351,71 @@ export const InventoryManager: React.FC<any> = () => {
         storage_area: formData.storage_area || 'Clinic Shelf',
         purchase_price: formData.purchase_price !== '' ? Number(formData.purchase_price) : 0,
         mrp: formData.mrp !== '' ? Number(formData.mrp) : 0,
-        expiry_date: formData.expiry_date.trim() || null
+        expiry_date: safeExpiryDate,
+        symptom: symptomVal
       };
 
-      const { error } = await supabase.from('medicines').insert([payload]);
-      if (error) throw error;
+      // 1. Insert into 'medicines' table
+      const { error: medError } = await supabase.from('medicines').insert([payload]);
+      if (medError) {
+        // Fallback: If 'symptom' column doesn't exist in medicines table, retry without it
+        if (medError.message && (medError.message.includes('symptom') || medError.message.includes('column'))) {
+          const { symptom: _ignored, ...fallbackPayload } = payload;
+          const { error: retryError } = await supabase.from('medicines').insert([fallbackPayload]);
+          if (retryError) throw retryError;
+        } else {
+          throw medError;
+        }
+      }
+
+      // 2. Also insert into 'inventory' table with symptom field (per user specification)
+      try {
+        const invPayload = {
+          medicine_name: formData.name.trim(),
+          category: formData.category || 'Dilution',
+          potency: formData.potency.trim() || '30C',
+          bottle_size: formData.bottle_size.trim() || '30ml',
+          rack_location: formData.rack_location.trim().toUpperCase() || 'R001',
+          stock_quantity: formData.stock_qty !== '' ? Number(formData.stock_qty) : 0,
+          low_stock_threshold: formData.low_stock_alert !== '' ? Number(formData.low_stock_alert) : 5,
+          storage_location: formData.storage_area === 'Godown Storage' ? 'Godown / Storage Room' : 'Clinic Dispensing Shelf',
+          purchase_cost: formData.purchase_price !== '' ? Number(formData.purchase_price) : 0,
+          mrp: formData.mrp !== '' ? Number(formData.mrp) : 0,
+          company: formData.manufacturer.trim() || 'SBL Pvt Ltd',
+          distributor: formData.supplier.trim() || '',
+          expiry_date: safeExpiryDate,
+          symptom: symptomVal
+        };
+        const { error: invErr } = await supabase.from('inventory').insert([invPayload]);
+        if (invErr && (invErr.message.includes('symptom') || invErr.message.includes('column'))) {
+          const { symptom: _ignored2, ...invFallback } = invPayload;
+          await supabase.from('inventory').insert([invFallback]);
+        }
+      } catch (invErr) {
+        console.warn('Supabase inventory table insert note:', invErr);
+      }
+
+      // 3. Keep local clinicStore inventory in sync immediately
+      try {
+        addInventoryItem({
+          medicine_name: formData.name.trim(),
+          category: (formData.category as any) || 'Dilution',
+          potency: formData.potency.trim() || '30C',
+          bottle_size: formData.bottle_size.trim() || '30ml',
+          rack_location: formData.rack_location.trim().toUpperCase() || 'R001',
+          stock_quantity: formData.stock_qty !== '' ? Number(formData.stock_qty) : 0,
+          low_stock_threshold: formData.low_stock_alert !== '' ? Number(formData.low_stock_alert) : 5,
+          storage_location: formData.storage_area === 'Godown Storage' ? 'Godown / Storage Room' : 'Clinic Dispensing Shelf',
+          purchase_cost: formData.purchase_price !== '' ? Number(formData.purchase_price) : 0,
+          mrp: formData.mrp !== '' ? Number(formData.mrp) : 0,
+          company: formData.manufacturer.trim() || 'SBL Pvt Ltd',
+          distributor: formData.supplier.trim() || '',
+          expiry_date: safeExpiryDate || undefined,
+          symptom: symptomVal || undefined
+        });
+      } catch (storeErr) {
+        console.warn('ClinicStore sync note:', storeErr);
+      }
 
       setShowAddModal(false);
       fetchMedicines();
@@ -516,6 +629,17 @@ export const InventoryManager: React.FC<any> = () => {
                         {med.manufacturer || med.category || 'Dilution'}
                       </span>
                     </div>
+
+                    {med.symptom && (
+                      <div className="pt-0.5">
+                        <span
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 truncate max-w-[220px]"
+                          title={`Clinical Indication: ${med.symptom}`}
+                        >
+                          🏷️ {med.symptom}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -578,6 +702,17 @@ export const InventoryManager: React.FC<any> = () => {
                           {med.storage_area || 'Clinic Shelf'}
                         </span>
                       </div>
+
+                      {med.symptom && (
+                        <div className="col-span-2 p-2 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                          <span className="text-[10px] text-emerald-800 dark:text-emerald-300 uppercase font-semibold block">
+                            Clinical Indication / Symptom (লক্ষণ / রোগ)
+                          </span>
+                          <span className="font-medium text-emerald-900 dark:text-emerald-200 text-xs">
+                            {med.symptom}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {med.manufacturer && (
@@ -663,6 +798,16 @@ export const InventoryManager: React.FC<any> = () => {
                       <td className="py-3 px-3 text-stone-600 dark:text-stone-300">
                         <div>{med.category || 'Dilution'}</div>
                         <div className="text-[11px] text-stone-400">{med.bottle_size}</div>
+                        {med.symptom && (
+                          <div className="mt-1">
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 truncate max-w-[170px]"
+                              title={`Clinical Indication: ${med.symptom}`}
+                            >
+                              🏷️ {med.symptom}
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       <td className="py-3 px-3">
@@ -837,6 +982,23 @@ export const InventoryManager: React.FC<any> = () => {
                 </div>
               </div>
 
+              {/* Symptom / Clinical Indication (Optional) */}
+              <div>
+                <label className="block font-bold uppercase text-[11px] text-stone-700 dark:text-stone-300 mb-1">
+                  Symptom / Clinical Indication (লক্ষণ / রোগ - ঐচ্ছিক)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Inflammation, Digestive / গ্যাস-অম্বল, Piles, Cough, Colic Pain"
+                  value={formData.symptom}
+                  onChange={(e) => setFormData({ ...formData, symptom: e.target.value })}
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-stone-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-stone-900 dark:text-white font-medium focus:ring-2 focus:ring-[#1B4332] outline-none"
+                />
+                <p className="text-[10px] text-stone-500 dark:text-stone-400 mt-1">
+                  Optional clinical indication keywords for instant cross-matching in AI Clinical Consultant.
+                </p>
+              </div>
+
               {/* Company / Manufacturer & Rack Location */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
@@ -982,9 +1144,10 @@ export const InventoryManager: React.FC<any> = () => {
                   <div className="relative">
                     <input
                       type="text"
-                      placeholder="DD/MM/YYYY or YYYY-MM-DD"
+                      placeholder="DD/MM/YYYY"
+                      maxLength={10}
                       value={formData.expiry_date}
-                      onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
+                      onChange={handleExpiryDateChange}
                       className="w-full pl-3 pr-10 py-2 bg-white dark:bg-slate-800 border border-stone-300 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-stone-900 dark:text-white font-medium focus:ring-2 focus:ring-[#1B4332] outline-none"
                     />
                     <button
@@ -1017,7 +1180,13 @@ export const InventoryManager: React.FC<any> = () => {
                       className="sr-only absolute opacity-0 pointer-events-none"
                       onChange={(e) => {
                         if (e.target.value) {
-                          setFormData({ ...formData, expiry_date: e.target.value });
+                          const parts = e.target.value.split('-');
+                          if (parts.length === 3) {
+                            const [year, month, day] = parts;
+                            setFormData(prev => ({ ...prev, expiry_date: `${day}/${month}/${year}` }));
+                          } else {
+                            setFormData(prev => ({ ...prev, expiry_date: e.target.value }));
+                          }
                         }
                       }}
                     />

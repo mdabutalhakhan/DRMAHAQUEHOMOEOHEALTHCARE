@@ -13,6 +13,8 @@ export interface ActiveInventoryRecord {
   rack_location: string;
   mrp?: number;
   manufacturer?: string;
+  company?: string;
+  symptom?: string;
 }
 
 export interface MedicineStockStatus {
@@ -406,7 +408,9 @@ function mapLocalToActiveRecord(item: InventoryItem): ActiveInventoryRecord {
     current_stock: item.stock_quantity ?? (item as any).current_stock ?? 0,
     rack_location: item.rack_location || 'General Shelf',
     mrp: item.mrp,
-    manufacturer: (item as any).manufacturer || (item as any).company_name || ''
+    manufacturer: (item as any).manufacturer || (item as any).company_name || item.company || '',
+    company: item.company || (item as any).manufacturer || '',
+    symptom: item.symptom || (item as any).indication || ''
   };
 }
 
@@ -430,7 +434,9 @@ function mapSupabaseRowToActiveRecord(row: any): ActiveInventoryRecord {
     current_stock: isNaN(stock) ? 0 : stock,
     rack_location: row.rack_location || 'General Shelf',
     mrp: Number(row.mrp) || 0,
-    manufacturer: row.manufacturer || row.company
+    manufacturer: row.manufacturer || row.company || '',
+    company: row.company || row.manufacturer || '',
+    symptom: row.symptom || row.indication || ''
   };
 }
 
@@ -450,21 +456,22 @@ export function useRealtimeInventory() {
     try {
       const supabase = getSupabase();
       if (supabase) {
-        // Strategy A: Try public.inventory first
-        const invRes = await supabase
-          .from('inventory')
-          .select('id, medicine_name, potency, category, bottle_size, rack_location, stock_quantity, mrp, company');
+        // Strategy A: Primary medicines table (used by InventoryManager)
+        const medRes = await supabase
+          .from('medicines')
+          .select('*')
+          .order('name', { ascending: true });
 
-        if (!invRes.error && invRes.data && invRes.data.length > 0) {
-          items = invRes.data.map(mapSupabaseRowToActiveRecord);
+        if (!medRes.error && medRes.data) {
+          items = medRes.data.map(mapSupabaseRowToActiveRecord);
         } else {
-          // Strategy B: Try public.medicines fallback
-          const medRes = await supabase
-            .from('medicines')
-            .select('id, name, potency, category, bottle_size, rack_location, stock_qty, mrp, manufacturer');
+          // Strategy B: Fallback to inventory table if medicines table is unavailable
+          const invRes = await supabase
+            .from('inventory')
+            .select('*');
 
-          if (!medRes.error && medRes.data && medRes.data.length > 0) {
-            items = medRes.data.map(mapSupabaseRowToActiveRecord);
+          if (!invRes.error && invRes.data && invRes.data.length > 0) {
+            items = invRes.data.map(mapSupabaseRowToActiveRecord);
           }
         }
       }
@@ -557,3 +564,43 @@ export function useRealtimeInventory() {
     checkStock
   };
 }
+
+/**
+ * Match local inventory medicines by symptom, clinical indication, or remedy name against a search query
+ */
+export function findMatchingInventoryBySymptom(
+  query: string,
+  inventory: ActiveInventoryRecord[]
+): ActiveInventoryRecord[] {
+  if (!query || !inventory || inventory.length === 0) return [];
+  const cleanQ = query.trim().toLowerCase();
+
+  // Extract query keywords / tokens (length >= 2)
+  const tokens = cleanQ
+    .split(/[\s,+/।-]+/)
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => t.length >= 2);
+
+  if (tokens.length === 0) return [];
+
+  return inventory.filter((item) => {
+    const medSymptom = (item.symptom || '').toLowerCase();
+    const medName = (item.medicine_name || '').toLowerCase();
+    const medCategory = (item.category || '').toLowerCase();
+
+    // 1. Exact or substring match of full query in symptom or name
+    if (medSymptom && (medSymptom.includes(cleanQ) || cleanQ.includes(medSymptom))) {
+      return true;
+    }
+    if (medName && (medName.includes(cleanQ) || cleanQ.includes(medName))) {
+      return true;
+    }
+
+    // 2. Token match in symptom or name
+    const symptomMatch = tokens.some((token) => medSymptom.includes(token));
+    const nameMatch = tokens.some((token) => medName.includes(token));
+
+    return symptomMatch || nameMatch;
+  });
+}
+

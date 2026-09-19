@@ -5,6 +5,7 @@ import {
   MicOff, 
   BookOpen, 
   PlusCircle, 
+  Plus,
   AlertCircle,
   HeartPulse,
   Apple,
@@ -25,7 +26,7 @@ import {
 import { ClinicLogo } from './ClinicLogo';
 import { getSupabase } from '../services/supabase';
 import { getInventory } from '../services/clinicStore';
-import { useRealtimeInventory } from '../services/inventoryMatcher';
+import { useRealtimeInventory, findMatchingInventoryBySymptom } from '../services/inventoryMatcher';
 import { 
   findRepertoryMatch, 
   ClinicalCondition, 
@@ -92,6 +93,16 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   // Real-time Normalized Inventory Matcher Hook (Supabase medicines table + Clinic Store)
   const { inventoryList, loading: inventoryLoading, checkStock } = useRealtimeInventory();
   const [showInStockFirst, setShowInStockFirst] = useState(true);
+
+  // Dynamic Real-Time Chamber Stock Count (Registered Medicines)
+  const totalStockCount = inventoryList ? inventoryList.length : 0;
+
+  // Smart Local Inventory Symptom & Remedy Matching
+  const matchingChamberMedicines = useMemo(() => {
+    const query = (searchedQuery || symptoms || '').trim();
+    if (!query || query.length < 2) return [];
+    return findMatchingInventoryBySymptom(query, inventoryList);
+  }, [searchedQuery, symptoms, inventoryList]);
 
   // User Action Feedback
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -546,15 +557,17 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           <div
             id="inventory-sync-pill"
             className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 font-medium transition-colors ${
-              (inventoryList?.length || 0) === 0
+              inventoryLoading
+                ? 'bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-500 animate-pulse'
+                : totalStockCount === 0
                 ? 'bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-500 dark:text-slate-400'
                 : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
             }`}
-            title={`Live Chamber Inventory: ${inventoryList?.length || 0} active stock items`}
+            title={`Live Chamber Inventory: ${totalStockCount} active stock ${totalStockCount === 1 ? 'item' : 'items'}`}
           >
-            <PackageSearch className={`w-4 h-4 ${(inventoryList?.length || 0) === 0 ? 'text-slate-400' : 'text-emerald-600'}`} />
+            <PackageSearch className={`w-4 h-4 ${inventoryLoading ? 'animate-spin text-slate-400' : totalStockCount === 0 ? 'text-slate-400' : 'text-emerald-600'}`} />
             <span id="inventory-sync-badge">
-              {`Chamber Stock: ${inventoryList?.length || 0} Items`}
+              {inventoryLoading ? 'Chamber Stock: Loading...' : `Chamber Stock: ${totalStockCount} ${totalStockCount === 1 ? 'Item' : 'Items'}`}
             </span>
           </div>
         </div>
@@ -740,6 +753,126 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* SMART LOCAL INVENTORY SYMPTOM MATCHING SECTION                             */}
+      {/* ========================================================================= */}
+      {matchingChamberMedicines.length > 0 && (
+        <div 
+          id="chamber-symptom-matches-section"
+          className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-850 border-2 border-emerald-500/60 dark:border-emerald-500/40 shadow-sm space-y-4 animate-in fade-in duration-200"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-emerald-100 dark:border-slate-700">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-black text-sm shadow-xs shrink-0">
+                ✓
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <span>IN CHAMBER STOCK: MATCHING SYMPTOM & REMEDIES</span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                    {matchingChamberMedicines.length} Available
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Medicines currently available in your clinic with clinical indication or name matching &ldquo;{searchedQuery || symptoms}&rdquo;
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {matchingChamberMedicines.map((med, mIdx) => {
+              const cardKey = `chamber-match-${med.id}-${mIdx}`;
+              const isCopied = copiedKey === cardKey;
+              const isAdded = addedBillKey === cardKey;
+
+              return (
+                <div
+                  key={cardKey}
+                  className="p-4 rounded-2xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-300/80 dark:border-emerald-800/80 flex flex-col justify-between space-y-3 shadow-xs hover:border-emerald-500 transition-all"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">
+                          {med.medicine_name}
+                        </h4>
+                        <span className="text-[11px] text-stone-500 dark:text-stone-400">
+                          {med.category || 'Dilution'} {med.bottle_size ? `• ${med.bottle_size}` : ''}
+                        </span>
+                      </div>
+                      {med.potency && (
+                        <span className="px-2 py-0.5 rounded-lg bg-[#1B4332] text-emerald-200 text-xs font-bold shrink-0">
+                          {med.potency}
+                        </span>
+                      )}
+                    </div>
+
+                    {med.symptom && (
+                      <div className="p-1.5 rounded-lg bg-emerald-100/60 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800">
+                        <span className="text-[10px] uppercase font-bold text-emerald-800 dark:text-emerald-300 block">
+                          Clinical Indication / Symptom:
+                        </span>
+                        <span className="text-xs font-medium text-emerald-950 dark:text-emerald-100">
+                          {med.symptom}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Verified Stock Badge */}
+                    <div className="pt-0.5">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>
+                          ✓ In Chamber Stock ({med.current_stock} Units • Rack: {med.rack_location})
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 1-Click Action Buttons */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-emerald-200/60 dark:border-emerald-900/60">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleCopyText(
+                          `${med.medicine_name} ${med.potency || ''} [Rack: ${med.rack_location}]`,
+                          cardKey
+                        )
+                      }
+                      className="flex-1 py-1.5 rounded-xl border border-stone-300 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 text-[11px] font-bold text-stone-700 dark:text-stone-300 flex items-center justify-center gap-1 transition cursor-pointer"
+                    >
+                      {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{isCopied ? 'Copied' : 'Copy Rx'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleAddToBill(
+                          {
+                            name: med.medicine_name,
+                            potency: med.potency,
+                            bottleSize: med.bottle_size,
+                            price: med.mrp,
+                            rack: med.rack_location,
+                          },
+                          cardKey
+                        )
+                      }
+                      className="flex-1 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold flex items-center justify-center gap-1 shadow-xs transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{isAdded ? 'Added' : 'Add to Bill'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Informative Guidance Banner when No Exact Simillimum is Found */}
       {hasSearched && !selectedCondition && !loading && !isAiLoading && (
@@ -930,7 +1063,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                             <span>
-                              ✓ Stock Available • {stock.current_stock} Units in Rack: {stock.rack_location}
+                              ✓ In Chamber Stock ({stock.current_stock} Units • Rack: {stock.rack_location})
                             </span>
                           </span>
                         ) : (
@@ -1159,7 +1292,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                             <span>
-                              ✓ Stock Available • {stock.current_stock} Units in Rack: {stock.rack_location}
+                              ✓ In Chamber Stock ({stock.current_stock} Units • Rack: {stock.rack_location})
                             </span>
                           </span>
                         ) : (
