@@ -21,7 +21,12 @@ import {
   X,
   Stethoscope,
   ExternalLink,
-  Layers
+  Layers,
+  Settings,
+  Key,
+  Eye,
+  EyeOff,
+  Zap
 } from 'lucide-react';
 import { ClinicLogo } from './ClinicLogo';
 import { getSupabase } from '../services/supabase';
@@ -33,7 +38,13 @@ import {
   PatentFormulation 
 } from '../data/clinicalRepertoryData';
 import { synthesizeMateriaMedicaOffline } from '../services/materiaMedicaEngine';
-import { callGeminiAPI, callGeminiDirectlyFromClient } from '../services/geminiClient';
+import { 
+  callGroqAPI, 
+  getGroqApiKey, 
+  setGroqApiKey, 
+  hasGroqApiKey, 
+  buildGroqConsultQuery 
+} from '../services/groqClient';
 
 interface AIConsultantProps {
   initialSymptoms?: string;
@@ -51,11 +62,38 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   const [loading, setLoading] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>('all');
-  const [consultSource, setConsultSource] = useState<'repertory' | 'gemini'>('repertory');
+  const [consultSource, setConsultSource] = useState<'repertory' | 'groq'>('repertory');
   const [errorMsg, setErrorMsg] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [searchedQuery, setSearchedQuery] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
+
+  // Groq Llama 3.1 API Key State & Settings Modal
+  const [groqKeyInput, setGroqKeyInput] = useState('');
+  const [activeGroqKey, setActiveGroqKey] = useState<string>('');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showKeySecret, setShowKeySecret] = useState(false);
+
+  // Initialize and load Groq API key on mount
+  useEffect(() => {
+    const key = getGroqApiKey();
+    setActiveGroqKey(key);
+    setGroqKeyInput(key);
+  }, []);
+
+  const handleSaveGroqKey = (keyToSave?: string) => {
+    const key = (keyToSave !== undefined ? keyToSave : groqKeyInput).trim();
+    setGroqApiKey(key);
+    const updated = getGroqApiKey();
+    setActiveGroqKey(updated);
+    setGroqKeyInput(updated);
+    if (updated) {
+      showToast('Groq API Key saved successfully. Llama 3.1 Inference is active.', 'success');
+    } else {
+      showToast('Groq API Key removed.', 'info');
+    }
+    setIsSettingsOpen(false);
+  };
 
   const showToast = (message: string, type: 'error' | 'success' | 'info' = 'info') => {
     setToast({ message, type });
@@ -343,8 +381,8 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     }
   };
 
-  // Analyze symptoms through Deep Gemini AI Engine (Multi-Brand Global & Indian Patent Synthesis)
-  const handleGeminiConsult = async (overrideQuery?: string) => {
+  // Analyze symptoms through Groq Cloud Llama 3.1 Inference Engine
+  const handleGroqConsult = async (overrideQuery?: string) => {
     const query = (overrideQuery !== undefined ? overrideQuery : symptoms).trim();
     if (!query) {
       const msg = 'Please enter symptoms in English or Bengali, or speak using the voice microphone.';
@@ -353,12 +391,14 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       return;
     }
 
-    const apiKey = (
-      (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) ||
-      (typeof process !== 'undefined' && process.env && process.env.VITE_GEMINI_API_KEY) ||
-      (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) ||
-      ''
-    ).trim();
+    const groqApiKey = getGroqApiKey();
+    if (!groqApiKey) {
+      const alertMsg = 'Please enter your free Groq API Key to enable instant AI Clinical Consultations.';
+      setErrorMsg(alertMsg);
+      showToast(alertMsg, 'error');
+      setIsSettingsOpen(true);
+      return;
+    }
 
     setErrorMsg('');
     setIsAiLoading(true);
@@ -366,41 +406,11 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
     setSearchedQuery(query);
 
     try {
-      if (!apiKey) {
-        throw new Error('Gemini API key is not configured. Falling back to Boericke/Kent Emergency Repertory Engine.');
-      }
+      const groqUserQuery = buildGroqConsultQuery(query);
+      const data = await callGroqAPI(groqUserQuery, { apiKey: groqApiKey });
 
-      let data: any = null;
-      let usedClientDirect = false;
-
-      // Primary: Direct Client REST call with multi-model cascade (passes key via query param, strictly NO Authorization header)
-      try {
-        data = await callGeminiAPI(query);
-        usedClientDirect = true;
-      } catch (clientErr: any) {
-        console.warn('Direct client REST cascade error, falling back to /api/consult route:', clientErr);
-        // Fallback to server route
-        try {
-          const response = await fetch('/api/consult', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symptoms: query, apiKey }),
-          });
-
-          if (response.ok) {
-            data = await response.json();
-          } else {
-            const errJson = await response.json().catch(() => ({}));
-            throw new Error(errJson.error || `Server responded with HTTP ${response.status}`);
-          }
-        } catch (serverErr: any) {
-          // If both fail, trigger offline heuristic fallback
-          throw clientErr;
-        }
-      }
-
-      if (!data || (!data.remedies && !data.patent_formulations)) {
-        throw new Error('Gemini response did not contain remedies.');
+      if (!data || (!data.remedies?.length && !data.patent_formulations?.length && !data.analysis_summary)) {
+        throw new Error('Groq AI response did not contain clinical remedies.');
       }
 
       const classicalRemedies = (data.remedies || []).map((r: any) => ({
@@ -414,7 +424,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
         aliases: [r.remedy_name, r.name, r.common_name, r.commonName].filter(Boolean),
       }));
 
-      const patentFormulations = (data.patent_formulations || data.patentFormulations || []).map((p: any) => {
+      const patentFormulations = (data.patent_formulations || []).map((p: any) => {
         const b = (p.brand || '').toLowerCase();
         const isGerman = b.includes('reckeweg') || b.includes('adel') || (p.company || '').toLowerCase().includes('germany');
         return {
@@ -431,27 +441,29 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       });
 
       const aiCondition: ClinicalCondition = {
-        id: `gemini-consult-${Date.now()}`,
-        nameEn: `AI Consultation: ${query.length > 50 ? query.slice(0, 50) + '...' : query}`,
+        id: `groq-consult-${Date.now()}`,
+        nameEn: `Llama 3.1 AI Repertorization: ${query.length > 50 ? query.slice(0, 50) + '...' : query}`,
         nameBn: 'এআই প্রেসক্রিপশন ও মাল্টি-ব্র্যান্ড পেটেন্ট ফরমুলেশন',
-        chipLabel: usedClientDirect ? 'Gemini AI (Direct Client REST)' : 'Gemini Deep AI Consult',
+        chipLabel: 'Powered by Llama 3.1 (Ultra-Fast Inference)',
         pathology: data.analysis_summary || `Constitutional & Pathological Synthesis for: ${query}`,
         miasm: 'Miasmatic Synthesis (Kent/Boericke & Commercial Patents)',
         keywords: [query],
         typicalPresentation: query,
         classicalRemedies,
         patentFormulations,
-        dietAndRegimen: data.diet_and_regimen || data.dietAndRegimen || 'Sip warm water. Avoid raw onion, garlic, menthol, camphor and strong coffee during homoeopathic treatment.',
-        warningNotes: data.warning_notes || data.warningNotes || 'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo). Correlate with physical examination.',
+        dietAndRegimen: data.diet_and_regimen || 'Sip warm water. Avoid raw onion, garlic, menthol, camphor and strong coffee during homoeopathic treatment.',
+        warningNotes: data.warning_notes || 'Clinical decision-support aid for Dr. M. A. Haque, M.D. (Homoeo). Final clinical decisions rest with the attending homeopathic physician.',
       };
 
       setSelectedCondition(aiCondition);
-      setConsultSource('gemini');
+      setConsultSource('groq');
       setSelectedBrandFilter('all');
       setErrorMsg('');
-      showToast('Gemini AI consultation completed successfully.', 'success');
+      showToast('Llama 3.1 AI consultation completed successfully.', 'success');
     } catch (err: any) {
-      console.warn('Gemini API unavailable or offline, activating Boericke/Kent Emergency Repertory Engine:', err);
+      console.warn('Groq API encounter, activating Boericke/Kent Emergency Repertory Engine:', err);
+      const friendlyError = err?.message || 'Unable to connect to AI engine.';
+      setErrorMsg(friendlyError);
       // Fail-safe: Try verified offline repertory match first, then organ-sensation synthesis
       let offlineCondition = findRepertoryMatch(query);
       if (!offlineCondition) {
@@ -460,7 +472,6 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
       setSelectedCondition(offlineCondition);
       setConsultSource('repertory');
       setSelectedBrandFilter('all');
-      setErrorMsg('');
       if (offlineCondition) {
         showToast('Materia Medica Offline Engine Active: Boericke & Kent protocol synthesized.', 'info');
       }
@@ -536,8 +547,44 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           </div>
         </div>
 
-        {/* Live Inventory Status Pill */}
-        <div className="flex items-center gap-2 self-end md:self-auto text-xs">
+        {/* Header Controls: Llama 3.1 Active Badge, Settings Gear, and Chamber Stock Pill */}
+        <div className="flex flex-wrap items-center gap-2.5 self-end md:self-auto text-xs">
+          {activeGroqKey ? (
+            <span
+              id="badge-groq-active"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shadow-xs"
+              title="Groq Cloud Llama 3.1 Inference Engine Active"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span>Powered by Llama 3.1 (Ultra-Fast Inference)</span>
+            </span>
+          ) : (
+            <button
+              id="btn-groq-setup-prompt"
+              type="button"
+              onClick={() => setIsSettingsOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition cursor-pointer"
+              title="Click to enter free Groq API Key"
+            >
+              <Key className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Configure Groq API Key</span>
+            </button>
+          )}
+
+          {/* API Settings Gear Button */}
+          <button
+            id="btn-groq-settings-gear"
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer flex items-center gap-1.5 font-medium"
+            title="Groq API Key & Llama 3.1 Settings"
+            aria-label="API Settings"
+          >
+            <Settings className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="hidden sm:inline text-xs font-bold text-slate-700 dark:text-slate-300">API Settings</span>
+          </button>
+
+          {/* Live Inventory Status Pill */}
           <div
             id="inventory-sync-pill"
             className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 font-medium transition-colors ${
@@ -703,7 +750,7 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
           ))}
         </div>
 
-        {/* Action Buttons: Instant Repertory & Gemini Deep AI Consult */}
+        {/* Action Buttons: Instant Repertory & Llama 3.1 AI Consult */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
           <span className="text-[11px] text-slate-400 hidden sm:inline">
             Tip: Press <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Enter</kbd> to repertorize, <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Shift</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 font-mono text-[10px]">Enter</kbd> for new line
@@ -721,14 +768,15 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             </button>
 
             <button
+              id="btn-groq-consult"
               type="button"
-              onClick={() => handleGeminiConsult()}
+              onClick={() => handleGroqConsult()}
               disabled={loading || isAiLoading}
-              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 hover:opacity-90 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
-              title="Query Gemini AI for custom constitutional synthesis & multi-brand patent formulations"
+              className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-700 to-[#1B4332] hover:opacity-95 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
+              title="Query Groq Llama 3.1 AI for expert repertorization, differential remedy analysis, and patent formulations"
             >
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>{isAiLoading ? 'Gemini AI Analyzing...' : 'Gemini Deep AI Consult'}</span>
+              <Sparkles className="w-4 h-4 text-emerald-300" />
+              <span>{isAiLoading ? 'Llama 3.1 Analyzing...' : 'Llama 3.1 AI Consult'}</span>
             </button>
           </div>
         </div>
@@ -1249,20 +1297,154 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
             {symptoms.trim() ? 'No Direct Offline Repertory Match' : 'Clinical Decision Support'}
           </h3>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-            Enter symptoms or click <strong>'Gemini Deep AI Consult'</strong> to analyze with AI.
+            Enter symptoms or click <strong>'Llama 3.1 AI Consult'</strong> to analyze with Groq AI.
           </p>
           {symptoms.trim() && (
             <div className="pt-2">
               <button
                 type="button"
-                onClick={() => handleGeminiConsult()}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-bold shadow-sm transition cursor-pointer"
+                onClick={() => handleGroqConsult()}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-[#1B4332] hover:from-emerald-700 hover:to-[#235841] text-white text-xs font-bold shadow-sm transition cursor-pointer"
               >
-                <Sparkles className="w-4 h-4 text-amber-300" />
-                <span>Run Gemini Deep AI Consult</span>
+                <Sparkles className="w-4 h-4 text-emerald-300" />
+                <span>Run Llama 3.1 AI Consult</span>
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Groq Cloud Llama 3.1 API Key Settings Modal */}
+      {isSettingsOpen && (
+        <div 
+          id="modal-groq-settings"
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-7 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 flex items-center justify-center text-white shadow-md shrink-0">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Groq API Key Settings</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Llama 3.1 Ultra-Fast Clinical Inference Engine
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                aria-label="Close settings"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Status Indicator */}
+            {activeGroqKey ? (
+              <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Key Active: {activeGroqKey.slice(0, 7)}••••••••{activeGroqKey.slice(-4)}</span>
+                </div>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-200">
+                  <Zap className="w-3 h-3" />
+                  Llama 3.1 Ready
+                </span>
+              </div>
+            ) : (
+              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2 font-medium">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>Please enter your free Groq API Key to enable instant AI Clinical Consultations.</span>
+              </div>
+            )}
+
+            {/* Form Input */}
+            <div className="space-y-2">
+              <label htmlFor="groq-api-key-input" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Groq API Key (starts with gsk_...)
+              </label>
+              <div className="relative">
+                <input
+                  id="groq-api-key-input"
+                  type={showKeySecret ? 'text' : 'password'}
+                  value={groqKeyInput}
+                  onChange={(e) => setGroqKeyInput(e.target.value)}
+                  placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  className="w-full px-3.5 py-2.5 pr-10 text-xs sm:text-sm font-mono rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-hidden transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKeySecret(!showKeySecret)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  title={showKeySecret ? 'Hide key' : 'Show key'}
+                >
+                  {showKeySecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                Your key is stored securely in your browser's <code className="font-mono text-emerald-600 dark:text-emerald-400">localStorage</code> and transmitted directly to Groq's official API endpoint.
+              </p>
+            </div>
+
+            {/* Free Key Registration Hint */}
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Free tier includes fast Llama 3.1 8B inference</span>
+              </div>
+              <a
+                href="https://console.groq.com/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold hover:underline shrink-0"
+              >
+                <span>Get Free Key</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              {activeGroqKey ? (
+                <button
+                  type="button"
+                  onClick={() => handleSaveGroqKey('')}
+                  className="px-3 py-2 rounded-xl border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 text-xs font-bold transition cursor-pointer"
+                >
+                  Clear Key
+                </button>
+              ) : (
+                <div />
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  id="btn-save-groq-key"
+                  type="button"
+                  onClick={() => handleSaveGroqKey()}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Save Key</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
