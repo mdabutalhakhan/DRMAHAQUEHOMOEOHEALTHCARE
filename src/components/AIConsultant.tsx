@@ -72,6 +72,8 @@ export const AIConsultant: React.FC<AIConsultantProps> = ({
   const [catalogPatents, setCatalogPatents] = useState<any[]>([]);
   const [isCatalogLoading, setIsCatalogLoading] = useState<boolean>(false);
   const [catalogBrandFilter, setCatalogBrandFilter] = useState<string>('all');
+  const [showAllCatalogPatents, setShowAllCatalogPatents] = useState<boolean>(false);
+  const [showAllGroqPatents, setShowAllGroqPatents] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [searchedQuery, setSearchedQuery] = useState('');
@@ -235,6 +237,21 @@ const totalStockCount = liveStockCount;
     if (b.includes('reckeweg') || c.includes('reckeweg') || /\br-?\d{1,3}\b/i.test(b)) {
       return { label: 'Dr. Reckeweg 🇩🇪', color: 'bg-blue-100 text-blue-900 dark:bg-blue-950/80 dark:text-blue-200 border-blue-300 dark:border-blue-800' };
     }
+    if (b.includes('b. jain') || c.includes('b. jain') || b.includes('b.jain') || c.includes('b.jain') || b.includes('bjain') || c.includes('bjain')) {
+      return { label: 'B. Jain 🇮🇳', color: 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/80 dark:text-indigo-200 border-indigo-300 dark:border-indigo-800' };
+    }
+    if (b.includes('apriway') || c.includes('apriway')) {
+      return { label: 'Apriway 🇮🇳', color: 'bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-200 border-amber-300 dark:border-amber-800' };
+    }
+    if (b.includes('repl') || c.includes('repl')) {
+      return { label: 'REPL 🇮🇳', color: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-950/80 dark:text-cyan-200 border-cyan-300 dark:border-cyan-800' };
+    }
+    if (b.includes('burnett') || c.includes('burnett')) {
+      return { label: 'Burnett 🇮🇳', color: 'bg-violet-100 text-violet-900 dark:bg-violet-950/80 dark:text-violet-200 border-violet-300 dark:border-violet-800' };
+    }
+    if (b.includes('indo german') || c.includes('indo german')) {
+      return { label: 'Indo German 🇮🇳', color: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/80 dark:text-emerald-200 border-emerald-300 dark:border-emerald-800' };
+    }
     if (b.includes('bakson') || c.includes('bakson')) {
       return { label: "Bakson's 🇮🇳", color: 'bg-purple-100 text-purple-900 dark:bg-purple-950/80 dark:text-purple-200 border-purple-300 dark:border-purple-800' };
     }
@@ -315,6 +332,24 @@ const totalStockCount = liveStockCount;
     });
   }, [filteredPatents, showInStockFirst, inventoryList]);
 
+  // Initial display: max 6 cards with "Show More" toggle for Groq AI tab
+  const visiblePatents = useMemo(() => {
+    if (showAllGroqPatents || displayedPatents.length <= 6) {
+      return displayedPatents;
+    }
+    return displayedPatents.slice(0, 6);
+  }, [displayedPatents, showAllGroqPatents]);
+
+  // Clinical non-diagnostic stop-words to eliminate false generic matches (especially "pain")
+  const NON_DIAGNOSTIC_STOPWORDS = new Set([
+    'pain', 'pains', 'ache', 'aches', 'severe', 'acute', 'chronic',
+    'problem', 'problems', 'disorder', 'disorders', 'disease', 'diseases',
+    'drops', 'drop', 'syrup', 'syrups', 'tablets', 'tablet', 'tab',
+    'medicine', 'medicines', 'remedy', 'remedies', 'for', 'in', 'with',
+    'and', 'the', 'from', 'this', 'that', 'have', 'has', 'had',
+    'of', 'on', 'at', 'to', 'a', 'an', 'is', 'are'
+  ]);
+
   // Query Supabase patent_catalog table for Chamber Master Catalog
   const queryPatentCatalog = async (queryText: string) => {
     const raw = queryText.trim().toLowerCase();
@@ -324,63 +359,60 @@ const totalStockCount = liveStockCount;
     }
     setIsCatalogLoading(true);
     setCatalogBrandFilter('all');
+    setShowAllCatalogPatents(false);
 
     try {
-      // Split into meaningful keywords (strip punctuation, ignore 1-2 char words)
-      const stopWords = new Set(['and', 'the', 'for', 'with', 'from', 'this', 'that', 'have', 'has', 'in', 'of', 'on', 'at', 'to']);
-      const words = raw
-        .replace(/[^a-zA-Z0-9\s]/g, ' ')
-        .split(/\s+/)
-        .map(w => w.trim().toLowerCase())
-        .filter(w => w.length > 2 && !stopWords.has(w));
+      // 1. Sanitize query and filter out generic non-diagnostic stop-words
+      const cleaned = raw.replace(/[^a-zA-Z0-9\s]/g, ' ');
+      const tokens = cleaned.split(/\s+/).map(w => w.trim().toLowerCase()).filter(Boolean);
+      const diagnosticWords = tokens.filter(w => !NON_DIAGNOSTIC_STOPWORDS.has(w) && w.length > 2);
 
-      let finalRows: any[] = [];
+      // NEVER do an open wildcard match on the word "pain"!
+      // If user typed only generic non-diagnostic stop-words, return empty so doctor is prompted
+      if (diagnosticWords.length === 0) {
+        setCatalogPatents([]);
+        setIsCatalogLoading(false);
+        return;
+      }
+
       const supabase = getSupabase();
+      let finalRows: any[] = [];
 
-      // Tier 1: Try full exact phrase ilike search
-      const phraseFilter = `disease_indication.ilike.%${raw}%,product_name.ilike.%${raw}%`;
-      const { data: phraseData, error: phraseErr } = await supabase
+      // 2. Extract PRIMARY diagnostic keyword(s)
+      // For "Sciatica Pain", the core search term MUST ONLY be "sciatica" or "sciatic".
+      const primaryCondition = diagnosticWords.join(' ');
+      let orCondition = `disease_indication.ilike.%${primaryCondition}%,product_name.ilike.%${primaryCondition}%`;
+
+      // Specific optimization for sciatica: "sciatic" matches both sciatic and sciatica in DB
+      if (primaryCondition === 'sciatica' || primaryCondition === 'sciatic') {
+        orCondition = `disease_indication.ilike.%sciatic%,product_name.ilike.%sciatic%,disease_indication.ilike.%sciatica%,product_name.ilike.%sciatica%`;
+      }
+
+      // Query Supabase strictly with the primary condition:
+      const { data, error } = await supabase
         .from('patent_catalog')
         .select('*')
-        .or(phraseFilter)
+        .or(orCondition)
         .limit(20);
 
-      if (!phraseErr && phraseData && phraseData.length > 0) {
-        finalRows = phraseData;
-      } else if (words.length > 0) {
-        // Tier 2: Search individual keywords across disease_indication and product_name
-        const orClauses: string[] = [];
-        words.slice(0, 4).forEach(word => {
-          orClauses.push(`disease_indication.ilike.%${word}%`);
-          orClauses.push(`product_name.ilike.%${word}%`);
-        });
-
-        const { data: wordData, error: wordErr } = await supabase
+      if (!error && data && data.length > 0) {
+        finalRows = data;
+      } else if (diagnosticWords.length > 1) {
+        // If combined multi-word condition yielded no rows, try the first primary diagnostic keyword (never stop-words)
+        const firstCondition = diagnosticWords[0];
+        const { data: firstData, error: firstErr } = await supabase
           .from('patent_catalog')
           .select('*')
-          .or(orClauses.join(','))
-          .limit(25);
+          .or(`disease_indication.ilike.%${firstCondition}%,product_name.ilike.%${firstCondition}%`)
+          .limit(20);
 
-        if (!wordErr && wordData && wordData.length > 0) {
-          finalRows = wordData;
+        if (!firstErr && firstData && firstData.length > 0) {
+          finalRows = firstData;
         }
       }
 
-      // Tier 3: If still empty, check verified offline patents as backup for standard conditions
-      if (finalRows.length === 0) {
-        const verifiedFallback = lookupVerifiedPatents(raw);
-        if (verifiedFallback.length > 0) {
-          finalRows = verifiedFallback.map((vf, idx) => ({
-            id: `fallback-${idx}-${vf.name}`,
-            company: vf.company,
-            product_name: vf.name,
-            category_form: vf.bottleSize,
-            disease_indication: vf.indications,
-            composition: vf.dosage,
-            created_at: new Date().toISOString()
-          }));
-        }
-      }
+      // Note: If no match is found for the specific disease, DO NOT fallback to displaying random/unrelated medicines!
+      // finalRows remains empty ([]), triggering the specific indication notice in the UI.
 
       // Convert rows to PatentFormulation format
       const formatted = finalRows.map(row => {
@@ -398,6 +430,21 @@ const totalStockCount = liveStockCount;
         } else if (compLower.includes('adel')) {
           brandName = 'Adel Pekana';
           country = 'Germany';
+        } else if (compLower.includes('b. jain') || compLower.includes('b.jain') || compLower.includes('bjain')) {
+          brandName = 'B. Jain';
+          country = 'India';
+        } else if (compLower.includes('apriway')) {
+          brandName = 'Apriway';
+          country = 'India';
+        } else if (compLower.includes('repl')) {
+          brandName = 'REPL';
+          country = 'India';
+        } else if (compLower.includes('burnett')) {
+          brandName = 'Burnett';
+          country = 'India';
+        } else if (compLower.includes('indo german')) {
+          brandName = 'Indo German';
+          country = 'India';
         } else if (compLower.includes('bakson')) {
           brandName = "Bakson's";
           country = 'India';
@@ -409,6 +456,9 @@ const totalStockCount = liveStockCount;
           country = 'India';
         } else if (compLower.includes('medisynth')) {
           brandName = 'Medisynth';
+          country = 'India';
+        } else if (compLower.includes('allen')) {
+          brandName = 'Allen';
           country = 'India';
         }
 
@@ -426,19 +476,8 @@ const totalStockCount = liveStockCount;
 
       setCatalogPatents(formatted);
     } catch (err) {
-      console.warn('patent_catalog query error, using verified offline catalog:', err);
-      const verifiedFallback = lookupVerifiedPatents(raw);
-      const formatted = verifiedFallback.map(vf => ({
-        name: vf.name,
-        brand: vf.brand,
-        company: vf.company,
-        country: vf.country || 'India',
-        bottleSize: vf.bottleSize,
-        mrp: vf.mrp,
-        indications: vf.indications,
-        dosage: vf.dosage
-      }));
-      setCatalogPatents(formatted);
+      console.warn('patent_catalog query error:', err);
+      setCatalogPatents([]);
     } finally {
       setIsCatalogLoading(false);
     }
@@ -477,6 +516,14 @@ const totalStockCount = liveStockCount;
       return 0;
     });
   }, [filteredCatalogPatents, showInStockFirst, inventoryList]);
+
+  // Initial display: max 6 cards with "Show More" toggle for Chamber Master Catalog
+  const visibleCatalogPatents = useMemo(() => {
+    if (showAllCatalogPatents || displayedCatalogPatents.length <= 6) {
+      return displayedCatalogPatents;
+    }
+    return displayedCatalogPatents.slice(0, 6);
+  }, [displayedCatalogPatents, showAllCatalogPatents]);
 
   // Analyze symptoms through the Dual-Tier Clinical Repertory Engine (Instant Local)
   const handleAnalyze = (overrideQuery?: string) => {
@@ -1509,10 +1556,10 @@ const totalStockCount = liveStockCount;
                     </div>
                     <div className="max-w-md mx-auto space-y-1">
                       <h4 className="text-base font-black text-slate-900 dark:text-white">
-                        No specific patent formulation in Chamber Catalog for this symptom.
+                        No verified formulations in Chamber Catalog for this specific indication. Check the 'Groq AI Online' tab.
                       </h4>
                       <p className="text-xs text-slate-600 dark:text-slate-400">
-                        চেম্বার মাস্টার ক্যাটালগে এই নির্দিষ্ট লক্ষণের কোনো পেটেন্ট পাওয়া যায়নি। উপরের <strong className="text-amber-600 dark:text-amber-400 font-bold">"🌐 Groq AI Online"</strong> ট্যাবে ক্লিক করে লাইভ ইন্টেলিজেন্স দেখতে পারেন অথবা ক্লাসিক্যাল সিমিলিমাম প্রয়োগ করুন।
+                        চেম্বার মাস্টার ক্যাটালগে এই নির্দিষ্ট রোগের কোনো পরীক্ষিত পেটেন্ট ওষুধ নেই। অনুগ্রহ করে উপরের <strong className="text-amber-600 dark:text-amber-400 font-bold">"🌐 Groq AI Online"</strong> ট্যাব দেখুন অথবা ক্লাসিক্যাল একক ওষুধ (Simillimum) প্রয়োগ করুন।
                       </p>
                     </div>
                     <button
@@ -1534,7 +1581,10 @@ const totalStockCount = liveStockCount;
                         </span>
                         <button
                           type="button"
-                          onClick={() => setCatalogBrandFilter('all')}
+                          onClick={() => {
+                            setCatalogBrandFilter('all');
+                            setShowAllCatalogPatents(false);
+                          }}
                           className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 border ${
                             catalogBrandFilter === 'all'
                               ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
@@ -1550,7 +1600,10 @@ const totalStockCount = liveStockCount;
                             <button
                               key={label}
                               type="button"
-                              onClick={() => setCatalogBrandFilter(label)}
+                              onClick={() => {
+                                setCatalogBrandFilter(label);
+                                setShowAllCatalogPatents(false);
+                              }}
                               className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 border ${
                                 isSelected
                                   ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
@@ -1570,143 +1623,162 @@ const totalStockCount = liveStockCount;
                         No catalog formulations found for selected brand filter.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {displayedCatalogPatents.map((patent, pIdx) => {
-                          const stock = getInventoryStatus(patent.name, patent.aliases);
-                          const brandBadge = getBrandBadge(patent.brand, patent.company, patent.country);
-                          const cardKey = `catalog-patent-${pIdx}-${patent.name}`;
-                          const isCopied = copiedKey === cardKey;
-                          const isAdded = addedBillKey === cardKey;
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {visibleCatalogPatents.map((patent, pIdx) => {
+                            const stock = getInventoryStatus(patent.name, patent.aliases);
+                            const brandBadge = getBrandBadge(patent.brand, patent.company, patent.country);
+                            const cardKey = `catalog-patent-${pIdx}-${patent.name}`;
+                            const isCopied = copiedKey === cardKey;
+                            const isAdded = addedBillKey === cardKey;
 
-                          return (
-                            <div
-                              key={cardKey}
-                              className={`p-5 rounded-3xl transition-all flex flex-col justify-between space-y-3.5 shadow-xs ${
-                                stock.inStock && stock.current_stock > 0
-                                  ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-2 border-emerald-500/40 hover:border-emerald-500'
-                                  : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700'
-                              }`}
-                            >
-                              {/* Top Row: Name, Brand Pill & Bottle Size */}
-                              <div className="space-y-2.5">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <h4 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
-                                        {patent.name}
-                                      </h4>
-                                      <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                                        Database
-                                      </span>
-                                    </div>
-                                    {/* Distinctive Brand Badge with Country Flag */}
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span
-                                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${brandBadge.color}`}
-                                      >
-                                        {brandBadge.label}
-                                      </span>
-                                      {patent.country && (
-                                        <span className="text-[10px] font-bold text-slate-400">
-                                          • {patent.country}
+                            return (
+                              <div
+                                key={cardKey}
+                                className={`p-5 rounded-3xl transition-all flex flex-col justify-between space-y-3.5 shadow-xs ${
+                                  stock.inStock && stock.current_stock > 0
+                                    ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-2 border-emerald-500/40 hover:border-emerald-500'
+                                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700'
+                                }`}
+                              >
+                                {/* Top Row: Name, Brand Pill & Bottle Size */}
+                                <div className="space-y-2.5">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <h4 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
+                                          {patent.name}
+                                        </h4>
+                                        <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                                          Database
                                         </span>
-                                      )}
+                                      </div>
+                                      {/* Distinctive Brand Badge with Country Flag */}
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span
+                                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${brandBadge.color}`}
+                                        >
+                                          {brandBadge.label}
+                                        </span>
+                                        {patent.country && (
+                                          <span className="text-[10px] font-bold text-slate-400">
+                                            • {patent.country}
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
+
+                                    <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-extrabold shrink-0 border border-slate-200 dark:border-slate-600">
+                                      {patent.bottleSize}
+                                    </span>
                                   </div>
 
-                                  <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-extrabold shrink-0 border border-slate-200 dark:border-slate-600">
-                                    {patent.bottleSize}
-                                  </span>
-                                </div>
-
-                                {/* Manufacturer and Approx MRP */}
-                                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700 pb-2">
-                                  <span className="truncate pr-2 font-medium">{patent.company}</span>
-                                  <span className="font-extrabold text-slate-800 dark:text-slate-200 shrink-0">
-                                    MRP: ₹{patent.mrp}
-                                  </span>
-                                </div>
-
-                                {/* Live Inventory Lookup & Dynamic Rack Status */}
-                                <div className="pt-0.5">
-                                  {stock.inStock && stock.current_stock > 0 ? (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs">
-                                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                      <span>
-                                        ✓ In Chamber Stock ({stock.current_stock} Units{stock.rack_location ? ` • Rack: ${stock.rack_location}` : ''})
-                                      </span>
+                                  {/* Manufacturer and Approx MRP */}
+                                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700 pb-2">
+                                    <span className="truncate pr-2 font-medium">{patent.company}</span>
+                                    <span className="font-extrabold text-slate-800 dark:text-slate-200 shrink-0">
+                                      MRP: ₹{patent.mrp}
                                     </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800 shadow-xs">
-                                      <span className="w-2 h-2 rounded-full bg-rose-500" />
-                                      <span>
-                                        ✕ Stock Unavailable / চেম্বারে স্টক নেই
+                                  </div>
+
+                                  {/* Live Inventory Lookup & Dynamic Rack Status */}
+                                  <div className="pt-0.5">
+                                    {stock.inStock && stock.current_stock > 0 ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span>
+                                          ✓ In Chamber Stock ({stock.current_stock} Units{stock.rack_location ? ` • Rack: ${stock.rack_location}` : ''})
+                                        </span>
                                       </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800 shadow-xs">
+                                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                                        <span>
+                                          ✕ Stock Unavailable / চেম্বারে স্টক নেই
+                                        </span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Indications & Dosage */}
+                                <div className="space-y-2 text-xs">
+                                  <div>
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                      Clinical Indications:
                                     </span>
-                                  )}
+                                    <p className="text-slate-700 dark:text-slate-300 leading-snug">
+                                      {patent.indications}
+                                    </p>
+                                  </div>
+
+                                  <div className="p-2 rounded-xl bg-stone-50 dark:bg-slate-900 border border-stone-200 dark:border-slate-700">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                      Recommended Dosage / Composition:
+                                    </span>
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                                      {patent.dosage}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Card Actions */}
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleCopyText(
+                                        `${patent.name} - ${patent.brand} (${patent.company})\nBottle: ${patent.bottleSize} | MRP: ₹${patent.mrp}\nDosage: ${patent.dosage}`,
+                                        cardKey
+                                      )
+                                    }
+                                    className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                                  >
+                                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                    <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleAddToBill(
+                                        {
+                                          name: patent.name,
+                                          bottleSize: patent.bottleSize,
+                                          price: stock.mrp || patent.mrp,
+                                          rack: stock.rack,
+                                        },
+                                        cardKey
+                                      )
+                                    }
+                                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                                  >
+                                    {isAdded ? <Check className="w-3.5 h-3.5" /> : <PlusCircle className="w-3.5 h-3.5" />}
+                                    <span>{isAdded ? 'Added!' : '+ Add to Bill'}</span>
+                                  </button>
                                 </div>
                               </div>
+                            );
+                          })}
+                        </div>
 
-                              {/* Indications & Dosage */}
-                              <div className="space-y-2 text-xs">
-                                <div>
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                                    Clinical Indications:
-                                  </span>
-                                  <p className="text-slate-700 dark:text-slate-300 leading-snug">
-                                    {patent.indications}
-                                  </p>
-                                </div>
-
-                                <div className="p-2 rounded-xl bg-stone-50 dark:bg-slate-900 border border-stone-200 dark:border-slate-700">
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                                    Recommended Dosage / Composition:
-                                  </span>
-                                  <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
-                                    {patent.dosage}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Card Actions */}
-                              <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleCopyText(
-                                      `${patent.name} - ${patent.brand} (${patent.company})\nBottle: ${patent.bottleSize} | MRP: ₹${patent.mrp}\nDosage: ${patent.dosage}`,
-                                      cardKey
-                                    )
-                                  }
-                                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                                >
-                                  {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                                  <span>{isCopied ? 'Copied' : 'Copy'}</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleAddToBill(
-                                      {
-                                        name: patent.name,
-                                        bottleSize: patent.bottleSize,
-                                        price: stock.mrp || patent.mrp,
-                                        rack: stock.rack,
-                                      },
-                                      cardKey
-                                    )
-                                  }
-                                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                                >
-                                  {isAdded ? <Check className="w-3.5 h-3.5" /> : <PlusCircle className="w-3.5 h-3.5" />}
-                                  <span>{isAdded ? 'Added!' : '+ Add to Bill'}</span>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                        {/* Interactive Show More / Show Less Toggle Button */}
+                        {displayedCatalogPatents.length > 6 && (
+                          <div className="flex justify-center pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowAllCatalogPatents(prev => !prev)}
+                              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 text-xs font-black transition cursor-pointer shadow-xs"
+                            >
+                              <span>
+                                {showAllCatalogPatents
+                                  ? 'Show Less ▴'
+                                  : `Show More (+${displayedCatalogPatents.length - 6} more formulations) ▾`}
+                              </span>
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </>
                 )}
@@ -1753,7 +1825,10 @@ const totalStockCount = liveStockCount;
                         </span>
                         <button
                           type="button"
-                          onClick={() => setSelectedBrandFilter('all')}
+                          onClick={() => {
+                            setSelectedBrandFilter('all');
+                            setShowAllGroqPatents(false);
+                          }}
                           className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 border ${
                             selectedBrandFilter === 'all'
                               ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
@@ -1769,7 +1844,10 @@ const totalStockCount = liveStockCount;
                             <button
                               key={label}
                               type="button"
-                              onClick={() => setSelectedBrandFilter(label)}
+                              onClick={() => {
+                                setSelectedBrandFilter(label);
+                                setShowAllGroqPatents(false);
+                              }}
                               className={`px-3 py-1 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 border ${
                                 isSelected
                                   ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
@@ -1789,143 +1867,157 @@ const totalStockCount = liveStockCount;
                         No patent formulations found for selected brand filter.
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {displayedPatents.map((patent, pIdx) => {
-                          const stock = getInventoryStatus(patent.name, patent.aliases);
-                          const brandBadge = getBrandBadge(patent.brand, patent.company, patent.country);
-                          const cardKey = `groq-patent-${pIdx}-${patent.name}`;
-                          const isCopied = copiedKey === cardKey;
-                          const isAdded = addedBillKey === cardKey;
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {visiblePatents.map((patent, pIdx) => {
+                            const stock = getInventoryStatus(patent.name, patent.aliases);
+                            const brandBadge = getBrandBadge(patent.brand, patent.company, patent.country);
+                            const cardKey = `groq-patent-${pIdx}-${patent.name}`;
+                            const isCopied = copiedKey === cardKey;
+                            const isAdded = addedBillKey === cardKey;
 
-                          return (
-                            <div
-                              key={cardKey}
-                              className={`p-5 rounded-3xl transition-all flex flex-col justify-between space-y-3.5 shadow-xs ${
-                                stock.inStock && stock.current_stock > 0
-                                  ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-2 border-emerald-500/40 hover:border-emerald-500'
-                                  : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-700'
-                              }`}
-                            >
-                              {/* Top Row: Name, Brand Pill & Bottle Size */}
-                              <div className="space-y-2.5">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
+                            return (
+                              <div
+                                key={cardKey}
+                                className={`p-5 rounded-3xl transition-all flex flex-col justify-between space-y-3.5 shadow-xs ${
+                                  stock.inStock && stock.current_stock > 0
+                                    ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-2 border-emerald-500/40 hover:border-emerald-500'
+                                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-700'
+                                }`}
+                              >
+                                {/* Top Row: Name, Brand Pill & Bottle Size */}
+                                <div className="space-y-2.5">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="space-y-1">
                                       <h4 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
                                         {patent.name}
                                       </h4>
-                                      <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                                        Groq AI
-                                      </span>
-                                    </div>
-                                    {/* Distinctive Brand Badge with Country Flag */}
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span
-                                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${brandBadge.color}`}
-                                      >
-                                        {brandBadge.label}
-                                      </span>
-                                      {patent.country && (
-                                        <span className="text-[10px] font-bold text-slate-400">
-                                          • {patent.country}
+                                      {/* Distinctive Brand Badge with Country Flag */}
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span
+                                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border ${brandBadge.color}`}
+                                        >
+                                          {brandBadge.label}
                                         </span>
-                                      )}
+                                        {patent.country && (
+                                          <span className="text-[10px] font-bold text-slate-400">
+                                            • {patent.country}
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
+
+                                    <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-extrabold shrink-0 border border-slate-200 dark:border-slate-600">
+                                      {patent.bottleSize}
+                                    </span>
                                   </div>
 
-                                  <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-extrabold shrink-0 border border-slate-200 dark:border-slate-600">
-                                    {patent.bottleSize}
-                                  </span>
-                                </div>
-
-                                {/* Manufacturer and Approx MRP */}
-                                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700 pb-2">
-                                  <span className="truncate pr-2 font-medium">{patent.company}</span>
-                                  <span className="font-extrabold text-slate-800 dark:text-slate-200 shrink-0">
-                                    MRP: ₹{patent.mrp}
-                                  </span>
-                                </div>
-
-                                {/* Live Inventory Lookup & Dynamic Rack Status */}
-                                <div className="pt-0.5">
-                                  {stock.inStock && stock.current_stock > 0 ? (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs">
-                                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                      <span>
-                                        ✓ In Chamber Stock ({stock.current_stock} Units{stock.rack_location ? ` • Rack: ${stock.rack_location}` : ''})
-                                      </span>
+                                  {/* Manufacturer and Approx MRP */}
+                                  <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700 pb-2">
+                                    <span className="truncate pr-2 font-medium">{patent.company}</span>
+                                    <span className="font-extrabold text-slate-800 dark:text-slate-200 shrink-0">
+                                      MRP: ₹{patent.mrp}
                                     </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800 shadow-xs">
-                                      <span className="w-2 h-2 rounded-full bg-rose-500" />
-                                      <span>
-                                        ✕ Stock Unavailable / চেম্বারে স্টক নেই
+                                  </div>
+
+                                  {/* Live Inventory Lookup & Dynamic Rack Status */}
+                                  <div className="pt-0.5">
+                                    {stock.inStock && stock.current_stock > 0 ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shadow-xs">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span>
+                                          ✓ In Chamber Stock ({stock.current_stock} Units{stock.rack_location ? ` • Rack: ${stock.rack_location}` : ''})
+                                        </span>
                                       </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-extrabold bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-800 shadow-xs">
+                                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                                        <span>
+                                          ✕ Stock Unavailable / চেম্বারে স্টক নেই
+                                        </span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Indications & Dosage */}
+                                <div className="space-y-2 text-xs">
+                                  <div>
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                      Clinical Indications:
                                     </span>
-                                  )}
+                                    <p className="text-slate-700 dark:text-slate-300 leading-snug">
+                                      {patent.indications}
+                                    </p>
+                                  </div>
+
+                                  <div className="p-2 rounded-xl bg-stone-50 dark:bg-slate-900 border border-stone-200 dark:border-slate-700">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                      Recommended Dosage / Composition:
+                                    </span>
+                                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                                      {patent.dosage}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Card Actions */}
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleCopyText(
+                                        `${patent.name} - ${patent.brand} (${patent.company})\nBottle: ${patent.bottleSize} | MRP: ₹${patent.mrp}\nDosage: ${patent.dosage}`,
+                                        cardKey
+                                      )
+                                    }
+                                    className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                                  >
+                                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                    <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleAddToBill(
+                                        {
+                                          name: patent.name,
+                                          bottleSize: patent.bottleSize,
+                                          price: stock.mrp || patent.mrp,
+                                          rack: stock.rack,
+                                        },
+                                        cardKey
+                                      )
+                                    }
+                                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                                  >
+                                    {isAdded ? <Check className="w-3.5 h-3.5" /> : <PlusCircle className="w-3.5 h-3.5" />}
+                                    <span>{isAdded ? 'Added!' : '+ Add to Bill'}</span>
+                                  </button>
                                 </div>
                               </div>
+                            );
+                          })}
+                        </div>
 
-                              {/* Indications & Dosage */}
-                              <div className="space-y-2 text-xs">
-                                <div>
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                                    Clinical Indications:
-                                  </span>
-                                  <p className="text-slate-700 dark:text-slate-300 leading-snug">
-                                    {patent.indications}
-                                  </p>
-                                </div>
-
-                                <div className="p-2 rounded-xl bg-stone-50 dark:bg-slate-900 border border-stone-200 dark:border-slate-700">
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                                    Recommended Dosage:
-                                  </span>
-                                  <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
-                                    {patent.dosage}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Card Actions */}
-                              <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleCopyText(
-                                      `${patent.name} - ${patent.brand} (${patent.company})\nBottle: ${patent.bottleSize} | MRP: ₹${patent.mrp}\nDosage: ${patent.dosage}`,
-                                      cardKey
-                                    )
-                                  }
-                                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                                >
-                                  {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                                  <span>{isCopied ? 'Copied' : 'Copy'}</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleAddToBill(
-                                      {
-                                        name: patent.name,
-                                        bottleSize: patent.bottleSize,
-                                        price: stock.mrp || patent.mrp,
-                                        rack: stock.rack,
-                                      },
-                                      cardKey
-                                    )
-                                  }
-                                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                                >
-                                  {isAdded ? <Check className="w-3.5 h-3.5" /> : <PlusCircle className="w-3.5 h-3.5" />}
-                                  <span>{isAdded ? 'Added!' : '+ Add to Bill'}</span>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                        {/* Interactive Show More / Show Less Toggle Button */}
+                        {displayedPatents.length > 6 && (
+                          <div className="flex justify-center pt-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowAllGroqPatents(prev => !prev)}
+                              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 text-xs font-black transition cursor-pointer shadow-xs"
+                            >
+                              <span>
+                                {showAllGroqPatents
+                                  ? 'Show Less ▴'
+                                  : `Show More (+${displayedPatents.length - 6} more formulations) ▾`}
+                              </span>
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </>
                 )}
