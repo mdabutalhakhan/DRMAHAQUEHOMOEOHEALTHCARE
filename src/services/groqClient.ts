@@ -157,50 +157,18 @@ export async function testGroqConnection(apiKey?: string): Promise<{ success: bo
   }
 }
 
-export const GROQ_SYSTEM_PROMPT = `You are Dr. M. A. Haque's expert AI Homeopathic Consultant. Provide clinical repertorization, differential remedies, potency suggestions, and modalities in clear bilingual (Bengali and English). Always state that the final decision rests with the attending physician.
+export const GROQ_SYSTEM_PROMPT = `You are Dr. M. A. Haque's expert AI Homeopathic Consultant at "Homoeo Health Care". Provide clinical repertorization, differential remedies, potency suggestions, and modalities in clear bilingual (Bengali and English). Always state that the final decision rests with the attending physician.
+
+CRITICAL MEDICAL RULES FOR PATENT COMBINATIONS:
+1. R-Series products (R1 through R89) belong SOLELY to Dr. Reckeweg & Co. GmbH (Germany). NEVER attribute R-numbers to Adel, SBL, Bakson, or any other company!
+2. NEVER recommend Dr. Reckeweg R52 (which is specifically Vomiting Drops) for Enuresis, Bedwetting, or Urinary incontinence. For Enuresis / Bedwetting, the ONLY valid R-series is Dr. Reckeweg R74 (Enuresis Nocturna Drops), or SBL Drops No. 7 / EnurAid, or Bakson B45.
+3. For Vitiligo / Leucoderma: Recommend SBL Babchi Oil / Psoralea Corylifolia, Dr. Reckeweg R60 (Blood Purifier), or Bakson Baksoin / B27.
+4. For Vomiting / Nausea / Motion Sickness: Recommend Dr. Reckeweg R52 (Vomiting Drops), Bakson B33, or Dr. Reckeweg R29.
+5. For Skin Diseases / Eczema: Recommend Dr. Reckeweg R21 or R23, SBL Bio-Combination 20, or Bakson B22.
+6. For Memory / Brain Exhaustion: Recommend Dr. Reckeweg R54, SBL Brahmi / Ginkgo Biloba, or Bakson B62.
+7. If there is NO verified, standard homoeopathic patent formulation for the condition, return an empty array [] for "patents". Do NOT hallucinate made-up patent numbers.
 
 CRITICAL INSTRUCTION: You MUST return STRICT JSON ONLY in the following exact structure without markdown commentary, backticks, or wrapping text:
-{
-  "analysis_summary": "Clear clinical summary in Bengali & English",
-  "miasm": "Psora / Sycosis / Syphilis / Tubercular",
-  "remedies": [
-    {
-      "name": "Ipecacuanha",
-      "potency": "30C",
-      "commonName": "Ipecac Root",
-      "guidingKeynotes": "Persistent nausea not relieved by vomiting, clean tongue...",
-      "aggravation": "Warmth, moist winds",
-      "amelioration": "Open air, rest",
-      "dosage": "4 pills 3 times daily"
-    }
-  ],
-  "patents": [
-    {
-      "brand": "Dr. Reckeweg",
-      "name": "R52 (Vomiting Drops)",
-      "indications": "Nausea, motion sickness, gastroduodenitis",
-      "dosage": "10-15 drops in water 3 times daily"
-    }
-  ]
-}
-
-Provide 3-5 classical homeopathic remedies and 2-4 patent formulations. Output strictly valid JSON.`;
-
-/**
- * Builds the structured prompt instructing the model to return
- * clinical differential analysis and homeopathic remedy options.
- */
-export function buildGroqConsultQuery(
-  symptoms: string,
-  modalities?: string,
-  system?: string
-): string {
-  return `Patient Presentation:
-- Symptoms: ${symptoms.trim()}
-${modalities ? `- Modalities (Worse/Better): ${modalities.trim()}` : ''}
-${system ? `- Affected Anatomical System: ${system.trim()}` : ''}
-
-Please analyze this clinical case thoroughly. Format your response strictly as valid JSON adhering to this exact schema:
 {
   "analysis_summary": "Clear clinical summary in Bengali & English",
   "miasm": "Psora / Sycosis / Syphilis / Tubercular",
@@ -217,8 +185,59 @@ Please analyze this clinical case thoroughly. Format your response strictly as v
   ],
   "patents": [
     {
-      "brand": "Dr. Reckeweg / Adel / Bakson's / SBL / Wheezal / Schwabe / Medisynth",
-      "name": "Product Name (e.g. R52 Vomiting Drops)",
+      "brand": "Dr. Reckeweg / Adel / Bakson's / SBL / Schwabe",
+      "name": "Exact Verified Commercial Product Name",
+      "company": "Manufacturer Name",
+      "bottle_size": "22 ml Drops or 30 ml Drops",
+      "indications": "Exact clinical scope",
+      "dosage": "10-15 drops in water 3 times daily"
+    }
+  ]
+}
+
+Provide 3-5 classical homeopathic remedies and verified patent formulations (or empty [] if none). Output strictly valid JSON.`;
+
+/**
+ * Builds the structured prompt instructing the model to return
+ * clinical differential analysis and homeopathic remedy options.
+ */
+export function buildGroqConsultQuery(
+  symptoms: string,
+  modalities?: string,
+  system?: string
+): string {
+  return `Patient Presentation:
+- Symptoms: ${symptoms.trim()}
+${modalities ? `- Modalities (Worse/Better): ${modalities.trim()}` : ''}
+${system ? `- Affected Anatomical System: ${system.trim()}` : ''}
+
+Please analyze this clinical case thoroughly.
+STRICT PATENT RULES:
+- R-series numbers belong EXCLUSIVELY to Dr. Reckeweg (Germany). NEVER attribute R-numbers to Adel or SBL.
+- DO NOT recommend R52 for bedwetting/enuresis (R52 is exclusively for vomiting). For enuresis use Dr. Reckeweg R74 or SBL Drops No. 7.
+- If no genuine verified patent exists for this condition, return "patents": [].
+
+Format your response strictly as valid JSON adhering to this exact schema:
+{
+  "analysis_summary": "Clear clinical summary in Bengali & English",
+  "miasm": "Psora / Sycosis / Syphilis / Tubercular",
+  "remedies": [
+    {
+      "name": "Standard Latin Name (e.g. Lycopodium Clavatum)",
+      "potency": "30C or 200C",
+      "commonName": "Common English Name (e.g. Club Moss)",
+      "guidingKeynotes": "Guiding keynote symptoms in English & Bengali",
+      "aggravation": "Aggravating factors (worse)",
+      "amelioration": "Ameliorating factors (better)",
+      "dosage": "4 pills 3 times daily"
+    }
+  ],
+  "patents": [
+    {
+      "brand": "Dr. Reckeweg / Adel / Bakson's / SBL / Schwabe",
+      "name": "Verified Product Name",
+      "company": "Manufacturer Name",
+      "bottle_size": "22 ml Drops",
       "indications": "Clinical indications in English & Bengali",
       "dosage": "10-15 drops in water 3 times daily"
     }

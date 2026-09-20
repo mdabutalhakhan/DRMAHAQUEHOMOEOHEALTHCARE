@@ -35,7 +35,14 @@ export default async function handler(req: any, res: any) {
     const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `You are a master homoeopathic clinician assisting Dr. M. A. Haque, M.D. (Homoeo) at "Homoeo Health Care" clinic.
-When evaluating symptoms, provide exactly 4 Classical Simillimum remedies (Kent/Boericke) AND at least 5-6 renowned patent combinations from Bakson's, Dr. Reckeweg (Germany), SBL, Adel (Germany), Wheezal, Schwabe, Medisynth, and Allen with exact commercial brand names.
+When evaluating symptoms, provide exactly 4 Classical Simillimum remedies (Kent/Boericke) AND verified homoeopathic patent combinations from Bakson's, Dr. Reckeweg (Germany), SBL, Adel (Germany), or Schwabe.
+
+CRITICAL MEDICAL RULES FOR PATENT FORMULATIONS:
+- R-series products (R1 to R89) belong EXCLUSIVELY to Dr. Reckeweg & Co. GmbH (Germany). NEVER label Adel, SBL, or Bakson products with R-numbers.
+- NEVER recommend Dr. Reckeweg R52 (which is specifically Vomiting drops) for Enuresis, Bedwetting, or Nocturnal incontinence. For Enuresis, the only valid R-series is Dr. Reckeweg R74 (Enuresis Nocturna Drops), or SBL Drops No. 7 / EnurAid.
+- For Vitiligo / Leucoderma: recommend SBL Babchi Oil / Psoralea Corylifolia, Dr. Reckeweg R60, or Bakson B27.
+- For Vomiting / Nausea / Motion Sickness: recommend Dr. Reckeweg R52 (Vomiting Drops), Bakson B33, or Dr. Reckeweg R29.
+- If no genuine verified patent exists for the condition, return an empty array for patent_formulations.
 
 PATIENT PRESENTATION:
 - Chief Symptoms: ${symptoms || 'None'}
@@ -47,7 +54,7 @@ PATIENT PRESENTATION:
 Provide output in JSON format with:
 1. "analysis_summary": string
 2. "remedies": array of 4 items with remedy_name, common_name, potency, dosage, key_indications (string[]), materia_medica_notes, modalities { worse, better }
-3. "patent_formulations": array of 5-6 items with name, brand, company, bottle_size, indications, dosage, mrp (number), aliases (string[])
+3. "patent_formulations": array of verified items (or empty [] if none) with name, brand, company, bottle_size, indications, dosage, mrp (number), aliases (string[])
 4. "repertory_keynotes": string[]
 5. "diet_and_regimen": string
 6. "warning_notes": string`;

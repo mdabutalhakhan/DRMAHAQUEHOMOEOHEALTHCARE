@@ -64,6 +64,13 @@ export function buildClinicalConsultPrompt(
   return `You are a homeopathic clinical decision assistant for Dr. M. A. Haque, M.D. (Homoeo) at "Homoeo Health Care".
 Analyze the patient presentation (English or Bengali).
 
+CRITICAL MEDICAL RULES FOR PATENTS:
+- R-series products (R1 to R89) belong ONLY to Dr. Reckeweg & Co. GmbH (Germany). NEVER attribute R-series to Adel or SBL.
+- NEVER recommend R52 (Vomiting Drops) for Enuresis / Bedwetting. For Enuresis, use Dr. Reckeweg R74 (Enuresis Nocturna Drops) or SBL Drops No. 7 / EnurAid.
+- For Vitiligo / Leucoderma: recommend SBL Babchi Oil, Dr. Reckeweg R60, or Bakson B27.
+- For Vomiting: recommend Dr. Reckeweg R52 (Vomiting Drops).
+- If no verified standard patent formulation exists for the condition, return "patent_formulations": [].
+
 Patient Symptoms: ${symptoms.trim()}
 ${modalities ? `Modalities: ${modalities.trim()}` : ''}
 ${system ? `Affected System: ${system.trim()}` : ''}
@@ -84,20 +91,20 @@ Respond ONLY with valid JSON conforming to:
   ],
   "patent_formulations": [
     {
-      "name": "Full Commercial Product Name (e.g. Dr. Reckeweg R16)",
-      "brand": "Brand (Dr. Reckeweg, Bakson's, SBL, Adel, Wheezal, Schwabe, Medisynth)",
+      "name": "Full Commercial Product Name (e.g. Dr. Reckeweg R74)",
+      "brand": "Dr. Reckeweg / Adel / Bakson's / SBL / Schwabe",
       "company": "Manufacturer Name",
-      "bottle_size": "22 ml Drops or 115 ml Syrup",
+      "bottle_size": "22 ml Drops or 30 ml Drops",
       "indications": "Clinical therapeutic scope",
       "dosage": "10-15 drops in water 3 times daily",
-      "mrp": 250,
-      "aliases": ["r16", "reckeweg 16"]
+      "mrp": 310,
+      "aliases": ["r74", "reckeweg 74"]
     }
   ],
   "diet_and_regimen": "Dietary instructions (e.g. avoid raw onion/camphor)",
   "warning_notes": "Clinical red flags or diagnostic tests"
 }
-Provide 3-4 classical remedies and 4-6 patent formulations.`;
+Provide 3-4 classical remedies and verified patent formulations (or empty [] if none).`;
 }
 
 /**

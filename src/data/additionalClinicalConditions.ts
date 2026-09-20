@@ -1104,5 +1104,408 @@ export const ADDITIONAL_CLINICAL_CONDITIONS: ClinicalCondition[] = [
     ],
     dietAndRegimen: 'Keep ears strictly dry during bathing (use dry cotton with petroleum jelly). Avoid inserting cotton buds, pins, or sharp objects into ear canal. Avoid swimming until eardrum heals.',
     warningNotes: 'If mastoid tenderness, post-auricular swelling, or persistent facial weakness appears, immediately seek ENT consultation.'
+  },
+
+  // 22. VITILIGO & LEUCODERMA (শ্বেতী রোগ ও লিকোডার্মা)
+  {
+    id: 'vitiligo-leucoderma',
+    nameEn: 'Vitiligo, Leucoderma & Pigmentary Disorders',
+    nameBn: 'শ্বেতী রোগ, লিকোডার্মা ও ত্বকের সাদা দাগ',
+    chipLabel: 'Vitiligo / শ্বেতী রোগ',
+    pathology: 'Autoimmune Melanocyte Destruction, Hypopigmentation & Cutaneous Dyscrasia',
+    miasm: 'Syco-Syphilitic with Deep Constitutional Psoric Diathesis',
+    typicalPresentation: 'Progressive depigmented milky-white macules and patches on hands, face, trunk or genitalia without sensation loss',
+    keywords: [
+      'vitiligo', 'leucoderma', 'শ্বেতী', 'শ্বেতকুষ্ঠ', 'সাদা দাগ', 'ত্বকের সাদা দাগ',
+      'white patch', 'white spots', 'depigmentation', 'melanin loss', 'hypopigmentation',
+      'vitiligo vulgaris', 'bason'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Arsenicum Sulphuratum Flavum',
+        commonName: 'Yellow Orpiment',
+        potency: '3X / 6X / 30C',
+        dosage: '2 tablets or 4 pills twice daily after meals',
+        keynotes: [
+          'Pre-eminent specific constitutional simillimum for vitiligo and patchy leucoderma',
+          'Depigmentation with dry, scaly skin and scrofulous or tubercular diathesis',
+          'Gradually stimulates dormant dermal melanocytes to restore natural skin color'
+        ],
+        materiaMedicaNotes: 'Boericke: Leucoderma, squamous skin eruptions, sciatica and constitutional skin dyscrasia. Highly praised by master homoeopaths for vitiligo.',
+        modalities: { worse: 'Cold damp air, night', better: 'Warm applications, dry weather' },
+        aliases: ['ars sulph flav', 'arsenicum sulphuratum flavum', 'yellow orpiment']
+      },
+      {
+        name: 'Hydrocotyle Asiatica',
+        commonName: 'Indian Pennywort (Thankuni)',
+        potency: 'Q (Mother Tincture) / 30C',
+        dosage: '10 drops in water twice daily orally',
+        keynotes: [
+          'Potent action on the malpighian layer of the epidermis, stimulating pigment restoration',
+          'Circumscribed circular spots of skin thickening, depigmentation and exfoliating scales',
+          'Accelerates cutaneous blood perfusion and epidermal regeneration'
+        ],
+        materiaMedicaNotes: 'Boericke: Great remedy for skin diseases, circular spots, epidermal thickening, and pigmentary changes. Psoriasis, erythema, and leucoderma.',
+        modalities: { worse: 'Heat, morning', better: 'Cool bathing' },
+        aliases: ['hydrocotyle', 'hydrocotyle asiatica', 'thankuni']
+      },
+      {
+        name: 'Sepia Officinalis',
+        commonName: 'Inky Juice of Cuttlefish',
+        potency: '200C',
+        dosage: '4 pills once every 3 days in the morning',
+        keynotes: [
+          'Chloasma, saddle-like brown or white discoloration across bridge of nose and face',
+          'Hormonal pigmentary dyscrasia with venous stasis and pelvic relaxation',
+          'Chilly constitution with apathy and constitutional pigmentation anomalies'
+        ],
+        materiaMedicaNotes: 'Kent & Boericke: Brown spots on chest and abdomen, yellow saddle across nose. Leucoderma associated with neuro-endocrine disharmony.',
+        modalities: { worse: 'Cold air, laundry work, dampness', better: 'Vigorous physical exercise, warmth' },
+        aliases: ['sepia', 'sepia officinalis']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'SBL Babchi Oil / Psoralea Corylifolia (External & Drops)',
+        brand: 'SBL',
+        company: 'SBL Pvt. Ltd.',
+        country: 'India',
+        bottleSize: '30 ml / 60 ml Oil & Drops',
+        indications: 'Depigmentation of skin, vitiligo, leucoderma, white patches, accelerates melanin synthesis.',
+        dosage: 'Apply externally over white spots and expose to mild morning sunlight for 10-15 mins; 10-15 drops orally in water twice daily.',
+        mrp: 180,
+        aliases: ['babchi', 'babchi oil', 'psoralea corylifolia', 'sbl babchi', 'vitiligo oil']
+      },
+      {
+        name: 'Dr. Reckeweg R60 (Blood Purifier / Impure Skin)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co. GmbH (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Constitutional blood purifier, deep-seated skin dyscrasias, vitiligo, scrofulous diathesis, stimulates cellular skin metabolism.',
+        dosage: '10-15 drops in water 3 times daily before meals.',
+        mrp: 310,
+        aliases: ['r60', 'r-60', 'reckeweg 60', 'dr reckeweg r60', 'purisan']
+      },
+      {
+        name: 'Bakson Baksoin Drops / B27',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Pigmentary disorders, leucoderma, vitiligo, patchy skin discoloration, stimulates melanocytes and repigmentation.',
+        dosage: '10-15 drops in lukewarm water 3 times daily.',
+        mrp: 210,
+        aliases: ['baksoin', 'b27', 'bakson b27', 'baksoin drops']
+      }
+    ],
+    dietAndRegimen: 'Consume copper-enriched water (stored overnight in copper vessel). Increase intake of green leafy vegetables, figs, walnuts, and carrots. Avoid citrus sour fruits (lemon, tamarind), pickles, vinegar, and artificial food preservatives during treatment.',
+    warningNotes: 'Protect depigmented lesions from severe sunburn. Rule out autoimmune thyroiditis (Hashimoto) and pernicious anemia through serum TSH and Vitamin B12 panels.'
+  },
+
+  // 23. ENURESIS & NOCTURNAL BEDWETTING (শয্যামূত্র ও বিছানায় প্রস্রাব) - STRICTLY NEVER R52!
+  {
+    id: 'enuresis-bedwetting',
+    nameEn: 'Enuresis, Nocturnal Bedwetting & Urinary Incontinence',
+    nameBn: 'শয্যামূত্র, বিছানায় প্রস্রাব ও মূত্র অসাড়তা',
+    chipLabel: 'Enuresis / শয্যামূত্র',
+    pathology: 'Detrusor Muscle Instability, Nocturnal Polyuria & Neurological Bladder Sphincter Weakness',
+    miasm: 'Psoro-Sycotic Diathesis with Neuro-Muscular Atony',
+    typicalPresentation: 'Involuntary urination during sleep at night in children or adults; dreams of urinating, difficult to awaken',
+    keywords: [
+      'enuresis', 'bedwetting', 'bed wetting', 'nocturnal enuresis', 'শয্যামূত্র',
+      'বিছানায় প্রস্রাব', 'বিছানায় প্রস্রাব', 'ঘুমের মধ্যে প্রস্রাব', 'incontinence',
+      'involuntary urination', 'peeing in bed', 'night incontinence', 'bladder weakness'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Causticum',
+        commonName: "Hahnemann's Tinctura Acris Sine Kali",
+        potency: '200C',
+        dosage: '4 pills at bedtime once every 2 days',
+        keynotes: [
+          'Involuntary urination during first sleep; bladder neck weakness and paresis',
+          'Urine passes easily without awareness while coughing, sneezing, or walking',
+          'Sympathetic, anxious children with neuromuscular weakness'
+        ],
+        materiaMedicaNotes: 'Boericke: Involuntary passage of urine when coughing, sneezing, or during the first sleep at night. Weakness of the bladder sphincter.',
+        modalities: { worse: 'Clear fine weather, cold dry wind', better: 'Damp wet weather, warm bed' },
+        aliases: ['causticum', 'caust']
+      },
+      {
+        name: 'Kreosotum',
+        commonName: 'Beechwood Kreosote',
+        potency: '200C',
+        dosage: '4 pills at bedtime in acute cases',
+        keynotes: [
+          'Enuresis during very profound sleep; child is exceedingly difficult to awaken',
+          'Dreams that he is urinating in a decent place or pot, and wakes up wet',
+          'Offensive dark urine with smarting of vulva and genitalia'
+        ],
+        materiaMedicaNotes: 'Kent & Boericke: Can only urinate when lying down. Dreams he is urinating in a proper place. Enuresis during early deep sleep.',
+        modalities: { worse: 'Open air, cold, resting in bed', better: 'Warmth, hot food' },
+        aliases: ['kreosotum', 'kreosote']
+      },
+      {
+        name: 'Equisetum Hyemale',
+        commonName: 'Horsetail / Scouring Rush',
+        potency: '30C',
+        dosage: '4 pills twice daily (evening and bedtime)',
+        keynotes: [
+          'Habitual bedwetting in children with no evident organic cause',
+          'Enuresis associated with night terrors or dreams of urinating',
+          'Dull full ache in bladder not relieved by micturition'
+        ],
+        materiaMedicaNotes: 'Boericke: Principal action on the urinary bladder. Enuresis nocturna in children, when there is no organic disease other than habits. Dysuria.',
+        modalities: { worse: 'Right side, movement, pressure', better: 'After urination, lying down' },
+        aliases: ['equisetum', 'equisetum hyemale', 'horsetail']
+      },
+      {
+        name: 'Cina Maritima',
+        commonName: 'Wormseed',
+        potency: '30C / 200C',
+        dosage: '4 pills twice daily in children with parasite history',
+        keynotes: [
+          'Bedwetting associated with intestinal worm infestation (Enterobius/Oxyuris)',
+          'Child grinds teeth in sleep, picks at nose, irritable and restless at night',
+          'Turbid white urine turning milky on standing'
+        ],
+        materiaMedicaNotes: 'Boericke: Twitching of facial muscles and nocturnal enuresis associated with worms. Involuntary urination at night in cross, irritable children.',
+        modalities: { worse: 'Touch, looking at him, night', better: 'Lying on abdomen' },
+        aliases: ['cina', 'cina maritima']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R74 (Enuresis Nocturna Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co. GmbH (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Nocturnal enuresis in children, bedwetting, bladder weakness, nervous bladder incontinence. (Strictly for nocturnal enuresis).',
+        dosage: '10-15 drops in 1/4 glass of water before bedtime and twice during the day.',
+        mrp: 310,
+        aliases: ['r74', 'r-74', 'reckeweg 74', 'dr reckeweg r74', 'nocturnisan']
+      },
+      {
+        name: 'SBL Drops No. 7 / EnurAid',
+        brand: 'SBL',
+        company: 'SBL Pvt. Ltd.',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Nocturnal enuresis, involuntary bedwetting in children, diurnal incontinence, weak bladder sphincter.',
+        dosage: '10-15 drops in water 3 times daily; last dose at bedtime.',
+        mrp: 175,
+        aliases: ['sbl drops 7', 'sbl drops no 7', 'enuraid', 'sbl enuraid', 'enuresis drops']
+      },
+      {
+        name: 'Bakson B45 Enuresis Drops',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Bedwetting, nocturnal enuresis during deep sleep, nervous incontinence in children and elders.',
+        dosage: '10-15 drops in water 3 times daily.',
+        mrp: 200,
+        aliases: ['b45', 'bakson b45', 'enuresis drops b45']
+      }
+    ],
+    dietAndRegimen: 'Restrict fluids 2 hours before bedtime. Empty bladder strictly twice before sleeping (double-voiding). Wake child up once at night around 2 AM to void. Avoid sugary sodas, dairy milk, and cold watermelon in the late evening.',
+    warningNotes: 'If associated with painful burning micturition, fever, or day-time dribbling, perform urine routine and culture to exclude urinary tract infection or posterior urethral valve.'
+  },
+
+  // 24. VOMITING, NAUSEA & MOTION SICKNESS (বমি ও মোশন সিকনেস)
+  {
+    id: 'vomiting-nausea',
+    nameEn: 'Vomiting, Nausea & Motion Sickness',
+    nameBn: 'বমি, বমি ভাব ও মোশন সিকনেস (গাড়ি চড়লে বমি)',
+    chipLabel: 'Vomiting / বমি ভাব',
+    pathology: 'Gastric Irritation, Vestibular Reflex Emesis, Hyperemesis Gravidarum',
+    miasm: 'Acute Psoric with Reflex Autonomic Dysregulation',
+    typicalPresentation: 'Persistent nausea, violent retching, vomiting of food or bile, motion sickness during travel in car or boat',
+    keywords: [
+      'vomiting', 'nausea', 'motion sickness', 'travel sickness', 'morning sickness',
+      'বমি', 'বমি ভাব', 'বমি বমি ভাব', 'গাড়ি চড়লে বমি', 'গাড়ি চড়লে বমি', 'hyperemesis',
+      'seasickness', 'car sickness', 'retching'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Ipecacuanha',
+        commonName: 'Ipecac Root',
+        potency: '30C',
+        dosage: '4 pills every 1-2 hours in acute nausea and vomiting',
+        keynotes: [
+          'Persistent constant nausea not relieved for a moment even by vomiting',
+          'Clean, red, uncoated tongue despite constant violent retching and salivation',
+          'Empty stomach vomiting, gastro-enteritis, nausea from dietary indiscretion'
+        ],
+        materiaMedicaNotes: 'Boericke: Master remedy for persistent nausea and vomiting, which does not relieve. Clean tongue, profuse salivation.',
+        modalities: { worse: 'Periodically, warm moist winds, lying down', better: 'Open fresh air' },
+        aliases: ['ipecac', 'ipecacuanha']
+      },
+      {
+        name: 'Tabacum',
+        commonName: 'Tobacco',
+        potency: '30C',
+        dosage: '4 pills dissolved in water before and during travel',
+        keynotes: [
+          'Incessant deathly nausea and motion sickness with cold clammy perspiration',
+          'Terrible sinking sensation in pit of stomach; relieved by uncovering the abdomen',
+          'Relieved by fresh cold air, opening the window of moving car or boat'
+        ],
+        materiaMedicaNotes: 'Boericke: Incessant nausea, vomiting, icy coldness and sweat. Seasickness, car sickness. Patient wants abdomen uncovered and cool fresh air.',
+        modalities: { worse: 'Least motion, heat, tobacco smoke', better: 'Open cool air, uncovering abdomen' },
+        aliases: ['tabacum', 'tobacco']
+      },
+      {
+        name: 'Cocculus Indicus',
+        commonName: "Indian Cockle / Fisher's Berries",
+        potency: '30C / 200C',
+        dosage: '4 pills before travel or every 2 hours in vertigo and nausea',
+        keynotes: [
+          'Nausea and motion sickness from riding in cars, carriages, boats, or trains',
+          'Sickness aggravated by loss of sleep, night nursing, or watching over sick',
+          'Nausea at thought or smell of food, accompanied by dizzy whirling vertigo'
+        ],
+        materiaMedicaNotes: 'Kent & Boericke: Affections caused by the motion of a carriage, swing, or car; seasickness. Nausea with faintness and vomiting.',
+        modalities: { worse: 'Motion of vehicle, lack of sleep, cold drafts', better: 'Lying quiet in dark warm room' },
+        aliases: ['cocculus', 'cocculus indicus']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R52 (Vomiting Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co. GmbH (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Nausea, vomiting of pregnancy (hyperemesis gravidarum), motion sickness, travel sickness, acute gastritis.',
+        dosage: '10-15 drops in water every 1-2 hours in acute vomiting, then 3 times daily.',
+        mrp: 310,
+        aliases: ['r52', 'r-52', 'reckeweg 52', 'dr reckeweg r52', 'vomisan']
+      },
+      {
+        name: 'Bakson B33 Vomiting Drops / Vomitaid',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Nausea, vomiting, motion sickness, gastroduodenal reflex and nausea after dietary indiscretions.',
+        dosage: '10-15 drops in water 3 times daily.',
+        mrp: 190,
+        aliases: ['b33', 'bakson b33', 'vomitaid']
+      },
+      {
+        name: 'Dr. Reckeweg R29 (Vertigo & Motion Sickness Drops)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co. GmbH (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Vertigo, travel dizziness, motion sickness, Meniere syndrome with nausea.',
+        dosage: '10-15 drops in water 3 times daily.',
+        mrp: 310,
+        aliases: ['r29', 'r-29', 'reckeweg 29', 'theridon']
+      }
+    ],
+    dietAndRegimen: 'Sip oral rehydration salts (ORS) or electrolyte water slowly in teaspoonfuls. Ginger tea or sucked ice chips calm vomiting reflex. Avoid heavy greasy food and strong odors.',
+    warningNotes: 'In hyperemesis gravidarum or intractable vomiting with severe dehydration (sunken eyes, ketonuria, hypotension), refer for urgent IV hydration.'
+  },
+
+  // 25. MEMORY, BRAIN EXHAUSTION & MENTAL FATIGUE (স্মৃতিশক্তি হ্রাস ও ব্রেন ফগ)
+  {
+    id: 'memory-mental-fatigue',
+    nameEn: 'Memory Loss, Brain Exhaustion & Mental Fatigue',
+    nameBn: 'স্মৃতিশক্তি হ্রাস, ব্রেন ফগ ও মানসিক অবসাদ',
+    chipLabel: 'Memory / স্মৃতিশক্তি',
+    pathology: 'Cerebral Neurasthenia, Cognitive Fatigue & Intellectual Overwork',
+    miasm: 'Psoro-Tubercular Diathesis with Nervous Atony',
+    typicalPresentation: 'Forgetfulness, inability to concentrate, brain fog in students during exams, mental fatigue in professionals and elderly',
+    keywords: [
+      'memory', 'brain exhaustion', 'mental fatigue', 'forgetfulness', 'brain fog',
+      'স্মৃতিশক্তি', 'মনে থাকে না', 'মানসিক ক্লান্তি', 'ব্রেন ফগ', 'পড়া মনে থাকে না',
+      'intellectual exhaustion', 'lack of concentration'
+    ],
+    classicalRemedies: [
+      {
+        name: 'Anacardium Orientale',
+        commonName: 'Marking Nut',
+        potency: '200C',
+        dosage: '4 pills twice weekly in the morning',
+        keynotes: [
+          'Sudden complete loss of memory from over-study, mental strain, or anxiety',
+          'Examination funk; students unable to remember what they prepared so well',
+          'Internal conflict, irritability, relieved temporarily while eating'
+        ],
+        materiaMedicaNotes: 'Boericke: Master remedy for loss of memory, brain-fag, nervous exhaustion in students and mental workers. Symptoms disappear while eating.',
+        modalities: { worse: 'Mental exertion, empty stomach, cold', better: 'While eating, warmth' },
+        aliases: ['anacardium', 'anacardium orientale']
+      },
+      {
+        name: 'Kali Phosphoricum',
+        commonName: 'Phosphate of Potassium',
+        potency: '6X / 30C',
+        dosage: '4 tablets or 4 pills 3 times daily in warm water',
+        keynotes: [
+          'Sovereign nerve and brain nutrient for brain fag, intellectual exhaustion and neurasthenia',
+          'Memory weak, cannot bear mental labor, headaches with nervous dread',
+          'Relieves mental prostration, night terrors, and muscular weakness'
+        ],
+        materiaMedicaNotes: 'Boericke & Schussler: One of the greatest nerve remedies. Prostration, mental and physical depression from overwork and worry. Brain fag.',
+        modalities: { worse: 'Mental exertion, cold, worry', better: 'Warmth, rest, nourishment' },
+        aliases: ['kali phos', 'kali phosphoricum']
+      },
+      {
+        name: 'Baryta Carbonica',
+        commonName: 'Carbonate of Barium',
+        potency: '30C / 200C',
+        dosage: '4 pills twice weekly in seniors or slow-developing children',
+        keynotes: [
+          'Weakness of memory in elderly individuals with cerebral arteriosclerosis',
+          'Slow mental comprehension, bashful children with dwarfish physical and mental development',
+          'Frequent throat catarrh and chronically enlarged tonsils'
+        ],
+        materiaMedicaNotes: 'Boericke: Memory deficient; forgetful, inattentive. Specially indicated in infancy and old age. Senile mental decay.',
+        modalities: { worse: 'Cold damp air, thinking of symptoms', better: 'Walking in open air' },
+        aliases: ['baryta carb', 'baryta carbonica']
+      }
+    ],
+    patentFormulations: [
+      {
+        name: 'Dr. Reckeweg R54 (Cerebral / Intellectual Exhaustion)',
+        brand: 'Dr. Reckeweg',
+        company: 'Dr. Reckeweg & Co. GmbH (Germany)',
+        country: 'Germany',
+        bottleSize: '22 ml Drops',
+        indications: 'Mental fatigue, intellectual exhaustion, lack of concentration, memory loss, brain fog in students and seniors.',
+        dosage: '10-15 drops in quarter cup water 3 times daily.',
+        mrp: 310,
+        aliases: ['r54', 'r-54', 'reckeweg 54', 'dr reckeweg r54', 'cerebrol']
+      },
+      {
+        name: 'SBL Brahmi / Ginkgo Biloba Drops',
+        brand: 'SBL',
+        company: 'SBL Pvt. Ltd.',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Cognitive enhancer, sharpens memory, relieves cerebral fatigue, nervousness and mental strain.',
+        dosage: '10-15 drops in water twice daily.',
+        mrp: 195,
+        aliases: ['brahmi drops', 'ginkgo drops', 'sbl brahmi', 'brahmi']
+      },
+      {
+        name: 'Bakson B62 Memory Drops',
+        brand: "Bakson's",
+        company: 'Bakson Drugs & Pharmaceuticals',
+        country: 'India',
+        bottleSize: '30 ml Drops',
+        indications: 'Weak memory, mental dullness, forgetfulness, brain exhaustion from prolonged study or work.',
+        dosage: '10-15 drops in water 3 times daily.',
+        mrp: 210,
+        aliases: ['b62', 'bakson b62', 'memory drops']
+      }
+    ],
+    dietAndRegimen: 'Adequate sleep (7-8 hours). Daily consumption of soaked almonds, walnuts, pumpkin seeds and fresh berries. Take short breaks during intense mental work. Practice deep diaphragmatic breathing (pranayama) outdoors.',
+    warningNotes: 'If memory impairment is rapidly progressive with disorientation or motor tremors, evaluate for dementia or neurological conditions.'
   }
 ];
+

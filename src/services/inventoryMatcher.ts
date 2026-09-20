@@ -303,12 +303,12 @@ export function checkMedicineStock(
   aliases?: string[]
 ): MedicineStockStatus {
   if (!remedyName) {
-    return { found: false, inStock: false, current_stock: 0, rack_location: 'N/A' };
+    return { found: false, inStock: false, current_stock: 0, rack_location: '' };
   }
 
   const list = inventoryList || getActiveCachedInventory();
   if (!list || list.length === 0) {
-    return { found: false, inStock: false, current_stock: 0, rack_location: 'N/A' };
+    return { found: false, inStock: false, current_stock: 0, rack_location: '' };
   }
 
   const normTargetPotency = normalizePotency(potency);
@@ -321,7 +321,7 @@ export function checkMedicineStock(
       found: false,
       inStock: false,
       current_stock: 0,
-      rack_location: 'N/A'
+      rack_location: ''
     };
   }
 
@@ -338,8 +338,8 @@ export function checkMedicineStock(
       return {
         found: true,
         inStock: hasStock,
-        current_stock: exactPotencyMatch.current_stock,
-        rack_location: exactPotencyMatch.rack_location || 'General Shelf',
+        current_stock: hasStock ? exactPotencyMatch.current_stock : 0,
+        rack_location: hasStock ? (exactPotencyMatch.rack_location || '').trim() : '',
         matchedName: exactPotencyMatch.medicine_name,
         matchedPotency: exactPotencyMatch.potency,
         potencyMatched: true,
@@ -356,7 +356,7 @@ export function checkMedicineStock(
       found: true,
       inStock: true,
       current_stock: inStockCandidate.current_stock,
-      rack_location: inStockCandidate.rack_location || 'General Shelf',
+      rack_location: (inStockCandidate.rack_location || '').trim(),
       matchedName: inStockCandidate.medicine_name,
       matchedPotency: inStockCandidate.potency,
       potencyMatched: Boolean(normTargetPotency && normalizePotency(inStockCandidate.potency) === normTargetPotency),
@@ -370,7 +370,7 @@ export function checkMedicineStock(
     found: true,
     inStock: false,
     current_stock: 0,
-    rack_location: firstMatch.rack_location || 'General Shelf',
+    rack_location: '', // strictly no fake rack number when out of stock
     matchedName: firstMatch.medicine_name,
     matchedPotency: firstMatch.potency,
     potencyMatched: Boolean(normTargetPotency && normalizePotency(firstMatch.potency) === normTargetPotency),
@@ -399,14 +399,17 @@ export function getActiveCachedInventory(): ActiveInventoryRecord[] {
 }
 
 function mapLocalToActiveRecord(item: InventoryItem): ActiveInventoryRecord {
+  const stock = Number(item.stock_quantity ?? (item as any).current_stock ?? 0);
+  const cleanStock = isNaN(stock) || stock < 0 ? 0 : stock;
+
   return {
     id: item.id,
     medicine_name: item.medicine_name,
     potency: item.potency || '',
     category: item.category,
     bottle_size: item.bottle_size,
-    current_stock: item.stock_quantity ?? (item as any).current_stock ?? 0,
-    rack_location: item.rack_location || 'General Shelf',
+    current_stock: cleanStock,
+    rack_location: (item.rack_location || '').trim(),
     mrp: item.mrp,
     manufacturer: (item as any).manufacturer || (item as any).company_name || item.company || '',
     company: item.company || (item as any).manufacturer || '',
@@ -416,14 +419,16 @@ function mapLocalToActiveRecord(item: InventoryItem): ActiveInventoryRecord {
 
 function mapSupabaseRowToActiveRecord(row: any): ActiveInventoryRecord {
   const stock = Number(
-    row.current_stock !== undefined && row.current_stock !== null
-      ? row.current_stock
-      : (row.stock_qty !== undefined && row.stock_qty !== null
-        ? row.stock_qty
-        : (row.stock_quantity !== undefined && row.stock_quantity !== null
-          ? row.stock_quantity
+    row.stock_quantity !== undefined && row.stock_quantity !== null
+      ? row.stock_quantity
+      : (row.current_stock !== undefined && row.current_stock !== null
+        ? row.current_stock
+        : (row.stock_qty !== undefined && row.stock_qty !== null
+          ? row.stock_qty
           : 0))
   );
+
+  const cleanStock = isNaN(stock) || stock < 0 ? 0 : stock;
 
   return {
     id: row.id || `inv-${Math.random()}`,
@@ -431,8 +436,8 @@ function mapSupabaseRowToActiveRecord(row: any): ActiveInventoryRecord {
     potency: row.potency || '',
     category: row.category,
     bottle_size: row.bottle_size,
-    current_stock: isNaN(stock) ? 0 : stock,
-    rack_location: row.rack_location || 'General Shelf',
+    current_stock: cleanStock,
+    rack_location: (row.rack_location || '').trim(),
     mrp: Number(row.mrp) || 0,
     manufacturer: row.manufacturer || row.company || '',
     company: row.company || row.manufacturer || '',
@@ -456,22 +461,22 @@ export function useRealtimeInventory() {
     try {
       const supabase = getSupabase();
       if (supabase) {
-        // Strategy A: Primary medicines table (used by InventoryManager)
-        const medRes = await supabase
-          .from('medicines')
-          .select('*')
-          .order('name', { ascending: true });
+        // Strategy 1: Real Supabase 'inventory' table as specified in database schema
+        const invRes = await supabase
+          .from('inventory')
+          .select('*');
 
-        if (!medRes.error && medRes.data) {
-          items = medRes.data.map(mapSupabaseRowToActiveRecord);
+        if (!invRes.error && invRes.data && invRes.data.length > 0) {
+          items = invRes.data.map(mapSupabaseRowToActiveRecord);
         } else {
-          // Strategy B: Fallback to inventory table if medicines table is unavailable
-          const invRes = await supabase
-            .from('inventory')
-            .select('*');
+          // Strategy 2: Fallback to 'medicines' table if 'inventory' is not yet populated
+          const medRes = await supabase
+            .from('medicines')
+            .select('*')
+            .order('name', { ascending: true });
 
-          if (!invRes.error && invRes.data && invRes.data.length > 0) {
-            items = invRes.data.map(mapSupabaseRowToActiveRecord);
+          if (!medRes.error && medRes.data && medRes.data.length > 0) {
+            items = medRes.data.map(mapSupabaseRowToActiveRecord);
           }
         }
       }
