@@ -18,7 +18,8 @@ import {
   CalendarCheck,
   Copy,
   Check,
-  X
+  X,
+  PackageCheck
 } from 'lucide-react';
 import { Appointment, ShiftType } from '../types';
 import { createAppointment, getAppointments, subscribeToStore } from '../services/clinicStore';
@@ -139,26 +140,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked, onO
                   <span>WhatsApp: 9933506514</span>
                 </a>
               </div>
-
-              {/* Trust Badges - Relocated below action buttons */}
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-2 sm:pt-3">
-                <div className="px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xs flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
-                  <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-[10px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Zero Side-Effects</span>
-                </div>
-                <div className="px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xs flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
-                  <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-[10px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Root-Cause Cure</span>
-                </div>
-                <div className="px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xs flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
-                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span className="text-[10px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Personalized Care</span>
-                </div>
-              </div>
             </div>
 
             {/* Right Card: Doctor Profile & Highlights */}
-            <div className="lg:col-span-5">
+            <div className="lg:col-span-5 space-y-3">
               <div className="p-5 sm:p-7 md:p-8 rounded-2xl bg-white dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xl shadow-emerald-950/5 relative">
                 <div className="flex items-center gap-3.5 sm:gap-5 pb-5 border-b border-slate-100 dark:border-slate-700">
                   <div className="w-24 h-32 sm:w-28 sm:h-36 rounded-2xl overflow-hidden bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white flex items-center justify-center font-bold text-2xl shadow-sm shrink-0 border-2 border-emerald-100 dark:border-emerald-800">
@@ -212,6 +197,61 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ onAppointmentBooked, onO
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
                   <span className="font-medium text-slate-600 dark:text-slate-300">Consultation Shifts</span>
                   <span className="font-semibold text-emerald-800 dark:text-emerald-300">Morning & Evening (Sat–Thu)</span>
+                </div>
+              </div>
+
+              {/* Trust Badges - Relocated directly underneath Doctor Profile Card */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <div className="px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xs flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
+                  <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Zero Side Effects</span>
+                </div>
+                <div className="px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xs flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
+                  <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Root-Cause Cure</span>
+                </div>
+                <div className="px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/90 dark:bg-slate-800/90 border border-emerald-950/10 dark:border-slate-700 shadow-xs flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
+                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">Personalized Care</span>
+                </div>
+              </div>
+
+              {/* Homoeo Pharmacy & Cosmetics Showcase - Positioned below badges */}
+              <div 
+                id="hero-pharmacy-cosmetics-showcase"
+                className="bg-gradient-to-br from-emerald-50 via-teal-50/50 to-emerald-100/40 dark:from-emerald-950/40 dark:via-slate-900 dark:to-emerald-900/30 border-2 border-emerald-300 dark:border-emerald-700/80 shadow-md rounded-2xl p-4 text-center space-y-2.5"
+              >
+                <div>
+                  <div className="inline-flex items-center justify-center gap-1.5 text-xs sm:text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                    <PackageCheck className="w-4.5 h-4.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                    <span>Original German & Branded Homoeo Medicines</span>
+                  </div>
+                  <p className="text-xs sm:text-[13px] text-slate-700 dark:text-slate-300 font-medium mt-1 leading-relaxed">
+                    100% Genuine German Sealed Dilutions, Mother Tinctures, Biochemic & Leading Indian Brands Available.
+                  </p>
+                </div>
+
+                <div className="pt-2.5 border-t border-emerald-200/80 dark:border-emerald-800/80 space-y-2">
+                  <div className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                    Specialized Homoeo Personal Care & Cosmetics
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+                    {[
+                      'Medicated Soaps',
+                      'Anti-Dandruff & Nourishing Shampoos',
+                      'Herbal Hair Oils',
+                      'Natural Henna & Hair Packs',
+                      'Skin & Face Care Creams'
+                    ].map((item) => (
+                      <span
+                        key={item}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-medium bg-white dark:bg-slate-800 text-emerald-900 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 shadow-2xs whitespace-nowrap"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        <span>{item}</span>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
